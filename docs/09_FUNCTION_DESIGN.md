@@ -18,32 +18,15 @@
 
 ## 3. FUNC-003 半荘結果入力
 
-3人三麻:
-- 半荘結果対象は3人
-- 順位順に3人を入力
-- 2位/3位のScore Pointを入力
-- 1位のScore Pointは自動計算
-
-4人回し三麻:
-- 局ごとの着席は3人、待機は1人
-- 局単位のローテーションはアプリ管理外
-- 半荘結果対象は4人
-- 順位順に4人を入力
-- 2位/3位/4位のScore Pointを入力
-- 1位のScore Pointは自動計算
-
-Score Point:
-- Userは最終持点ではなくScore Pointを直接入力
-- 符計算は行わず、100点単位は扱わない
-- 1point=1,000点として整数Score Pointを入力
-- 1位 = -(2位以下の合計)
-- Game全体のScore Point合計は0
+Score Sheet入力:
+- 3人三麻はPlayer固定3列、4人回し三麻はPlayer固定4列
+- Game = Score Sheetの1行
+- Userは任意のN-1人分の整数Score Pointを直接入力
+- 残り1人は合計0になるよう自動計算
+- 順位選択・順位並べ替えは行わない
+- 1point=1,000点、符計算・100点単位・小数は扱わない
 - 負値を許可
-
-Rank:
-- Playerの入力順 = rank
-- Score Pointが同じでも入力順を優先
-- Score値からrankを再計算しない
+- 保存済みGameはPlayer列に対応させて表示し、既存Game data shapeを維持
 
 ## 4. Runtime Domain / Persistence
 
@@ -58,13 +41,13 @@ Issue #20で以下を実装する。
 
 ## 5. Application / UI Connection
 
-Issue #23でActive Sessionから半荘結果入力を接続する。
+Issue #25でProduction実機レビューを反映する。
 
-- 順位順Playerを上下操作で並べ替える
-- 2位以下だけ整数Score Pointを入力する
-- 1位はDomain計算結果をpreviewする
-- AddGameResultUseCaseがcurrent ParticipantSegmentを解決しGame sequence / ID / playedAtを付与する
-- 保存後はSession内Game履歴とPlayer別麻雀ポイント累計を再読込する
+- Active Session自体をScore Sheetとして表示
+- Playerを固定列、Gameを行として表示
+- 新規行の任意N-1セルへ入力し、残り1セルを自動計算
+- 保存後は同じ表へ行を追加し、小計を更新
+- 対局中はGroup / Member追加UIを表示しない
 - GameTag / Chip / Session終了 / 訂正削除は別Feature
 
 ## 6. Implementation Acceptance Criteria

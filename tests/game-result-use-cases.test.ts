@@ -68,7 +68,7 @@ class SequenceIds implements IdGenerator {
   generate(): string { this.index += 1; return "game-" + this.index; }
 }
 
-test("add game result calculates first place and increments sequence", async () => {
+test("add game result calculates the one omitted score and increments sequence", async () => {
   const games = new FakeGameRepository();
   games.games.push({
     id: "old", sessionId: "s1", segmentId: "seg1", sequence: 2,
@@ -86,8 +86,7 @@ test("add game result calculates first place and increments sequence", async () 
   );
   const result = await useCase.execute({
     sessionId: "s1",
-    rankedPlayerIds: ["p2", "p1", "p3"],
-    lowerRankScorePoints: [2, -7],
+    scorePointsByPlayer: { p1: 2, p2: null, p3: -7 },
   });
 
   assert.equal(result.ok, true);
@@ -95,25 +94,24 @@ test("add game result calculates first place and increments sequence", async () 
   assert.equal(result.value.sequence, 3);
   assert.equal(result.value.segmentId, "seg1");
   assert.deepEqual(result.value.results, [
-    { playerId: "p2", scorePoint: 5 },
     { playerId: "p1", scorePoint: 2 },
+    { playerId: "p2", scorePoint: 5 },
     { playerId: "p3", scorePoint: -7 },
   ]);
 });
 
-test("add game result rejects a ranking that does not match current participants", async () => {
+test("add game result rejects score-sheet players that do not match current participants", async () => {
   const games = new FakeGameRepository();
   const result = await new AddGameResultUseCase(
     games, new FakeSessionRepository(), new SequenceIds(), new FixedClock(),
   ).execute({
     sessionId: "s1",
-    rankedPlayerIds: ["p1", "p2", "other"],
-    lowerRankScorePoints: [2, -7],
+    scorePointsByPlayer: { p1: 2, p2: null, other: -7 },
   });
 
   assert.equal(result.ok, false);
   assert.equal(games.games.length, 0);
-  if (!result.ok) assert.equal(result.error.code, "game_ranked_players_invalid");
+  if (!result.ok) assert.equal(result.error.code, "game_score_players_invalid");
 });
 
 test("list games by session delegates to repository", async () => {

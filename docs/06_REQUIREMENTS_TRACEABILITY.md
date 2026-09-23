@@ -12,7 +12,7 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-003 | 参加者構成履歴 | FUNC-002, DATA-005 | #6/#8/#10/#12 | ParticipantSegment | automated tests | ACTIVE |
 | REQ-004 | 半荘結果対象3/4人 | FUNC-003, SCR-004, DATA Game semantics | #14/#20/#23 | Domain + persistence + React UI | automated tests + UI review | ACTIVE |
 | REQ-005 | Integer Score Point / 1point=1,000点 / 合計0 | FUNC-003, SCR-004, DATA score decisions | #14/#16/#20/#23 | GameResult.scorePoint + score domain + repository + UI | score/domain/repository/use-case tests | ACTIVE |
-| REQ-006 | input order rank / first place auto score | FUNC-003, SCR-004, DATA result order | #14/#20/#23 | createRankedGameResults + ranked UI + Game.results order | score/use-case tests | ACTIVE |
+| REQ-006 | N-1セル直接入力 / 残り1セル自動計算 | FUNC-003, SCR-004, DATA result | #14/#20/#23/#25 | score-sheet Domain helper + direct-entry UI | score/use-case tests + smartphone review | ACTIVE |
 | REQ-007 | 負Score Point許可 | FUNC-003, DATA invariant | #14/#20 | integer score validation | score unit tests | ACTIVE |
 | REQ-008 | Chip合計0 | DATA-009 | #6/#10 | validateChipResults | domain test / CI | ACTIVE |
 | REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI | ACTIVE |
@@ -22,10 +22,10 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 
 Human decisions completed:
 - TBD-001 Resolved: UserはScore Pointを直接入力。符計算なし、100点単位なし、1point=1,000点の整数入力
-- TBD-002 Resolved: Player入力順を順位として扱い、同じScore Pointでも順序を維持
+- TBD-002 Superseded by Issue #25 Production review: UIでは順位を入力せず、Player固定列の任意N-1セルへScore Pointを直接入力
 - 4人回し三麻は半荘結果4人分
 
-FUNC-003のScore Domain / Game persistenceはIssue #20、React半荘結果入力UIとSession内履歴/累計はIssue #23で接続。
+FUNC-003のScore Domain / Game persistenceはIssue #20、初回React UIはIssue #23。Production実機レビューを受けIssue #25で紙の得点記録表型の直接入力UIへ再設計する。
 
 ## 4. Model Gap Resolution
 

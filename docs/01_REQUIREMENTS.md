@@ -36,8 +36,8 @@ Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定
 
 Human確認済み:
 - 入力する数値は最終持点ではなくScore Point
-- 100点相当は0.1pointとして入力できる
-- App側で1,000点単位への丸めは行わない
+- 符計算は行わず、100点単位は扱わない
+- 1point = 1,000点としてScore Pointは整数で入力する
 - Playerの入力順がそのまま順位を表す
 - 同じScore Pointでも入力順で順位を判定するため、Score値からTie-breakしない
 - 1位PlayerのScore Pointは入力せず、残りPlayerのScore Point合計の符号反転で自動計算する
@@ -50,19 +50,19 @@ Human確認済み:
 入力順 = 1位 → 2位 → 3位 → 4位
 
 1位 A: [自動]
-2位 B: +3.2
-3位 C: -8.4
-4位 D: -15.1
+2位 B: +3
+3位 C: -8
+4位 D: -15
 
-1位 A = +20.3
-合計 = 0.0
+1位 A = +20
+合計 = 0
 ```
 
 同点例:
 ```text
-1位 A: +10.0
-2位 B: +10.0
-3位 C: -20.0
+1位 A: +10
+2位 B: +10
+3位 C: -20
 
 AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 ```
@@ -75,7 +75,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | REQ-002 | Sessionは日付と別Entityとし同日複数Sessionを許可 | Must | Session IDで個別管理できる | Active |
 | REQ-003 | Session内の参加者構成変更を履歴として保持 | Must | ParticipantSegmentでGameとの対応を保持 | Active |
 | REQ-004 | Game結果はSessionの方式に応じ3人または4人分を扱う | Must | 3人三麻=3人、4人回し三麻=4人 | Active |
-| REQ-005 | Score Pointを0.1point単位で入力し、1Game合計0にする | Must | manual inputs + auto top = 0.0 | Active |
+| REQ-005 | 1point=1,000点の整数Score Pointを入力し、1Game合計0にする | Must | manual inputs + auto top = 0 | Active |
 | REQ-006 | 入力順を順位とし、1位Scoreは残りから自動計算する | Must | 同Scoreでも入力順で順位確定 | Active |
 | REQ-007 | 負Score Pointを許可する | Must | negative score pointを拒否しない | Active |
 | REQ-008 | ChipはSession終了時にPlayer別net枚数を入力し合計0を必須とする | Must | balance validation | Active |
@@ -126,7 +126,7 @@ Phase 1:
 
 | ID | 論点 | 決定者 | 状態 |
 | --- | --- | --- | --- |
-| TBD-001 | 100点単位の端数処理 | Human | Resolved: Score Pointを0.1単位で入力、丸めなし |
+| TBD-001 | 100点単位の端数処理 | Human | Resolved: 符計算なし。100点単位は扱わず、1point=1,000点の整数入力 |
 | TBD-002 | 同点Top / rank処理 | Human | Resolved: 入力順を順位として保持 |
 | TBD-003 | 確定Sessionの再編集/訂正 | Human | Open |
 | TBD-004 | 離脱PlayerのChip精算運用 | Human | Open |

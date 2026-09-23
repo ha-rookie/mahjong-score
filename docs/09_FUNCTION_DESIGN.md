@@ -34,10 +34,10 @@
 
 Score Point:
 - Userは最終持点ではなくScore Pointを直接入力
-- 0.1point単位を許可
-- Appで丸めない
+- 符計算は行わず、100点単位は扱わない
+- 1point=1,000点として整数Score Pointを入力
 - 1位 = -(2位以下の合計)
-- Game全体のScore Point合計は0.0
+- Game全体のScore Point合計は0
 - 負値を許可
 
 Rank:
@@ -51,11 +51,11 @@ Rank:
 - Result Player集合がParticipantSegmentと一致
 - result orderを保持
 - 1位Scoreのmanual input不要
-- 0.1point単位をlossなく扱う
+- Score Pointを整数として扱う
 - 1Game合計0
 - duplicate Player拒否
 - missing / extra Player拒否
-- Unit Testで3人/4人/同Score/負値/小数を確認
+- Unit Testで3人/4人/同Score/負値/整数を確認
 
 ## 5. Phase 1 Vertical Slice
 

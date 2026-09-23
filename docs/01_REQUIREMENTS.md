@@ -130,7 +130,7 @@ Phase 1:
 | --- | --- | --- | --- |
 | TBD-001 | 100点単位の端数処理 | Human | Resolved: 符計算なし。100点単位は扱わず、1point=1,000点の整数入力 |
 | TBD-002 | 同点Top / rank処理 | Human | Resolved: 入力順を順位として保持 |
-| TBD-003 | 確定Sessionの再編集/訂正 | Human | Open |
+| TBD-003 | 確定Sessionの再編集/訂正 | Human | Resolved: Phase 1は確定前ResultsからActiveへ戻して訂正可能。finalized後の訂正は将来検討 |
 | TBD-004 | 離脱PlayerのChip精算運用 | Human | Open |
 | TBD-005 | Phase 1で複数Groupを扱うUI | Human | Open |
 

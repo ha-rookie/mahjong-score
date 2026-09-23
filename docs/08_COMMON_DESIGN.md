@@ -1,121 +1,56 @@
 # 共通設計
 
 ## 1. 目的
-各機能で重複実装しない横断機能とReact共通Componentの責務を定義する。
+各Featureで重複実装しない横断契約とReact共通Componentの責務を定義する。
 
-## 2. 共通Layer
+## 2. Shared Foundation
 
-```text
-src/
-├─ components/
-│  ├─ ui/
-│  └─ layout/
-├─ shared/
-│  ├─ auth/
-│  ├─ authorization/
-│  ├─ logging/
-│  ├─ validation/
-│  ├─ errors/
-│  ├─ api/
-│  ├─ security/
-│  └─ observability/
-├─ features/
-├─ domain/
-├─ application/
-└─ infrastructure/
-```
+| COM ID | Contract | Responsibility | Template Candidate |
+| --- | --- | --- | --- |
+| COM-001 | AppError | Error code / internal message / user message / retryable | Yes |
+| COM-002 | Result<T> | Success/Failureを明示 | Yes |
+| COM-003 | ValidationResult | validation issueの共通表現 | Yes |
+| COM-004 | Logger | debug/info/warn/error contract | Yes |
+| COM-005 | NoopLogger | Logging未導入Phaseの安全な差替え | Yes |
+| COM-006 | Repository Ports | Persistence実装の差替え境界 | PatternとしてYes |
 
-物理配置の正本は `04_REPOSITORY_STRUCTURE.md`。
+shared packageは麻雀Domainに依存させない。
 
 ## 3. React共通Component
 
-Template候補:
-- Button / IconButton
-- TextField / NumberField / Select
-- Card / Section
-- Dialog / Sheet
-- Toast / Alert
-- EmptyState
-- AppHeader / BottomNavigation
-- Stat / List / Table shell
-- Loading / Error
-- PermissionGate
-- ErrorBoundary
+Template候補: Button / Field / Card / Dialog / Toast / EmptyState / Header / Navigation / Loading / Error / PermissionGate / ErrorBoundary。
 
-原則:
-- 麻雀Domainに依存しない
-- Propsで状態・variant・sizeを表現する
-- accessibilityをComponent契約に含める
-- 共通化のための例外Propsを増殖させない
+UI Componentは別IssueでShowcaseとともに実装する。
 
 ## 4. Authentication / Authorization
 
-AuthenticationとAuthorizationを分離する。
+Phase 1: Runtime authなし。
 
-Frontend:
-- RouteGuard
-- PermissionGate
-- Navigation表示制御
-
-Server:
-- APIごとのauthorizationをSecurity上の正本とする
+Phase 2以降:
+- FrontendはRouteGuard / PermissionGateでUX制御
+- API側AuthorizationをSecurity上の正本
 - deny by default
-- resource ownership / group scopeを確認する
-
-Permission key例:
-- `session.view`
-- `session.create`
-- `session.edit`
-- `session.finalize`
-- `score.correct`
-- `member.manage`
-- `backup.export`
-- `backup.import`
-
-Phase 1では実Securityとして認証・認可を実装済みとは扱わない。
+- resource scope確認
 
 ## 5. Validation
 
-- UI validationは操作性向上
-- API validationはSecurity / Data Integrity
-- 型、桁、範囲、enum、必須、format、文字数を明示する
-- request bodyをDomain Objectへ無条件展開しない
-- import dataもuntrusted inputとして扱う
+- UI validationとserver/domain validationを分離
+- 型、範囲、enum、必須、文字数を明示
+- import dataを信用しない
+- Domain invariantはpure validationとして再利用可能にする
 
 ## 6. Error
 
-共通候補:
-- `AppError`
-- error code
-- user message
-- operation detail
-- correlation ID
-- retryable flag
-
-Clientへstack trace、SQL、Secret、internal pathを返さない。
+AppErrorはUser表示とOperation detailを分けられる契約とする。Secret/SQL/stack等をUserへ出さない。
 
 ## 7. Logging
 
-- Access Log
-- Application Log
-- Audit Log
+Logger contractはbusiness codeからconsole/platform APIを分離する。Phase 1はNoopLogger利用可能。Access/Application/Auditの本実装は `18_ANALYTICS_OBSERVABILITY.md` に従う。
 
-を分離する。詳細は `18_ANALYTICS_OBSERVABILITY.md`。
+## 8. Duplicate / Concurrency
 
-## 8. Concurrency / Duplicate Request
-
-- button disabledだけを唯一の防止策にしない
-- 二重tap、reload、back操作でも整合性を壊さない
-- Phase 2ではidempotency / optimistic lock / version checkを機能特性に応じて使う
+二重tap防止UIだけに依存しない。Phase 2でidempotency / optimistic lock等を追加する。
 
 ## 9. Showcase
 
-React Templateへ昇格するComponent / shared機能はShowcaseで状態を確認できるようにする。
-
-最低確認:
-- normal / variant / size
-- disabled / loading / error / empty
-- long text
-- mobile width
-- keyboard / focus
-- permission差分
+shared/UIをReact Templateへ昇格する際は正常・error・disabled・permission・mobile等の状態をShowcaseする。

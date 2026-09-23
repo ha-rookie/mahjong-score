@@ -149,5 +149,5 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 
 ### 編集アイコンの実装基準
 - フォント依存のUnicode鉛筆記号は使用しない
-- 24x24pxのinline SVGを44x44px以上のbutton内に中央配置する
+- 19x19pxのinline SVGを44x44px以上のbutton内に中央配置する
 - SVGはcurrentColorを使い既存accentを継承し、外部icon dependencyは追加しない

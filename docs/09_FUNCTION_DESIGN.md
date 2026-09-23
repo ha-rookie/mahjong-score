@@ -5,53 +5,27 @@
 
 ## 2. Function Catalog
 
-| ID | 機能 | Actor | Phase | Related Screen | Related Data | Status |
-| --- | --- | --- | --- | --- | --- | --- |
-| FUNC-001 | Group管理 | User | 1 | TBD | Group / Player | Planned |
-| FUNC-002 | Session開始・参加者選択 | User | 1 | TBD | Session / Participant | Planned |
-| FUNC-003 | 半荘結果入力 | User | 1 | TBD | Game / GameResult | Planned |
-| FUNC-004 | 参加者変更 | User | 1 | TBD | ParticipantSegment | Planned |
-| FUNC-005 | Chip精算 | User | 1 | TBD | ChipResult | Planned |
-| FUNC-006 | 成績集計 | User | 1 | TBD | Session / Game / ChipResult | Planned |
-| FUNC-007 | Backup export/import | User | 1 | TBD | All local data | Planned |
-| FUNC-008 | 認証・認可 | User | 2-3 | TBD | User / Permission | Deferred |
+| ID | 機能 | Phase | Status |
+| --- | --- | --- | --- |
+| FUNC-001 | Group / Player管理 | 1 | Planned |
+| FUNC-002 | Session開始・参加者選択 | 1 | Planned |
+| FUNC-003 | 半荘結果入力 | 1 | Planned |
+| FUNC-004 | 参加者変更 | 1 | Planned |
+| FUNC-005 | Chip精算 | 1 | Planned |
+| FUNC-006 | 成績集計 | 1 | Planned |
+| FUNC-007 | Backup export/import | 1 | Planned |
+| FUNC-008 | 認証・認可 | 2-3 | Deferred |
 
-## 3. Function Detail Template
+## 3. Shared Foundation
 
-| Field | 内容 |
-| --- | --- |
-| Function ID | FUNC-xxx |
-| Purpose | 何を実現するか |
-| Actor | 誰が実行するか |
-| Preconditions | 前提 |
-| Trigger | 操作 / API / Batch |
-| Normal Flow | 正常系 |
-| Alternate Flow | 代替系 |
-| Error Flow | 異常系 |
-| Validation | 入力検証 |
-| Authorization | 必要Permission / scope |
-| Transaction | commit境界 |
-| Audit | 記録対象 |
-| Messages | MSG-xxx |
-| Related Data | DATA-xxx |
-| Related Interfaces | IF-xxx |
-| NFR | NFR-xxx |
+Issue #6ではFeature実装前の共通境界としてRepository Ports、Error、Validation、Logger contractを実装する。これはFUNC-001〜007を横断する基盤であり、単独のUser機能とは扱わない。
 
-## 4. 処理機能記述
+## 4. Function Detail Template
 
-初期表示、登録、訂正、確定、取消等はEvent単位で処理順を記述する。
+各FunctionはPurpose、Actor、Preconditions、Trigger、Normal/Alternate/Error Flow、Validation、Authorization、Transaction、Audit、Message、Data、IF、NFRを持つ。
+
+## 5. Processing Flow
 
 ```text
-User Event
- -> UI validation
- -> Use Case
- -> authorization
- -> domain validation
- -> repository
- -> persistence
- -> audit
- -> response
- -> UI update
+Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Result -> UI
 ```
-
-Phase 1ではserver処理がないため、実際の責務へ読み替える。

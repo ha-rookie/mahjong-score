@@ -1,139 +1,112 @@
 # Application Architecture
 
 ## 1. 文書目的
-
-この文書は、アプリ内部の論理構成、Module責務、依存関係、状態、データ処理、エラー境界の正本とする。
-
-システム外部との配置関係は `02_SYSTEM_ARCHITECTURE.md`、物理ファイル配置は `04_REPOSITORY_STRUCTURE.md` に分離する。
+App内部の論理構成、Module責務、Dependency、State、Error boundaryの正本とする。
 
 ## 2. Logical Architecture
 
 ```text
-Presentation / UI
-      |
-      v
+Presentation / React
+      ↓
 Application / Use Case
-      |
-      v
-Domain / Core Logic
-      |
-      v
-Infrastructure / External I/O
-```
+      ↓
+Domain
+      ↑
+Application Ports
+      ↑
+Infrastructure
 
-この4層を必須とはしない。採用しない場合は実際の責務分割を記載する。
+Cross-cutting shared contracts:
+Error / Validation / Logging / Auth / Observability
+```
 
 ## 3. Component Responsibilities
 
-| ID | Component | Responsibility | Inputs | Outputs | Must Not Do |
-| --- | --- | --- | --- | --- | --- |
-| APP-001 | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME |
-
-「Must Not Do」を記載し、責務の肥大化を防ぐ。
+| ID | Component | Responsibility | Must Not Do |
+| --- | --- | --- | --- |
+| APP-001 | Presentation | UI state、入力、表示 | localStorage/D1へ直接access |
+| APP-002 | Application | Use case orchestration | React DOMへ依存 |
+| APP-003 | Domain | Entity、Invariant、純粋なBusiness rule | React、Browser API、localStorage、Cloudflareへ依存 |
+| APP-004 | Ports | Repository等の抽象契約 | 具体Storageを知る |
+| APP-005 | Infrastructure | localStorage / future API/D1 adapter | UI stateを持つ |
+| APP-006 | Shared | Error/Validation/Logger等のDomain非依存共通契約 | Mahjong固有Modelへ依存 |
 
 ## 4. Dependency Rules
 
-- UIから外部APIを直接呼ぶか: CHANGE-ME
-- Domain/CoreがDOMへ依存するか: CHANGE-ME
-- InfrastructureがUI状態を持つか: CHANGE-ME
-- Module間の循環依存: 禁止/CHANGE-ME
-- 外部ライブラリ追加条件: CHANGE-ME
+- Presentation → Application / sharedのみを基本とする
+- Application → Domain / Ports / shared
+- Domain → shared validation等の汎用契約のみ許可
+- Infrastructure → Ports / Domain
+- shared → Mahjong Domainへ依存しない
+- Module循環依存は禁止
 
-## 5. Routing / Screen Composition
+## 5. State / Persistence
 
-| ID | Route/Screen | Purpose | Entry | Main Actions | Exit |
-| --- | --- | --- | --- | --- | --- |
-| UI-001 | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME |
+Phase 1: Repository interfaceの実装としてlocalStorageを利用する。UIから直接 `localStorage` を呼ばない。
 
-画面の視覚詳細は `design/` を正本とし、ここでは役割と遷移だけを扱う。
+Phase 2: 同じUse CaseからWorker API Repositoryへ差し替えられる境界を維持する。
 
-## 6. State Management
+## 6. Domain Model
 
-| State | Scope | Source of Truth | Persistence | Reset Condition |
-| --- | --- | --- | --- | --- |
-| CHANGE-ME | UI/App/Server | CHANGE-ME | none/localStorage/server | CHANGE-ME |
+主要Model:
+- Group / Player / GroupMember
+- Session / SessionParticipantNote / ChipResult
+- ParticipantSegment
+- Game / GameResult / GameTag
+- AppDataSchema
 
-- 永続化が必要な理由を明記する
-- localStorage/Cookieへ個人識別情報を入れる場合はSecurity設計を更新する
-- 初期値、壊れた保存値、schema version変更時の挙動を定義する
+Stable IDはstringとして扱い、display nameやarray indexをidentityにしない。
 
-## 7. Runtime Sequence
+## 7. Repository Ports
+
+- GroupRepository
+- PlayerRepository
+- SessionRepository
+- GameRepository
+
+Repositoryは `Result<T, AppError>` を返し、Storage例外をUIへ直接漏らさない。
+
+## 8. Error / Validation / Logging
+
+Shared reusable contracts:
+- `AppError`
+- `Result<T>`
+- `ValidationResult` / `ValidationIssue`
+- `Logger`
+- `NoopLogger`
+
+Phase 1のNoopLoggerはAudit実装済みを意味しない。Server AuditはPhase 2以降。
+
+## 9. Runtime Sequence
 
 ```text
 User Action
-  -> UI validation
-  -> Application use case
-  -> Core calculation / data access
-  -> Result
-  -> UI render
+ -> Presentation validation
+ -> Application Use Case
+ -> Domain validation/calculation
+ -> Repository Port
+ -> Infrastructure adapter
+ -> Result
+ -> UI render
 ```
 
-主要ユースケースごとに必要ならSequenceを追加する。
+## 10. Error Boundary
 
-## 8. Data Model
+- Domain validation: ValidationResult
+- Infrastructure failure: AppError
+- unexpected UI exception: future ErrorBoundary
+- Analytics failure: Core機能へ波及させない
 
-| ID | Model | Key Fields | Owner | Validation | Persistence |
-| --- | --- | --- | --- | --- | --- |
-| DATA-001 | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME |
+## 11. Test Architecture
 
-DBを使わない場合も、JSON schemaやブラウザ内データ構造を記載する。
+- shared/domain: Unit target
+- application: Unit/Integration
+- infrastructure: Integration
+- UI: Component/E2E
+- security/NFR: `20_TEST_DESIGN.md`
 
-## 9. Interfaces
+## 12. TBD
 
-| ID | Interface | Direction | Request/Input | Response/Output | Error Contract |
-| --- | --- | --- | --- | --- | --- |
-| IF-001 | CHANGE-ME | In/Out/Internal | CHANGE-ME | CHANGE-ME | CHANGE-ME |
-
-API、Pages Functions、Workers、静的JSON、外部リンクなどを含む。
-
-## 10. Error Handling
-
-- 入力不正: CHANGE-ME
-- 外部I/O失敗: CHANGE-ME
-- データ欠損: CHANGE-ME
-- タイムアウト: CHANGE-ME
-- Storage失敗: CHANGE-ME
-- Analytics失敗: Core機能へ波及させない/CHANGE-ME
-
-「例外を握りつぶして正常値を返す」を標準にしない。
-
-## 11. PWA / Offline
-
-- PWA採用: Yes / No / TBD
-- Service Worker: CHANGE-ME
-- Cache対象: CHANGE-ME
-- Cacheしない対象: CHANGE-ME
-- 更新戦略: CHANGE-ME
-- Offline時の縮退: CHANGE-ME
-
-## 12. Analytics
-
-- Page view: CHANGE-ME
-- Custom event: CHANGE-ME
-- User identifier: 原則作らない/CHANGE-ME
-- Failure isolation: CHANGE-ME
-
-## 13. Security Boundaries
-
-- Sanitization / validation: CHANGE-ME
-- Secrets access layer: CHANGE-ME
-- CSP impact: CHANGE-ME
-- Dangerous operations: CHANGE-ME
-- Human approval points: CHANGE-ME
-
-## 14. Test Architecture
-
-| Layer | Test Type | Main Targets |
-| --- | --- | --- |
-| Core | Unit | Pure logic / calculations |
-| Application | Unit/Integration | Use cases / state |
-| Infrastructure | Integration | API / storage / bindings |
-| UI | Regression/E2E | Main flows / mobile |
-| Security | Static/Regression | CSP / headers / input |
-| Release | Manual | Preview / smartphone / secret mode |
-
-実際の技術スタックに合わせて調整する。
-
-## 15. 未決事項
-
-- TBD-APP-001: CHANGE-ME
+- Test frameworkは別Issueで選定
+- Routing / state libraryは必要性が出た時点で判断
+- PWA採否はTBD

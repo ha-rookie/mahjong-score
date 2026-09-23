@@ -1,110 +1,70 @@
 # Data / DB設計
 
 ## 1. 目的
-論理Data Model、物理Table、Data Dictionary、ER、状態遷移、Lifecycle、Transaction、排他を管理する。
+Logical Data Model、Dictionary、State、Lifecycle、Transaction、Concurrencyを管理する。
 
-## 2. Logical Model
-
-Phase 1:
+## 2. Phase 1 Logical Model
 
 ```text
 Group
  ├─ GroupMember -> Player
  └─ Session
-     ├─ SessionParticipant
      ├─ ParticipantSegment
-     │   ├─ SegmentParticipant
      │   └─ Game
      │       ├─ GameResult
      │       └─ GameTag
+     ├─ SessionParticipantNote
      └─ ChipResult
 ```
 
-論理modelの詳細は機能Issueで段階的に確定する。
+## 3. Model Contracts
 
-## 3. ID
+| DATA ID | Model | Key fields |
+| --- | --- | --- |
+| DATA-001 | Group | id, name, createdAt, updatedAt |
+| DATA-002 | Player | id, displayName, createdAt, updatedAt |
+| DATA-003 | GroupMember | groupId, playerId, active |
+| DATA-004 | Session | id, groupId, sessionDate, startedAt, endedAt, status, memo, chipResults |
+| DATA-005 | ParticipantSegment | id, sessionId, sequence, participantPlayerIds |
+| DATA-006 | Game | id, sessionId, segmentId, sequence, playedAt, results, tags |
+| DATA-007 | GameResult | playerId, finalPoints, mahjongScore |
+| DATA-008 | GameTag | type, optional playerId |
+| DATA-009 | ChipResult | playerId, chipCount |
+| DATA-010 | AppDataSchema | schemaVersion + collections |
 
-- display name / array indexをprimary keyにしない
-- UUID等のstable IDをPhase 1から使う
-- D1移行後もIDを維持する
+## 4. Invariants
 
-## 4. Data Dictionary Template
+- ParticipantSegmentは3人または4人
+- 同一Segment内Player重複禁止
+- GameResultは3人または4人分
+- GameResult内Player重複禁止
+- ChipResult内Player重複禁止
+- Chip合計は0
+- negative finalPointsは許可する
 
-| DATA ID | Field | Meaning | Type | Length | Null | Default | Domain/Code | PII | Persistence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DATA-001 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+Score balance、100点端数、同点rank等の未決仕様はこのIssueで実装しない。
 
-## 5. Table List / Definition
+## 5. Stable ID / Schema Version
 
-Phase 1: N/A（D1なし）
+- display name / array indexをidentityにしない
+- IDはstringのstable identifier
+- localStorage BackupはschemaVersionを持つ
+- D1移行時もIDを維持する
 
-Phase 2で:
-- table name
-- column
-- PK/FK
-- unique
-- check
-- default
-- index
-- version
-- created/updated timestamp
-- delete policy
+## 6. Session State
 
-を定義する。SQL生成の根拠はDB定義書とmigrationを一致させる。
+Phase 1 contract: `active | finalized`。cancel/reopen/correctionはTBD。
 
-## 6. Views
+## 7. Table / View / ER
 
-Phase 1: N/A
+Phase 1: D1なしのため物理Table/ViewはN/A。Phase 2でLogical Modelから物理schemaとERを確定する。
 
-D1 Viewを採用する場合、View ID、source table、join/filter、用途、performance影響を管理する。
+## 8. Transaction / Concurrency
 
-## 7. ER Diagram
+Phase 1: Repository write単位で整合性を守る。Backup importは全validation成功後に反映する。
 
-Phase 2で物理Table確定時に追加する。論理Entityと物理Tableを区別する。
+Phase 2: optimistic locking / version、transaction、stale update rejectionを設計する。
 
-## 8. State Transition
+## 9. Data Lifecycle
 
-対象例: Session
-
-```text
-DRAFT
- -> ACTIVE
- -> FINALIZED
-```
-
-訂正 / 再open / cancelはTBD。禁止遷移も明示する。
-
-## 9. Transaction
-
-Phase 1:
-- localStorage write単位をRepositoryで制御
-- importは全体validation成功後のみ反映
-
-Phase 2:
-- 1 business operation = 1 atomic boundaryを原則に検討
-- external IFをまたぐ場合はpartial failureを設計する
-
-## 10. Concurrency
-
-Phase 1: single-browser前提でserver-side排他なし。
-
-Phase 2:
-- optimistic locking / version
-- update conflict message
-- retry可否
-- stale update rejection
-
-## 11. Data Lifecycle
-
-各Entityについて以下を決める。
-- create
-- update
-- finalize
-- correction
-- delete
-- retention
-- archive
-- backup
-- restore
-
-実在メンバーのSample DataをPublic Repositoryへcommitしない。
+create / update / finalize / correction / delete / retention / backup / restoreをEntityごとに後続Issueで具体化する。

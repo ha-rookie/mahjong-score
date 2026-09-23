@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": false,
+    "noEmitOnError": true,
+    "rootDir": ".",
+    "outDir": ".test-dist"
+  },
+  "include": [
+    "src/domain/**/*.ts",
+    "src/shared/**/*.ts",
+    "src/application/**/*.ts",
+    "src/infrastructure/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}

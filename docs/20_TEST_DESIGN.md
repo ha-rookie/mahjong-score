@@ -1,6 +1,7 @@
 # Test Design
 
 ## 1. 目的
+
 Requirement / Design / Implementation / EvidenceをTestで接続する。
 
 ## 2. Test Layers
@@ -15,7 +16,69 @@ Requirement / Design / Implementation / EvidenceをTestで接続する。
 | NFR | Performance/Recovery/Accessibility | quality target |
 | Release | Smoke/Manual | Production |
 
-## 3. Security Tests
+## 3. Phase 1 Test Foundation
+
+Phase 1では外部Test frameworkを追加せず、既存のTypeScriptとNode 24標準 `node:test` を利用する。
+
+```text
+tests/*.test.ts
+  ↓ tsc -p tsconfig.test.json
+.test-dist/**/*.test.js (CommonJS)
+  ↓ node --test
+CI pass / fail
+```
+
+実行コマンド:
+
+```bash
+npm test
+```
+
+理由:
+- 追加Dependencyなし
+- Domain/Application/Infrastructureのpure TypeScriptをTest可能
+- Templateへ持ち込みやすい
+- React Component/E2Eが必要になった時点で専用frameworkを別判断できる
+
+`.test-dist` は一時生成物でありcommitしない。
+
+## 4. Current Automated Coverage
+
+Domain:
+- 3/4人Participant validation
+- duplicate participant
+- GameResult participant count / negative final points
+- Chip balance
+
+Infrastructure:
+- AppDataSchema exact root validation
+- schema v1 round trip
+- localStorage adapter
+
+Application:
+- Group作成
+- Player + GroupMember atomic save
+- Session + initial Segment atomic save
+- invalid Session開始時のpartial write防止
+- Backup export/import
+- invalid import時のexisting data保護
+
+## 5. CI Gate
+
+GitHub Actionsは次の順序で実行する。
+
+```text
+Install
+ -> Lint
+ -> Test
+ -> Build
+ -> Secret validation (main only)
+ -> Deploy (main only)
+```
+
+Test failure時はBuild/Deployへ進まない。
+
+## 6. Security Tests
 
 - SQL injection resistance
 - XSS / output handling
@@ -28,7 +91,9 @@ Requirement / Design / Implementation / EvidenceをTestで接続する。
 - secret leakage
 - Security Headers production response
 
-## 4. NFR Tests
+Phase 1ではinvalid JSON / import validationの一部のみ自動化済み。その他は該当Phaseで追加する。
+
+## 7. NFR Tests
 
 - performance baseline / regression
 - backup / restore
@@ -38,7 +103,9 @@ Requirement / Design / Implementation / EvidenceをTestで接続する。
 - supported browser/device
 - rollback rehearsal
 
-## 5. UI State Tests
+## 8. UI State Tests
+
+React UI接続後に別Issueで追加する。
 
 - normal
 - loading
@@ -51,9 +118,9 @@ Requirement / Design / Implementation / EvidenceをTestで接続する。
 - narrow mobile width
 - keyboard / focus
 
-## 6. Evidence
+## 9. Evidence
 
-Test resultは可能な限りCIへ寄せる。
+自動Test結果はGitHub ActionsをEvidenceとする。
 
 Manual evidence:
 - smartphone verification
@@ -63,7 +130,7 @@ Manual evidence:
 
 Issue/PRへ実施対象、日付、結果、未完了を残す。
 
-## 7. Traceability
+## 10. Traceability
 
 `06_REQUIREMENTS_TRACEABILITY.md` で:
 

@@ -10,6 +10,7 @@ import {
   UpdateGameUseCase,
   DeleteGameUseCase,
   UpdateSessionDetailsUseCase,
+  FinalizeSessionUseCase,
 } from "../../application/use-cases";
 import {
   LocalStorageGameRepository,
@@ -41,6 +42,7 @@ export const createBrowserServices = () => {
     updateGame: new UpdateGameUseCase(games, sessions),
     deleteGame: new DeleteGameUseCase(games),
     updateSessionDetails: new UpdateSessionDetailsUseCase(sessions),
+    finalizeSession: new FinalizeSessionUseCase(sessions, clock),
     listGroups: new ListGroupsUseCase(groups),
     listPlayersByGroup: new ListPlayersByGroupUseCase(players),
     getActiveSession: new GetActiveSessionUseCase(sessions),

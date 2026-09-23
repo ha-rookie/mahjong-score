@@ -653,7 +653,7 @@ h2 {
 .diverging-chart__negative .diverging-chart__bar { background: var(--negative); opacity: .72; }
 
 /* Test utility: keep isolated so Session deletion can be hidden easily before regular use. */
-.history-session-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;align-items:stretch}.history-session-delete{min-width:48px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--danger);font-size:1rem;cursor:pointer}.history-session-delete:disabled{opacity:.5;cursor:default}
+.history-session-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;align-items:stretch}.history-session-main{min-width:0}.history-session-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:7px 4px 2px;color:var(--muted);font-size:.78rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.history-session-delete{min-width:48px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--danger);font-size:1rem;cursor:pointer}.history-session-delete:disabled{opacity:.5;cursor:default}
 
 /* Modern application surface */
 .home-hero { padding: 22px 0 32px; }

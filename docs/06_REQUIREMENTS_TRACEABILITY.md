@@ -13,10 +13,13 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-004 | 半荘結果対象3/4人 | FUNC-003, SCR-004, DATA Game semantics | #14/#20/#23 | Domain + persistence + React UI | automated tests + UI review | ACTIVE |
 | REQ-005 | Integer Score Point / 1point=1,000点 / 合計0 | FUNC-003, SCR-004, DATA score decisions | #14/#16/#20/#23 | GameResult.scorePoint + score domain + repository + UI | score/domain/repository/use-case tests | ACTIVE |
 | REQ-006 | N-1セル直接入力 / 残り1セル自動計算 | FUNC-003, SCR-004, DATA result | #14/#20/#23/#25 | score-sheet Domain helper + direct-entry UI | score/use-case tests + smartphone review | ACTIVE |
-| REQ-007 | 負Score Point許可 | FUNC-003, DATA invariant | #14/#20 | integer score validation | score unit tests | ACTIVE |
-| REQ-008 | Chip合計0 | DATA-009 | #6/#10 | validateChipResults | domain test / CI | ACTIVE |
+| REQ-007 | 負Score Point許可 | FUNC-003, SCR-004, DATA invariant | #14/#20/#27 | integer score validation + ± sign toggle UI | score unit tests + PR CI | ACTIVE |
+| REQ-008 | Chip合計0 | FUNC-005, SCR-005, DATA-009 | #6/#10/#27 | validateChipResults + Session settlement UI | domain test + PR CI | ACTIVE |
+| REQ-009 | Chip 1枚=5pt / 最終合計 | FUNC-005, SCR-005 | #27 | chip conversion + final total UI | PR CI + Production review pending | ACTIVE |
+| REQ-010 | GameTag | FUNC-003, SCR-004 | #6/#27 | yakuman / double-yakuman tag UI | PR CI + Production review pending | ACTIVE |
+| REQ-011 | Session / Participant memo | SCR-004 | #6/#27 | existing Session model + runtime UI | PR CI + Production review pending | ACTIVE |
 | REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI | ACTIVE |
-| NFR-001 | 卓上スマホUsability | SCR-001..003 | #12 | mobile-first UI | Production smartphone screenshots | ACTIVE |
+| NFR-001 | 卓上スマホUsability | SCR-001..005 | #12/#25/#27 | mobile-first UI + direct score entry + ± sign toggle | Production smartphone review; 4-player review pending | ACTIVE |
 
 ## 3. Score Implementation Gate
 

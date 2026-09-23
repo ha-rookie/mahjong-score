@@ -592,3 +592,5 @@ h2 {
 .tag-toggle--active { border-color: var(--teal); background: rgb(22 124 116 / 12%); color: var(--teal-dark); }
 .edit-actions { display: grid; grid-template-columns: 1fr 48px; align-items: stretch; gap: 8px; }
 .delete-icon-action { min-width: 48px; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 1.15rem; }
+
+.game-tag-buttons--single { grid-template-columns: 1fr; }

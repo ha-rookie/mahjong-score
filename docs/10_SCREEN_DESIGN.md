@@ -173,3 +173,9 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 4人結果表は横幅をScore表示に優先し、タグ列を追加しない
 - Domain互換のGame.tagsは残すが、新規/訂正UIからは空配列を保存する
 - タグ仕様を再定義するまでUIを再導入しない
+
+
+### PERFORMANCE
+- Homeに「通算成績を見る」を配置する
+- Playerごとに最終pt、麻雀pt、1位回数、Session数、半荘数を表示する
+- 最終pt降順で表示する

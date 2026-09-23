@@ -170,3 +170,10 @@ Requirement
 - active Sessionは履歴に含めないこと
 - 選択したSessionの結果を再表示できること
 - Results表の上端/下端でPlayer列が一致すること
+
+
+### Performance Aggregates
+- finalized Sessionのみが対象であること
+- 3人/4人混在でPlayer単位に正しく加算されること
+- chip枚数を5pt換算して最終ptに含めること
+- 同点最高ptは双方の1位回数を加算すること

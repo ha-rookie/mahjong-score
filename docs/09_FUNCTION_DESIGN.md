@@ -103,3 +103,10 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Homeからcurrent Groupのfinalized Session一覧を開ける
 - 選択したSessionは既存Session Results read modelで再表示する
 - 履歴はread-only。訂正・削除は別仕様とする
+
+
+### Player Performance Aggregates
+- finalized Sessionのみを対象にPlayer別通算成績をread-only集計する
+- Session数、半荘数、麻雀pt、chip換算込み最終pt、1位回数を集計する
+- 3人/4人Sessionを混在可能とする
+- 同点最高ptは双方を1位として数える

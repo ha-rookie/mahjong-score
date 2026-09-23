@@ -96,10 +96,10 @@ Production実機レビューで紙の麻雀得点記録表を操作モデルと�
 - 小計行をPlayer列ごとに表示
 - 保存成功後もScore Sheetに留まり次の半荘入力へ続けられる
 - Active Session中はGroup / Member追加UIを隠す
-- 保存済みGame行から編集 / 削除を行える。削除は確認を要求する
-- Game入力時に役満 / ダブル役満タグと対象Playerを選択できる
+- 保存済みGame行は鉛筆アイコンから編集する。削除は訂正中だけゴミ箱アイコンを表示し、実行前に確認を要求する
+- Game入力時に役満を直接ボタンで選択でき、対象Player選択は行わない
 - ChipはPlayer固定列でN-1入力、残り1人を合計0で自動計算し、換算（1枚=5pt）と最終合計を表示する
-- Session memo / Participant memoを同じActive Session内で編集・保存する
+- Session memoはActive Session内で編集・保存する。Participant memoはPhase 1では非表示とし、将来の本人識別・認可導入後に自分のmemoだけを表示・編集する
 - 4人回し三麻は4固定列で実装済み。Productionスマホ実機確認はMerge後Evidenceとして残す
 
 ## 8. UI Rules

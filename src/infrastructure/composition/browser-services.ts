@@ -12,6 +12,7 @@ import {
   StartSessionUseCase,
   UpdateGameUseCase,
   DeleteGameUseCase,
+  DeleteSessionUseCase,
   UpdateSessionDetailsUseCase,
   FinalizeSessionUseCase,
 } from "../../application/use-cases";
@@ -44,6 +45,7 @@ export const createBrowserServices = () => {
     addGameResult: new AddGameResultUseCase(games, sessions, ids, clock),
     updateGame: new UpdateGameUseCase(games, sessions),
     deleteGame: new DeleteGameUseCase(games),
+    deleteSession: new DeleteSessionUseCase(sessions, games),
     updateSessionDetails: new UpdateSessionDetailsUseCase(sessions),
     finalizeSession: new FinalizeSessionUseCase(sessions, clock),
     listGroups: new ListGroupsUseCase(groups),

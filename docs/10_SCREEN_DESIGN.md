@@ -179,3 +179,9 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - Homeに「通算成績を見る」を配置する
 - Playerごとに最終pt、麻雀pt、1位回数、Session数、半荘数を表示する
 - 最終pt降順で表示する
+
+
+### PERFORMANCE period controls
+- 成績画面上部で「通算 / 年間 / 月間」を切り替える
+- 年間は年、月間は年+月を選択する
+- 初期表示は通算とする

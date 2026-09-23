@@ -110,3 +110,8 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Session数、半荘数、麻雀pt、chip換算込み最終pt、1位回数を集計する
 - 3人/4人Sessionを混在可能とする
 - 同点最高ptは双方を1位として数える
+
+
+### Performance Period Filter
+- Player成績集計は期間指定なし=通算、year指定=年間、year+month指定=月間とする
+- 期間判定はSession.sessionDateを使い、finalized Sessionのみ対象とする

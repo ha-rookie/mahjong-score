@@ -15,6 +15,8 @@ import {
   DeleteSessionUseCase,
   UpdateSessionDetailsUseCase,
   FinalizeSessionUseCase,
+  ExportBackupUseCase,
+  ImportBackupUseCase,
 } from "../../application/use-cases";
 import {
   LocalStorageGameRepository,
@@ -55,6 +57,8 @@ export const createBrowserServices = () => {
     getPlayerPerformanceAggregates: new GetPlayerPerformanceAggregatesUseCase(sessions, games),
     listFinalizedSessions: new ListFinalizedSessionsUseCase(sessions),
     listGamesBySession: new ListGamesBySessionUseCase(games),
+    exportBackup: new ExportBackupUseCase(store, clock, "0.1.0"),
+    importBackup: new ImportBackupUseCase(store),
   };
 };
 

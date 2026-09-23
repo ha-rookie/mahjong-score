@@ -154,7 +154,10 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 
 
 ### SCR-006 Results 実装
-- Session終了直後に表示する
+- Session終了操作後、finalize前の確認画面として表示する
+- Active SessionのResultsでは「修正する」「終了を確定」を表示する
+- 「修正する」はActive Sessionへ戻し、「終了を確定」で初めてfinalizedにする
+- finalized済みの過去Resultsはread-onlyで表示する
 - Score Sheetと同じPlayer固定列を使う
 - 行は半荘、小計、チップ、換算、合計、順位
 - Homeへ戻る操作を提供する

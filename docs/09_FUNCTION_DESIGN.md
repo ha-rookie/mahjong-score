@@ -97,3 +97,9 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - 半荘別Score Point、小計、chip枚数、chip換算（1枚=5pt）、最終合計、順位を表示する
 - 同点は同順位。Participant列順は変更しない
 - 過去Session一覧は別Issueとする
+
+
+### Session History
+- Homeからcurrent Groupのfinalized Session一覧を開ける
+- 選択したSessionは既存Session Results read modelで再表示する
+- 履歴はread-only。訂正・削除は別仕様とする

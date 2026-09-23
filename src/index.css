@@ -604,3 +604,51 @@ h2 {
 .member-summary{display:flex;flex-wrap:wrap;gap:8px 16px;padding:4px 0 14px}.member-summary span{font-size:1rem}.member-manage-link{width:100%;min-height:44px;border:0;border-top:1px solid var(--line);background:transparent;padding:12px 0 0;text-align:right;color:var(--accent);font:inherit;font-weight:700}.member-manage-list{list-style:none;margin:12px 0 18px;padding:0;border-top:1px solid var(--line)}.member-manage-list li{padding:15px 2px;border-bottom:1px solid var(--line);font-size:1.05rem}.member-add-panel{margin-top:14px}.member-add-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
 .diverging-chart{margin:16px 0 20px;padding:12px 8px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}.diverging-chart__head,.diverging-chart__row{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);align-items:center}.diverging-chart__head{padding:0 0 8px;font-size:.7rem;color:var(--muted);text-align:center}.diverging-chart__row{min-height:42px}.diverging-chart__name{padding:0 5px;text-align:center;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.diverging-chart__negative,.diverging-chart__positive{display:flex;align-items:center;min-width:0}.diverging-chart__negative{justify-content:flex-end}.diverging-chart__positive{justify-content:flex-start}.diverging-chart__bar{display:block;height:18px;min-width:3px;background:var(--teal);opacity:.78}.diverging-chart__negative .diverging-chart__bar{border-radius:5px 0 0 5px}.diverging-chart__positive .diverging-chart__bar{border-radius:0 5px 5px 0}.diverging-chart__value{padding:0 4px;font-size:.72rem;font-weight:700;white-space:nowrap}.diverging-chart__zero{padding-left:5px;font-size:.72rem;color:var(--muted)}
+
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgb(24 28 27 / 58%);
+  backdrop-filter: blur(2px);
+}
+.confirm-dialog {
+  width: min(100%, 420px);
+  padding: 26px 22px 20px;
+  border: 1px solid rgb(40 42 40 / 10%);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgb(20 25 24 / 24%);
+  text-align: center;
+}
+.confirm-dialog__icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  color: var(--teal-dark);
+  background: var(--teal-soft);
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+.confirm-dialog h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.confirm-dialog p {
+  margin: 12px 0 22px;
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.65;
+}
+.confirm-dialog__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}

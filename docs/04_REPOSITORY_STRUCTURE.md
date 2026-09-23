@@ -12,8 +12,7 @@
 │  ├─ ISSUE_TEMPLATE/
 │  ├─ workflows/
 │  │  ├─ deploy-production.yml
-│  │  ├─ fork-monitor.yml
-│  │  └─ template-validation.yml
+│  │  └─ fork-monitor.yml
 │  └─ PULL_REQUEST_TEMPLATE.md
 ├─ docs/
 │  ├─ design/
@@ -39,6 +38,8 @@
 ```
 
 Phase 1のbootstrap時点では、Worker API用entrypointを作成しない。Phase 2でAPIを追加する際に `worker/` とWorker用TypeScript設定を追加する。
+
+Template Repository専用の `template-validation.yml` は、実アプリ化後には不要なため削除する。実アプリのCIは `deploy-production.yml` と必要な個別Workflowへ分離する。
 
 ## 3. Directory Responsibilities
 

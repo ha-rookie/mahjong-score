@@ -596,3 +596,5 @@ h2 {
 .delete-icon-action { width: 48px; min-width: 48px; height: 48px; min-height: 48px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 1.35rem; cursor: pointer; }
 
 .game-tag-buttons--single { grid-template-columns: 1fr; }
+
+.performance-list{display:grid;gap:10px}.performance-card{padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}.performance-card>div{display:flex;align-items:center;gap:10px}.performance-card__rank{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent-soft);font-weight:700}.performance-card dl{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:12px 0 0}.performance-card dl div{text-align:center}.performance-card dt{font-size:.68rem;color:var(--muted)}.performance-card dd{margin:3px 0 0;font-weight:700;font-size:.82rem}@media(max-width:380px){.performance-card dl{grid-template-columns:repeat(3,minmax(0,1fr))}}

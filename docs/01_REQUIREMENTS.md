@@ -124,6 +124,18 @@ Phase 1:
 - multi-device sync
 - server audit log
 
+## 11.5 Phase 2 Requirements
+
+- PWAとしてホーム画面へ追加でき、standaloneで起動できる
+- Manifest / App Icon / Service Workerを提供する
+- 初期PWAのoffline対象は静的Assetを基本とし、D1/APIへのoffline write/syncは行わない
+- AuthenticationでUserを識別する
+- Group単位でAdmin / Memberを認可する
+- Group作成、Backup / RestoreはAdminのみ実行できる
+- Worker API / D1で複数端末からGroup dataを共有する
+- stale updateを検知し、競合を黙って上書きしない
+- 認証失敗・認可失敗・重要操作をserver側で監査可能にする
+
 ## 12. 未決事項
 
 | ID | 論点 | 決定者 | 状態 |

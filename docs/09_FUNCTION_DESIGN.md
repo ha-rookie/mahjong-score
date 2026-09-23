@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | FUNC-001 | Group / Player管理 | 1 | Active: UI connected |
 | FUNC-002 | Session開始・参加者選択 | 1 | Active: UI connected |
-| FUNC-003 | 半荘結果入力 | 1 | Domain / persistence implemented, UI pending |
+| FUNC-003 | 半荘結果入力 | 1 | Active: UI connected |
 | FUNC-004 | 参加者変更 | 1 | Planned |
 | FUNC-005 | Chip精算 | 1 | Planned |
 | FUNC-006 | 成績集計 | 1 | Planned |
@@ -56,7 +56,18 @@ Issue #20で以下を実装する。
 - `LocalStorageGameRepository` がSession / Segment整合性を確認して保存
 - Score値からrankを再計算せず、`Game.results` 順序をそのまま保持
 
-## 5. Implementation Acceptance Criteria
+## 5. Application / UI Connection
+
+Issue #23でActive Sessionから半荘結果入力を接続する。
+
+- 順位順Playerを上下操作で並べ替える
+- 2位以下だけ整数Score Pointを入力する
+- 1位はDomain計算結果をpreviewする
+- AddGameResultUseCaseがcurrent ParticipantSegmentを解決しGame sequence / ID / playedAtを付与する
+- 保存後はSession内Game履歴とPlayer別麻雀ポイント累計を再読込する
+- GameTag / Chip / Session終了 / 訂正削除は別Feature
+
+## 6. Implementation Acceptance Criteria
 
 - 3人Gameは3人Result、4人回しGameは4人Result
 - Result Player集合がParticipantSegmentと一致
@@ -68,7 +79,7 @@ Issue #20で以下を実装する。
 - missing / extra Player拒否
 - Unit Testで3人/4人/同Score/負値/整数を確認
 
-## 6. Phase 1 Vertical Slice
+## 7. Phase 1 Vertical Slice
 
 ```text
 Home
@@ -79,7 +90,7 @@ Home
  -> Active Session表示
 ```
 
-## 7. Processing Flow
+## 8. Processing Flow
 
 ```text
 Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Result -> UI

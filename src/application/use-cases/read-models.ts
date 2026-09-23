@@ -95,3 +95,12 @@ export class GetSessionResultsUseCase {
     return ok({ session: session.value, participantPlayerIds: firstSegment.participantPlayerIds, games: games.value });
   }
 }
+
+export class ListFinalizedSessionsUseCase {
+  constructor(private readonly sessions: SessionRepository) {}
+  async execute(groupId: GroupId): Promise<Result<readonly Session[]>> {
+    const listed = await this.sessions.listByGroup(groupId);
+    if (!listed.ok) return listed;
+    return ok([...listed.value].filter(x=>x.status==="finalized").sort((a,b)=>(b.endedAt??b.startedAt).localeCompare(a.endedAt??a.startedAt)));
+  }
+}

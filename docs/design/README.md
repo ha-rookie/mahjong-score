@@ -1,79 +1,52 @@
-# Visual Design
+# Visual Design / Design Portal
 
-## 目的
+## 1. 目的
+Screen、Interaction、Responsive、Component等、文章だけでは認識差が出る設計をBrowserでreview可能にする。
 
-画面・Interaction・レスポンシブ挙動など、文章だけでは認識差が出る設計をブラウザで確認可能にする。
+## 2. Source of Truth
 
-## 朝マズメ潮ナビから継承する点
+- Requirement: `../01_REQUIREMENTS.md`
+- System: `../02_SYSTEM_ARCHITECTURE.md`
+- Application: `../03_APPLICATION_ARCHITECTURE.md`
+- Screen spec: `../10_SCREEN_DESIGN.md`
+- Security/NFR等: `../15_SECURITY_DESIGN.md` 以降
+- Visual review source: this directory
 
-- HTML/CSSによるDesign Previewを使える
-- Production実装前にスマホで確認する
-- PR単位の設計差分を人間が確認する
-- 承認されたDesignをImplementationへ引き継ぐ
+`index.html` はDesign Portal / review surfaceであり、全設計の唯一の正本ではない。
 
-## このTemplateでの改善
-
-視覚設計を全設計の正本にはしない。
-
-- 要件の正本: `01_REQUIREMENTS.md`
-- System構成の正本: `02_SYSTEM_ARCHITECTURE.md`
-- App内部構成の正本: `03_APPLICATION_ARCHITECTURE.md`
-- 視覚設計の正本: 本Directory内のファイル
-
-同じ要件やArchitecture説明をHTMLへ大量コピーしない。設計IDで参照する。
-
-## 推奨構成
-
-必要になった時点で作成する。
+## 3. Review Model
 
 ```text
-docs/design/
-├─ README.md
-├─ index.html
-├─ styles/
-├─ scripts/
-├─ screens/
-└─ assets/
+Wireframe
+ -> information hierarchy
+HTML / React Mock
+ -> visual / state / responsive
+Component Showcase
+ -> reusable UI/shared behavior
+Production
+ -> real data / security / performance
 ```
 
-空Directoryは作らない。
+## 4. Portal
 
-## index.htmlに含める候補
+`index.html` は以下の入口を提供する。
+- Design catalog
+- Screen/Wireframe
+- React component showcase
+- status / TBD
 
-- 画面一覧
-- 画面遷移
-- 画面イメージ
-- 主要画面項目
-- Interaction/Event
-- State
-- Responsive behavior
-- Error/empty/loading state
-- Accessibility note
-- Security/privacy note
-- Design ID
-- TBD
-- Design Decision
+現時点ではDesign catalogを実装。Screen mock / ShowcaseはFeature Issueで追加する。
 
-テーブル設計や外部IFなど、視覚レビューに向かない内容はArchitecture文書へ置く。
+## 5. Preview
 
-## Design Preview
+公開する場合:
+- Production Appとは別配信
+- noindex/nofollow/noarchive
+- 可能ならAccess control
+- PR Preview / main latestを区別
+- smartphone review
+- Production Data/Secretへ接続しない
 
-必要なプロジェクトではCloudflare等でDesign専用Previewを構成する。
+## 6. Approval
 
-要件:
-
-- Production Applicationとは別配信
-- 検索エンジンへ公開しない
-- 可能ならAccess制御
-- PR Previewとmain latest Previewを区別
-- ハッシュDeployment URLはスナップショット扱い
-- スマホ実機確認
-- Preview URLをPRへ記録
-
-Design Previewは表示面であり、Repository内ファイルが正本。
-
-## 承認
-
-重要なUI変更では、Design PRの承認head SHAをImplementation Issueへ引き継ぐ。
-
-Assetを伴う場合は `ASSET_WORKFLOW.md` とFeature Issueの `Asset Handoff` を併用する。
+重要なUI変更ではHumanがDesign Previewを確認し、承認head SHAをImplementation Issueへ引き継ぐ。

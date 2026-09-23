@@ -2,46 +2,41 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="robots" content="noindex,nofollow">
-  <title>CHANGE-ME Design Preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>三麻スコア Design Portal</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { margin: 0; padding: 24px; line-height: 1.6; }
-    main { max-width: 960px; margin: 0 auto; }
-    section { border: 1px solid currentColor; border-radius: 12px; padding: 20px; margin: 16px 0; }
-    code { overflow-wrap: anywhere; }
+    :root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#282a28;background:#f5f1e8}
+    *{box-sizing:border-box}body{margin:0;line-height:1.65}
+    header{padding:36px 20px;background:#176f68;color:#fff}
+    header div,main,nav div{max-width:1100px;margin:auto}
+    nav{position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;overflow:auto}
+    nav div{display:flex;gap:8px;padding:10px 16px;white-space:nowrap}
+    nav a{color:#245a56;text-decoration:none;padding:6px 10px;border-radius:8px}
+    main{padding:24px 16px 64px}
+    section{background:#fffdf8;border:1px solid #ded9cf;border-radius:16px;padding:20px;margin:0 0 18px}
+    h2{margin-top:0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+    .card{border:1px solid #ded9cf;border-radius:12px;padding:14px;background:#fff}
+    .tag{display:inline-block;border-radius:999px;padding:3px 8px;font-size:.78rem;font-weight:700}
+    .active{background:#e5f4ef;color:#246357}.planned{background:#fff2cd;color:#765919}.deferred{background:#eceff2;color:#59636d}
+    code{background:#f1eee7;padding:2px 5px;border-radius:5px}
   </style>
 </head>
 <body>
-  <main>
-    <h1>CHANGE-ME Design Preview</h1>
-    <p>このページは視覚設計レビュー用です。Production Applicationではありません。</p>
-
-    <section>
-      <h2>Review Target</h2>
-      <ul>
-        <li>Design Issue: CHANGE-ME</li>
-        <li>Design IDs: CHANGE-ME</li>
-        <li>Non-goals: CHANGE-ME</li>
-      </ul>
-    </section>
-
-    <section>
-      <h2>Screen / Interaction</h2>
-      <p>CHANGE-ME: ここに画面・状態・Interactionのレビュー対象を実装します。</p>
-    </section>
-
-    <section>
-      <h2>Review Notes</h2>
-      <ul>
-        <li>Mobile viewport</li>
-        <li>Responsive behavior</li>
-        <li>Accessibility</li>
-        <li>Error / empty / loading state</li>
-        <li>Security / privacy note</li>
-      </ul>
-    </section>
-  </main>
+<header><div>
+  <p>ENTERPRISE SYSTEM DESIGN REVIEW SURFACE</p>
+  <h1>三麻スコア Design Portal</h1>
+  <p>業務システムAI駆動開発PoC。正本はGitHub main上の設計Markdownであり、このPortalはレビュー面です。</p>
+</div></header>
+<nav><div>
+  <a href="#principles">原則</a><a href="#core">Core</a><a href="#business">業務設計</a><a href="#quality">Quality</a><a href="#review">Review</a>
+</div></nav>
+<main>
+<section id="principles"><h2>設計原則</h2><p><span class="tag active">正本</span> GitHub mainの設計ファイル</p><p><span class="tag planned">提案中</span> Issue branch / Pull Request</p><p><span class="tag deferred">Deferred</span> 後続Phase</p><p>Design Portal / Previewは正本ではありません。Production Appとも分離します。</p></section>
+<section id="core"><h2>Core Design</h2><div class="grid"><div class="card"><strong>00 Project Overview</strong><p>目的・対象・Scope</p></div><div class="card"><strong>01 Requirements</strong><p>機能・非機能要件</p></div><div class="card"><strong>02 System Architecture</strong><p>System Context / Runtime</p></div><div class="card"><strong>03 Application Architecture</strong><p>内部責務・依存方向</p></div><div class="card"><strong>07 基盤設計</strong><p>Environment / Deploy / Backup</p></div><div class="card"><strong>08 共通設計</strong><p>UI / Auth / Validation / Error</p></div></div></section>
+<section id="business"><h2>Business Design</h2><div class="grid"><div class="card"><strong>09 機能設計</strong><p>Function Catalog / Detail</p></div><div class="card"><strong>10 画面設計</strong><p>Screen Map / Item / Event / Mapping</p></div><div class="card"><strong>11 Data / DB</strong><p>ER / Dictionary / State / Transaction</p></div><div class="card"><strong>12 Interface / File I/O</strong><p>API / 外部IF / Backup</p></div><div class="card"><strong>13 帳票・Batch・通知・Workflow</strong><p>一覧 / 詳細 / N/A管理</p></div><div class="card"><strong>14 Code / Message / Terminology</strong><p>区分・Message・Label・用語</p></div></div></section>
+<section id="quality"><h2>Security / Quality / Operations</h2><div class="grid"><div class="card"><strong>15 Security</strong><p>Threat / Headers / Verification</p></div><div class="card"><strong>16 NFR</strong><p>SLI / SLO / RASIS / Evidence</p></div><div class="card"><strong>17 SEO / LLMO / GSC</strong><p>Public Web / Discovery</p></div><div class="card"><strong>18 Analytics / Observability</strong><p>Cloudflare Analytics / Log / Audit</p></div><div class="card"><strong>19 Operations / Release</strong><p>Smoke / Recovery / Rollback</p></div><div class="card"><strong>20 Test</strong><p>Unit / E2E / Security / NFR</p></div><div class="card"><strong>21 Naming Standard</strong><p>ID / Source / API / DB naming</p></div></div></section>
+<section id="review"><h2>Review Surface</h2><p>今後、Screen Wireframe / React Mock / Component ShowcaseをこのPortalから辿れるようにする。</p><p>Search indexは <code>noindex,nofollow,noarchive</code>。Design Previewを公開する場合もProductionとは別Environmentで扱う。</p></section>
+</main>
 </body>
 </html>

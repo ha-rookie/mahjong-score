@@ -98,7 +98,7 @@ Production実機レビューで紙の麻雀得点記録表を操作モデルと�
 - Active Session中はGroup / Member追加UIを隠す
 - 保存済みGame行は鉛筆アイコンから編集する。削除は訂正中だけゴミ箱アイコンを表示し、実行前に確認を要求する
 - Game入力時に役満を直接ボタンで選択でき、対象Player選択は行わない
-- ChipはPlayer固定列でN-1入力、残り1人を合計0で自動計算し、換算（1枚=5pt）と最終合計を表示する
+- ChipはPlayer固定列でN-1入力、残り1人を合計0で自動計算し、換算（1枚=5pt）と最終合計を表示する。保存済みChipは全員分を再表示・再編集でき、合計0なら何度でも更新保存できる
 - Session memoはActive Session内で編集・保存する。Participant memo UIはPhase 1対象外とし、将来の本人識別・認可導入後に自分のmemoだけを表示・編集する
 - 4人回し三麻は4固定列で実装済み。Productionスマホ実機確認はMerge後Evidenceとして残す
 
@@ -176,7 +176,7 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - finalized Sessionを新しい順で表示
 - 選択するとResults画面を再利用する
 - Results表は上端と下端の両方にPlayer名を表示する
-- Session memoがある場合は過去Session一覧に最大2行のpreviewを表示し、全文はResultsで確認する
+- 過去Session一覧は日付ボタンと削除ボタンの下に「N半荘 · Session memo」を1行で表示する。memoが長い場合は一覧では省略し、全文はResultsで確認する
 
 
 ### Game Tag UI Phase 1対象外

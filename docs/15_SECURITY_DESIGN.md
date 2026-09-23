@@ -95,3 +95,12 @@ Phase 2以降:
 ## 8. Security Test Traceability
 
 各SEC IDは `20_TEST_DESIGN.md` とIssue/PR evidenceへ接続する。
+
+
+## 9. Player Invitation / Account Linking Security
+
+- PlayerへのUser紐付け・招待発行はAdminのみ許可する
+- 既存User紐付け時も対象GroupへのAdmin権限をAPI側で検証する
+- clientから指定されたuserId/playerIdだけで紐付けを許可せず、Group scopeと重複をserver側で検証する
+- 未ログインPlayerへの招待はsingle-use token等の本人確認可能な方式とし、tokenを監査Logや通常レスポンスへ露出しない
+- 招待tokenの有効期限・再送・取消・使用済み無効化はAuthentication方式決定時に確定する

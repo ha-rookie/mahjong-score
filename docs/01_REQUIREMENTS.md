@@ -17,7 +17,7 @@ Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定
 | --- | --- | --- | --- |
 | REQ-001 | GroupとPlayerを管理する | User | 5人以上の候補Memberを登録しSessionで選択できる |
 | REQ-002 | Sessionを開始し参加者を選ぶ | User | 3人または4人で開始でき、Session途中で参加者構成を変更できる |
-| REQ-003 | 半荘結果を登録する | User | 3人三麻は3人分、4人回し三麻は4人分の半荘結果を保存できる |
+| REQ-003 | 半荘結果を登録する | User | 3人三麻は3人分、4人回し三麻は4人分の半荘結果を順位順に保存できる |
 | REQ-004 | Session終了時にChipを精算する | User | Player別Chip数を入力し、合計0の場合のみ確定できる |
 | REQ-005 | 成績を集計する | User | 日次・月間・年間・通算を確認できる |
 | REQ-006 | 履歴へ出来事とMemoを残す | User | GameTag、Session Memo、Player別Memoを保持できる |
@@ -32,7 +32,42 @@ Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定
 - 3人三麻の開始時総点は 35,000 × 3 = 105,000点
 - 4人回し三麻の開始時総点は 35,000 × 4 = 140,000点
 
-## 6. 機能要件
+## 6. 半荘結果入力ルール
+
+Human確認済み:
+- 入力する数値は最終持点ではなくScore Point
+- 100点相当は0.1pointとして入力できる
+- App側で1,000点単位への丸めは行わない
+- Playerの入力順がそのまま順位を表す
+- 同じScore Pointでも入力順で順位を判定するため、Score値からTie-breakしない
+- 1位PlayerのScore Pointは入力せず、残りPlayerのScore Point合計の符号反転で自動計算する
+- 3人三麻では2人分を入力し、1位を自動計算
+- 4人回し三麻では3人分を入力し、1位を自動計算
+- 箱下相当の負Score Pointを許可する
+
+例:
+```text
+入力順 = 1位 → 2位 → 3位 → 4位
+
+1位 A: [自動]
+2位 B: +3.2
+3位 C: -8.4
+4位 D: -15.1
+
+1位 A = +20.3
+合計 = 0.0
+```
+
+同点例:
+```text
+1位 A: +10.0
+2位 B: +10.0
+3位 C: -20.0
+
+AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
+```
+
+## 7. 機能要件
 
 | ID | 要件 | 優先度 | 受け入れ条件 | 状態 |
 | --- | --- | --- | --- | --- |
@@ -40,34 +75,14 @@ Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定
 | REQ-002 | Sessionは日付と別Entityとし同日複数Sessionを許可 | Must | Session IDで個別管理できる | Active |
 | REQ-003 | Session内の参加者構成変更を履歴として保持 | Must | ParticipantSegmentでGameとの対応を保持 | Active |
 | REQ-004 | Game結果はSessionの方式に応じ3人または4人分を扱う | Must | 3人三麻=3人、4人回し三麻=4人 | Active |
-| REQ-005 | 35,000点持ち、40,000点基準、1,000点=1pointを前提にScore計算 | Must | 計算仕様Testで確認 | Planned |
-| REQ-006 | Topは直接選択せず、1人分をbalance計算できる | Must | Game score calculationで確認 | Planned |
-| REQ-007 | 箱下を許可する | Must | negative final pointsを拒否しない | Planned |
+| REQ-005 | Score Pointを0.1point単位で入力し、1Game合計0にする | Must | manual inputs + auto top = 0.0 | Active |
+| REQ-006 | 入力順を順位とし、1位Scoreは残りから自動計算する | Must | 同Scoreでも入力順で順位確定 | Active |
+| REQ-007 | 負Score Pointを許可する | Must | negative score pointを拒否しない | Active |
 | REQ-008 | ChipはSession終了時にPlayer別net枚数を入力し合計0を必須とする | Must | balance validation | Active |
 | REQ-009 | 1 Chip = 5pointとしてOverall Scoreへ反映 | Must | calculation test | Planned |
 | REQ-010 | GameTagは選択式で複数保持できPlayerを関連付け可能 | Should | 役満/ダブル役満を保持 | Active |
 | REQ-011 | Session MemoとPlayer別Session Memoを保持 | Should | optional memo fields | Active |
 | REQ-012 | JSON Backup/Restore | Must | schema version付きexport/import | Planned |
-
-## 7. Score計算の未決事項
-
-### TBD-001: 100点単位の端数処理
-
-| Option | 内容 | 影響 |
-| --- | --- | --- |
-| A | 100点を0.1pointとしてそのまま保持 | 実点を失わない。小数pointを扱う |
-| B | 1,000点単位へ丸めて整数point化 | 丸め方と端数の帰属Ruleが追加で必要 |
-| C | 入力自体を1,000点単位へ制限 | 実際の最終持点を記録できない場合がある |
-
-### TBD-002: 同点Top / rank
-
-| Option | 内容 | 例 |
-| --- | --- | --- |
-| A | 同点は同順位として扱う | 1位 / 1位 / 3位 |
-| B | 席順等のTie-break ruleで順位を分ける | 1位 / 2位 / 3位 |
-| C | Scoreでは順位を使わず、表示・集計Ruleを別途決める | Top率等の定義が別途必要 |
-
-TBD-001 / TBD-002はHuman決定前に実装へ固定しない。
 
 ## 8. 非機能要件
 
@@ -111,8 +126,8 @@ Phase 1:
 
 | ID | 論点 | 決定者 | 状態 |
 | --- | --- | --- | --- |
-| TBD-001 | 100点単位の端数処理 | Human | Open |
-| TBD-002 | 同点Top / rank処理 | Human | Open |
+| TBD-001 | 100点単位の端数処理 | Human | Resolved: Score Pointを0.1単位で入力、丸めなし |
+| TBD-002 | 同点Top / rank処理 | Human | Resolved: 入力順を順位として保持 |
 | TBD-003 | 確定Sessionの再編集/訂正 | Human | Open |
 | TBD-004 | 離脱PlayerのChip精算運用 | Human | Open |
 | TBD-005 | Phase 1で複数Groupを扱うUI | Human | Open |

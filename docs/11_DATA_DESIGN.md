@@ -27,16 +27,42 @@ Group
 - 局ごとの着席/待機履歴はPhase 1では保存しない
 - Gameはその半荘に対応するParticipantSegmentを参照する
 
-開始時総点:
-- 3人 = 105,000点
-- 4人 = 140,000点
+### Result order
 
-## 4. Phase 1 Persistence Schema
+`Game.results` の配列順を順位順として扱う。
 
-- storage key: `mahjong-score:app-data:v1`
-- schemaVersion: `1`
-- 1 keyにAppDataSchema全体をJSON保存
-- write時は全root schemaをvalidationしてから保存
+- index 0 = 1位
+- index 1 = 2位
+- index 2 = 3位
+- 4人回し時のみ index 3 = 4位
+- Score Pointが同値でも配列順が順位を決める
+- Score Pointから順位を再算出しない
+
+### Score value
+
+- User inputはScore Point
+- 0.1point単位を許可
+- 最終持点そのものは入力元にしない
+- 1位Score Pointは2位以下の合計の符号反転で算出
+- GameResult全体のScore Point合計は0.0
+- 負値を許可
+
+## 4. Current Model Gap
+
+現在のRuntime `GameResult` は `finalPoints` と `mahjongScore` を保持しているが、Human確認済みの入力契約は「Score Point直接入力」である。
+
+Score Domain実装Issueで、GameResultの永続化契約を入力仕様に合わせて整理する。半荘結果入力UIはまだ未実装でProduction上にGame recordは作成されないため、既存User操作DataへのGame migrationは発生していない。
+
+候補:
+```text
+GameResult
+- playerId
+- scorePoint
+
+rankはGame.resultsの配列順で表現
+```
+
+schemaVersionを維持するか更新するかは実装Issueでstrict validator / Backup互換性を確認して決定する。
 
 ## 5. Invariants
 
@@ -45,35 +71,33 @@ Group
 - GameResultはParticipantSegment人数と一致する3人または4人
 - GameResult内Player重複禁止
 - GameResultのPlayer集合は対象ParticipantSegmentのPlayer集合と一致する
+- Game.results順序をrankとして保持
+- Score Pointは0.1point単位
+- Score Point合計は0
+- 1位Scoreは自動算出
+- negative Score Pointを許可
 - ChipResult内Player重複禁止
 - Chip合計は0
-- negative finalPointsは許可
 
-Score balance、100点端数、同点rankはTBD-001 / TBD-002確定後に実装する。
+## 6. Score Calculation Decisions
 
-## 6. Score Calculation Decision Inputs
-
-| Rule | Confirmed / TBD |
+| Rule | Decision |
 | --- | --- |
-| starting points | 35,000 / player |
-| return basis | 40,000 / player |
-| conversion | 1,000 points = 1 score point |
-| total starting points | 105,000 (3 players) / 140,000 (4 players) |
-| one blank player result | balance calculation方針あり |
-| negative points | allowed |
-| 100-point remainder | TBD-001 |
-| tied rank/top | TBD-002 |
+| user input | Score Point直接入力 |
+| precision | 0.1point |
+| rounding | なし |
+| rank | input order / Game.results order |
+| tied Score Point | input orderで順位確定 |
+| first place score | negative sum of remaining scores |
+| game score sum | 0.0 |
+| negative score | allowed |
+| participant count | 3 or 4 according to ParticipantSegment |
 
-## 7. ID / Time
+## 7. Phase 1 Persistence
 
-- stable ID: `crypto.randomUUID()`をBrowser runtime adapterで生成
-- timestamp: SystemClockでISO 8601 UTC文字列を生成
-- sessionDate: `YYYY-MM-DD`
+- storage key: `mahjong-score:app-data:v1`
+- 現行schemaVersion: `1`
+- 1 keyにAppDataSchema全体をJSON保存
+- write時は全root schemaをvalidationしてから保存
 
-## 8. Delete Policy
-
-未決。Cascade意味を決めるまでRepository Portへdeleteを提供しない。
-
-## 9. Migration
-
-schema v1のみ対応。v2 migrationは別Issue。未知schemaVersionは自動変換せずerrorとする。
+GameResult contract変更は次Implementation IssueでBackup互換性とともに扱う。

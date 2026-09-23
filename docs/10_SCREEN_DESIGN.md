@@ -166,3 +166,10 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - finalized Sessionを新しい順で表示
 - 選択するとResults画面を再利用する
 - Results表は上端と下端の両方にPlayer名を表示する
+
+
+### Game Tag UI 一時保留
+- 実機確認により、想定していたタグ利用方法と現行UIに差があるためPhase 1画面から一旦非表示とする
+- 4人結果表は横幅をScore表示に優先し、タグ列を追加しない
+- Domain互換のGame.tagsは残すが、新規/訂正UIからは空配列を保存する
+- タグ仕様を再定義するまでUIを再導入しない

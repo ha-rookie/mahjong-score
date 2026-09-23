@@ -37,7 +37,9 @@ function App() {
   const [isLoading,setIsLoading]=useState(true);
   const [isBusy,setIsBusy]=useState(false);
   const [errorMessage,setErrorMessage]=useState<string|null>(null);
-  const [statusMessage,setStatusMessage]=useState<string|null>(null);\n  const [showFinalizeConfirm,setShowFinalizeConfirm]=useState(false);\n  const [gamePendingDelete,setGamePendingDelete]=useState<Game|null>(null);
+  const [statusMessage,setStatusMessage]=useState<string|null>(null);
+  const [showFinalizeConfirm,setShowFinalizeConfirm]=useState(false);
+  const [gamePendingDelete,setGamePendingDelete]=useState<Game|null>(null);
 
   const refresh=useCallback(async(preferredGroupId?:string)=>{
     setIsLoading(true);setErrorMessage(null);

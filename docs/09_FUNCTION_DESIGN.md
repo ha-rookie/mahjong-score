@@ -83,3 +83,10 @@ Home
 ```text
 Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Result -> UI
 ```
+
+
+## Session終了
+- Active Sessionから「Sessionを終了」を実行できる
+- 確認後、statusを`finalized`、endedAtを終了時刻に更新する
+- 終了後はHomeへ戻り、次の3人/4人Sessionを開始できる
+- finalized Sessionの再開・再編集は本Issueの対象外

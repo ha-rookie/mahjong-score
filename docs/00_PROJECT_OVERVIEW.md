@@ -2,34 +2,67 @@
 
 ## Project
 
-CHANGE-ME
+Mahjong Score / 三麻スコア
+
+GitHub Repository: `ha-rookie/mahjong-score`
+
+現時点の画面表示名は「三麻スコア」。Repository名は将来の四人麻雀対応を考慮して `mahjong-score` とする。
 
 ## User Problem
 
-CHANGE-ME
+仲間内の三人麻雀では、半荘ごとの結果、チップ、その日の累計、月間・年間・通算成績を簡単に残し続ける手段が必要。
+
+卓上での入力回数を増やしすぎず、後から成績や印象的な出来事を振り返れるようにする。
 
 ## Target User
 
-CHANGE-ME
+Phase 1はRepository owner本人。
+
+Phase 3以降で、普段一緒に麻雀をする固定グループのメンバーへ拡張する。
 
 ## Success Condition
 
-CHANGE-ME
+- 実際の麻雀中にスマートフォンから迷わず結果を入力できる
+- 三麻のポイント計算を正しく行える
+- Session、月間、年間、通算の成績を確認できる
+- localStorageからD1へ段階移行できるデータ構造になっている
 
 ## In Scope
 
-CHANGE-ME
+Phase 1:
+
+- 三人麻雀
+- 3人参加 / 4人回し三麻
+- Session途中の参加者変更
+- 半荘結果入力
+- 自動ポイント計算
+- チップ精算
+- 履歴 / 集計
+- GameTag / 任意メモ
+- localStorage
+- JSONバックアップ / 復元
 
 ## Out of Scope
 
-CHANGE-ME
+Phase 1では以下を実装しない。
+
+- 四人麻雀
+- D1
+- Worker API
+- LINE Login
+- Google Login
+- グループ認可
+- 複数端末同期
+- サーバー監査ログ
 
 ## Technology
 
-- Frontend: CHANGE-ME
-- Runtime: CHANGE-ME
-- Hosting: Cloudflare Pages / Workers / CHANGE-ME
-- Repository: CHANGE-ME
+- Frontend: React + TypeScript + Vite
+- Runtime: Browser
+- Hosting: Cloudflare Workers + Static Assets
+- Persistence: localStorage
+- CI / Deploy: GitHub Actions + Wrangler
+- Repository: `ha-rookie/mahjong-score`
 
 ## Human Decision Points
 

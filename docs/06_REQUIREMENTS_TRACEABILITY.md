@@ -16,7 +16,7 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-007 | 負Score Point許可 | FUNC-003, SCR-004, DATA invariant | #14/#20/#27 | integer score validation + ± sign toggle UI | score unit tests + PR CI | ACTIVE |
 | REQ-008 | Chip合計0 | FUNC-005, SCR-005, DATA-009 | #6/#10/#27 | validateChipResults + Session settlement UI | domain test + PR CI | ACTIVE |
 | REQ-009 | Chip 1枚=5pt / 最終合計 | FUNC-005, SCR-005 | #27 | chip conversion + final total UI | PR CI + Production review pending | ACTIVE |
-| REQ-010 | GameTag | FUNC-003, SCR-004 | #6/#27 | yakuman / double-yakuman tag UI | PR CI + Production review pending | ACTIVE |
+| REQ-010 | GameTag | FUNC-003, SCR-004 | #6/#27 | Domain互換は維持、新規/訂正UIは空配列保存 | 実機レビューでPhase 1 UIから除外 | DEFERRED |
 | REQ-011 | Session / Participant memo | SCR-004 | #6/#27 | existing Session model + runtime UI | PR CI + Production review pending | ACTIVE |
 | REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI | ACTIVE |
 | NFR-001 | 卓上スマホUsability | SCR-001..005 | #12/#25/#27 | mobile-first UI + direct score entry + ± sign toggle | Production smartphone review; 4-player review pending | ACTIVE |

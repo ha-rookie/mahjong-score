@@ -50,7 +50,7 @@ Issue #25でProduction実機レビューを反映する。
 - 対局中はGroup / Member追加UIを表示しない
 - 保存済みGameは編集・削除できる。編集時もN-1入力/合計0制約を再適用する
 - 負数はスマホで`-`を直接入力せず、各入力セルの`±`で符号反転できる
-- GameTagは現行Domain contractの役満をGame単位で登録でき、対象Playerは入力しない
+- GameTag UIはPhase 1対象外とする。現行Domain contractの互換性は維持するが、新規/訂正では空配列を保存し、利用方法を再定義するまでUIへ再導入しない
 - SessionのChipは任意N-1人を整数入力し残り1人を合計0で自動計算、1枚=5ptで麻雀小計へ加算して合計を表示する
 - Session memoは保存できる。participant memoは本人識別・認可がないPhase 1ではRuntime UIに表示せず、将来はログインUserに紐づく自分のmemoだけ表示・編集する
 - Session終了 / 参加者変更は別Feature

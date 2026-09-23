@@ -131,6 +131,9 @@ Phase 1:
 - 初期PWAのoffline対象は静的Assetを基本とし、D1/APIへのoffline write/syncは行わない
 - AuthenticationでUserを識別する
 - Group単位でAdmin / Memberを認可する
+- User（認証主体）とPlayer（成績対象）を分離し、ログインしていないPlayerも保持可能とする
+- AdminはGroup/Membership管理・Backup/Restoreを実行でき、Memberは通常の麻雀記録・参照を実行できる
+- 認可はFrontend表示制御だけでなくWorker API側で強制する
 - Group作成、Backup / RestoreはAdminのみ実行できる
 - Worker API / D1で複数端末からGroup dataを共有する
 - stale updateを検知し、競合を黙って上書きしない

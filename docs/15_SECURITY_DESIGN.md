@@ -26,6 +26,19 @@ Browser
 
 Frontend表示制御をSecurity上の認可とみなさない。
 
+Phase 2のAuthorization単位はGroup Membershipとする。Worker APIは対象resourceのgroupIdに対して、認証済みUserが有効なMembershipを持つことを毎回確認する。Admin専用操作はさらにrole=`admin`を要求する。
+
+Admin専用操作:
+- Group管理・Group作成に関する管理操作
+- Group Membership管理
+- Backup / Restore
+
+Member許可操作:
+- Session / Game / Chip / Session Memoの通常操作
+- History / Performance参照
+
+URLやrequest bodyのgroupId/userIdを信用せず、server側でresource ownership / membershipを解決する。
+
 ## 4. Threat Coverage
 
 - SQL Injection: D1はparameterized query / bind

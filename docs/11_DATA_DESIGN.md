@@ -99,3 +99,40 @@ rank = Game.results array order
 - write時は全root schemaをvalidationしてから保存
 
 GameResultは`scorePoint`整数契約。strict validatorも同一shapeを要求する。
+
+
+## 8. Phase 2 Identity / Group Authorization Model
+
+Phase 2では麻雀上のPlayerとログイン主体Userを分離する。Playerは成績対象、Userは認証・認可主体であり、同一Entityにしない。
+
+```text
+User
+ └─ GroupMembership -> Group
+                     ├─ Player
+                     └─ Session / Game / Results
+```
+
+### User
+- id: stable internal ID
+- externalIdentity: authentication provider側subjectとの対応
+- displayName: UI表示用
+- createdAt / updatedAt
+
+### GroupMembership
+- groupId
+- userId
+- role: admin | member
+- createdAt / updatedAt
+- 同一Group/Userの重複Membershipは禁止
+
+### Role semantics
+- admin: Group設定、Member管理、Group作成に関する管理操作、Backup / Restore、通常の麻雀操作
+- member: Session / Game / Chip / Memo / History / Performance等の通常操作
+
+Group resourceへのread/writeは、Frontend表示状態ではなくWorker API側でMembershipを確認して許可する。
+
+### Playerとの関係
+Phase 2初期ではUserとPlayerを強制的に1:1対応させない。ログインしていないPlayerも成績対象として保持できる。将来、本人紐付けが必要になった時点でPlayer-User linkを追加判断する。
+
+### Concurrency
+D1移行時は更新対象にversionまたはupdatedAt等の競合検知情報を持たせ、古い状態からの更新を黙って上書きしない。

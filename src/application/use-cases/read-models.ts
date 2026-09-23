@@ -81,7 +81,8 @@ export class GetSessionResultsUseCase {
 
   async execute(sessionId: SessionId): Promise<Result<SessionResultsSummary | null>> {
     const session = await this.sessions.findById(sessionId);
-    if (!session.ok || session.value === null) return session;
+    if (!session.ok) return session;
+    if (session.value === null) return ok(null);
 
     const segments = await this.sessions.listSegments(sessionId);
     if (!segments.ok) return segments;

@@ -1,193 +1,156 @@
 # Design Management
 
 ## 1. 目的
+設計をDocument作成作業ではなく、Requirement・Implementation・Test・OperationをつなぐControl Planeとして管理する。
 
-設計を「文書を作る作業」ではなく、変更判断・実装・テスト・レビューをつなぐ制御面として管理する。
+## 2. 正本
 
-## 2. 設計の正本
+- Approved: GitHub `main`
+- Proposed: Issue Branch / Pull Request
+- Decision history: Git / PR / ADR
+- Visual review: `docs/design/`
+- Evidence: GitHub / Google Drive / external dashboard
+- Chat: working conversation
 
-- 承認済み最新設計: GitHub `main`
-- 提案中設計: 対象IssueのBranch / Pull Request
-- 変更履歴: Git history / Pull Request
-- 重要判断の理由: `docs/adr/`
-- 視覚レビュー: `docs/design/` を元にしたDesign Preview
-- 構築証跡: Google Drive
-- Chat: 作業会話。確定仕様の正本にはしない
-
-## 3. 朝マズメ潮ナビとの関係
-
-継承する:
-
-- GitHub設計書を正本にする
-- 要件 / Architecture / HTML視覚設計を分ける
-- 設計Previewを人間がブラウザ・スマホで確認する
-- Design承認後に実装する
-
-改善する:
-
-- 文書の責務表を固定する
-- System ArchitectureとApplication Architectureを分離する
-- Repository Structureを独立させる
-- ADRを標準化する
-- Requirements Traceabilityを最初から持つ
-- Google DriveとGitHubの役割を明文化する
-
-## 4. 変更規模別フロー
-
-### Small Change
-
-仕様境界を変えない軽微な変更。
+## 3. Design Layers
 
 ```text
-Issue
- -> same branchで設計書を先に更新
- -> implementation
- -> test
- -> PR
- -> human review
- -> merge
+Requirement
+  ↓
+Architecture / Foundation / Common
+  ↓
+Function / Screen / Data / Interface
+  ↓
+Security / NFR / Public Web / Analytics / Operations
+  ↓
+Test / Traceability
+  ↓
+Implementation / Production Evidence
 ```
 
-### Significant Design Change
+## 4. 朝マズメ潮ナビから継承するもの
 
-Architecture、画面構造、データschema、認証、課金、外部IF、Asset大変更など。
+- GitHub設計を正本にする
+- HTMLで画面・InteractionをBrowser reviewする
+- smartphone review
+- statusを確定 / 暫定 / TBD / Deferredで区別
 
+改善点:
+- 巨大HTMLを唯一の正本にしない
+- System / App / Foundation / Commonの責務を分離
+- Security / NFR / Analytics / SEO / LLMOを明示的なDesignへ昇格
+- TraceabilityをRequirementからProduction Evidenceまで伸ばす
+
+## 5. Change Flow
+
+Small Change:
 ```text
-Design Issue
- -> Design Branch
- -> design docs / visual preview
- -> human approval
- -> Design PR merge
- -> Implementation Issue
-      references approved Design PR / SHA / IDs
- -> Implementation Branch
- -> code/test/preview
- -> human approval
- -> merge
+Issue -> Design update -> Implementation -> Test -> PR -> Human review -> Merge
 ```
 
-設計を別PRにするかは「人間が実装前に設計だけを承認する必要があるか」で判断する。
+Significant Design Change:
+```text
+Design Issue -> Design Branch -> Design review -> Design merge
+ -> Implementation Issue -> Code/Test -> Human approval -> Merge
+```
 
-## 5. 更新トリガー
+Architecture、Data schema、Authentication、Authorization、Security boundary、external IF等は原則Significantとして扱う。
 
-| Change | Required Docs |
+## 6. Update Triggers
+
+| Change | Required Design |
 | --- | --- |
-| 目的・対象ユーザー | 00_PROJECT_OVERVIEW |
-| 機能/非機能要件 | 01_REQUIREMENTS + 06_TRACEABILITY |
-| Hosting/外部Service/DB/Runtime構成 | 02_SYSTEM_ARCHITECTURE + ADR |
-| Module/State/API/Data Model | 03_APPLICATION_ARCHITECTURE |
-| File/Folder配置 | 04_REPOSITORY_STRUCTURE |
-| UI/画面/Interaction | design/ + 必要に応じ03 |
-| Cloudflare手順 | CLOUDFLARE_SETUP |
-| Design Preview | DESIGN_PREVIEW + design/ |
-| 公開品質・SEO・GSC | PUBLIC_WEB_QUALITY |
-| Security Header | SECURITY_BASELINE |
-| Asset | ASSET_WORKFLOW + Feature Issue Asset Handoff |
-| Release条件 | RELEASE_CHECKLIST |
-| 再発可能な障害 | TROUBLESHOOTING |
-| 重要な選択理由 | adr/ |
+| Purpose / Scope | 00 / 01 |
+| Hosting / Runtime / DB | 02 / 07 + ADR |
+| Module / State | 03 / 08 |
+| Directory | 04 / 21 |
+| Function | 09 + 06 |
+| Screen / Route / Item / Event | 10 + design/ |
+| Data / Table / ER / Transaction | 11 |
+| API / External IF / File | 12 |
+| Report / Batch / Notification / Workflow | 13 |
+| Code / Message / Term | 14 |
+| Security / Header / Authz | 15 + SECURITY_BASELINE |
+| NFR | 16 + 06 + 20 |
+| SEO / LLMO / GSC | 17 + PUBLIC_WEB_QUALITY |
+| Analytics / Log / Audit | 18 |
+| Operation / Recovery / Release | 19 + RELEASE_CHECKLIST |
+| Test strategy | 20 |
+| Naming | 21 |
 
-## 6. 設計IDとIssue/PR
+## 7. Project-specific vs Baseline
 
-Issueには可能な範囲で以下を記載する。
+Baselineには「どう考えるか」を置き、Project-specific Designには次を置く。
 
-- 対象REQ/NFR
-- 対象ARCH/APP/UI/DATA/IF
-- 新規TBD
-- 関連ADR
-- 更新する設計書
-- 変更しない設計境界
+- 実際の採用値
+- 非採用理由
+- URL / environment
+- test / measurement
+- production evidence
 
-PRでは「設計書を更新したか」だけでなく、どのIDが変わったか確認する。
+例: Security Headerの一般論は `SECURITY_BASELINE.md`、このAppでのCSP値は `15_SECURITY_DESIGN.md`。
 
-## 7. Versioning
+## 8. Versioning
 
-ファイル名へ `v2`、`final`、`final2` を増殖させない。
+- latest approved = main
+- proposal = PR branch
+- history = Git
+- release snapshot = tag/release
+- `final2` 等のcopy fileを作らない
 
-- 最新承認版 = main
-- 過去版 = Git history
-- Release時点 = Git tag / Release
-- 提案版 = PR Branch
-- 廃止判断 = ADRまたはIssue/PR
+## 9. ADR
 
-例外として外部提出物など固定スナップショットが必要な場合だけ別Artifactを作る。
+重要な技術判断はADRで理由を残す。Accepted ADRを変更する場合は新ADRでsupersedeする。
 
-## 8. ADR
+## 10. Traceability
 
-重要な設計判断は上書きで消さない。
-
-- Accepted ADRを変更したい場合、新ADRでSupersedeする
-- 過去判断が当時なぜ妥当だったか残す
-- 単なる実装メモや小さな命名判断はADRにしない
-
-## 9. Requirements Traceability
-
-`06_REQUIREMENTS_TRACEABILITY.md` で以下を結ぶ。
+`06_REQUIREMENTS_TRACEABILITY.md` で以下を追う。
 
 ```text
 Requirement
  -> Design ID / ADR
- -> Issue
+ -> Issue / PR
  -> Implementation
  -> Test
+ -> Evidence
  -> Status
 ```
 
-要件をDeferred/Removedへ変える場合は理由を残す。
+## 11. Visual Design
 
-## 10. Visual Design / HTML Design
+Wireframe / Mock / Productionを区別する。
 
-画面やInteractionは、文章だけで認識差が出る場合 `docs/design/` でブラウザ確認可能にする。
+```text
+Wireframe -> 情報構造
+HTML / React Mock -> 見た目・状態・responsive
+Production -> real data / security / performance
+```
 
-朝マズメ潮ナビと同様、必要ならCloudflare Design Previewを使う。
+Design PreviewはProductionと分離し、indexさせない。
 
-ただし:
+## 12. N/A Rule
 
-- Design Previewは正本ではない
-- 正本はRepository内のHTML/CSS/設計ファイル
-- ProductionサイトとDesign Previewを混在させない
-- 検索エンジンへ公開しない
-- 可能ならAccess制御する
-- PR単位Previewとmain最新Previewを区別する
-- スマホで確認する
+帳票、Batch、Mail等が存在しない場合でも、単にDocumentを省略して「忘れた」のか「不要」なのか不明にしない。
 
-Design Previewの自動デプロイ自体はプロジェクト開始時に必要性を判断する。
+小規模Phaseでは共通Document内に `N/A` を明記し、必要になった時点で独立仕様へ展開する。
 
-有効化する場合は `DESIGN_PREVIEW.md` を正本とし、PR=`pr-N`、main=`latest`、manual=`manual-<run_id>` のPreview aliasを基本候補とする。Template Repository自身ではDesign Previewを自動Deployしない。
+## 13. Review Checklist
 
-## 11. Google Drive
-
-Google Driveへ置くもの:
-
-- Cloudflare/GitHub設定画面キャプチャー
-- 外部ツールの証跡
-- 手動操作の記録
-- PDF等の参考資料
-- GitHubへ置くべきでない大きな参照資料
-
-Google Driveへ設計本文のコピーを作り、GitHubと二重管理しない。
-
-必要ならDrive文書からGitHubの設計書・Issue・PRへリンクする。
-
-## 12. Review Checklist
-
-設計レビューでは最低限確認する。
-
-- Requirementとの整合
-- 変更範囲と非対象
-- System / App / Repository責務の混在がない
+- Requirement整合
+- Scope / Out of Scope
+- Architecture責務
+- Security / Privacy
+- NFR / measurement
 - Production / Preview分離
-- Security / privacy
 - Failure / fallback
+- Data integrity / concurrency
 - Mobile / accessibility
-- Data source / freshness
-- Testability
-- Rollback
+- SEO / LLMO / Analyticsの採否
+- Testability / Evidence
+- Rollback / Recovery
 - TBDを勝手に確定していない
-- 重複する正本を作っていない
+- duplicate source of truthがない
 
-## 13. 設計負債
+## 14. Design Debt
 
-実装を優先して設計更新を後回しにした場合、完了扱いにせずIssue化する。
-
-「コードが動いているから設計は不要」を標準にしない。
+実装優先で設計更新を後回しにした場合はIssue化し、完了扱いにしない。

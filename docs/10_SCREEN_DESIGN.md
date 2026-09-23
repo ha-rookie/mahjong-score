@@ -12,7 +12,7 @@ Screen Map、画面遷移、項目、Event、画面-Data Mapping、Wireframe/Moc
 | SCR-002 | Group / Member Setup | Home内 | Group作成 / Member追加 | User | Phase 1なし | 1 | Active |
 | SCR-003 | Session Setup | Single-page state | 日付 / 参加者選択 / Session開始 | User | Phase 1なし | 1 | Active |
 | SCR-004 | Score Sheet | Single-page state | 半荘結果入力・累計 | User | Phase 1なし | 1 | Active |
-| SCR-005 | Chip Settlement | TBD | Session終了時Chip精算 | User | TBD | 1 | Planned |
+| SCR-005 | Chip Settlement | Score Sheet内 | Session Chip精算・最終合計 | User | Phase 1なし | 1 | Active |
 | SCR-006 | Results | TBD | Session / 日次成績 | User | TBD | 1 | Planned |
 | SCR-007 | Statistics | TBD | 月・年・通算 | User | TBD | 1 | Planned |
 | SCR-008 | Settings | TBD | Group / Backup等 | User | TBD | 1 | Planned |
@@ -92,11 +92,15 @@ Production実機レビューで紙の麻雀得点記録表を操作モデルと�
 - 残り1セルは合計0になるよう自動計算して同じ行に表示
 - 順位選択 / 順位並べ替えUIは持たない
 - 1pt=1,000点、小数入力不可、負値可
+- 負数は数字入力後の`±`操作で符号を切り替え、スマホキーボードで`-`を探さなくてよい
 - 小計行をPlayer列ごとに表示
 - 保存成功後もScore Sheetに留まり次の半荘入力へ続けられる
 - Active Session中はGroup / Member追加UIを隠す
-- Chip / 合計行は将来追加可能だがIssue #25では未実装
-- 過去Gameの訂正/削除は対象外
+- 保存済みGame行から編集 / 削除を行える。削除は確認を要求する
+- Game入力時に役満 / ダブル役満タグと対象Playerを選択できる
+- ChipはPlayer固定列でN-1入力、残り1人を合計0で自動計算し、換算（1枚=5pt）と最終合計を表示する
+- Session memo / Participant memoを同じActive Session内で編集・保存する
+- 4人回し三麻は4固定列で実装済み。Productionスマホ実機確認はMerge後Evidenceとして残す
 
 ## 8. UI Rules
 

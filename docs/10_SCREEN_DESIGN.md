@@ -15,7 +15,7 @@ Screen Map、画面遷移、項目、Event、画面-Data Mapping、Wireframe/Moc
 | SCR-005 | Chip Settlement | Score Sheet内 | Session Chip精算・最終合計 | User | Phase 1なし | 1 | Active |
 | SCR-006 | Results | TBD | Session / 日次成績 | User | TBD | 1 | Planned |
 | SCR-007 | Statistics | TBD | 月・年・通算 | User | TBD | 1 | Planned |
-| SCR-008 | Settings | TBD | Group / Backup等 | User | TBD | 1 | Planned |
+| SCR-008 | Backup | Home内 | JSON Backup / Restore | User | Phase 1なし | 1 | Active |
 
 Routerはまだ採用せず、Phase 1最初のVertical SliceはReact stateでHome / Session Setupを切り替える。
 
@@ -211,3 +211,10 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 棒長は表示対象Playerの最大絶対値を100%として正規化する
 - 数値を棒の外側に表示し、0ptも明示する
 - 通算/年間/月間の現在の集計結果と連動し、既存数値一覧は下に残す
+
+
+### JSON Backup / Restore
+- Homeから端末Dataをschema version付きJSONとして保存できる
+- 復元はJSONファイルを選択し、現在Dataを置換する前に確認を表示する
+- 不正JSON / 不正schemaは拒否し、既存Dataを保持する
+- 復元成功後はHomeを再読込する

@@ -662,3 +662,5 @@ h2 {
 .score-sheet,.performance-card,.diverging-chart,.member-choice,.memo-field textarea,.game-meta-editor select,.period-selectors select { backdrop-filter: blur(10px); }
 .performance-card,.diverging-chart { border-radius: 10px; background: rgb(255 255 252 / 82%); box-shadow: 0 8px 24px rgb(31 50 42 / 5%); }
 .confirm-dialog { border-radius: 14px; }
+
+.session-result-note{margin:14px 0 18px;padding:12px 14px;border-left:3px solid rgb(31 91 76 / 45%);background:rgb(255 253 248 / 48%)}.session-result-note span{display:block;margin-bottom:4px;color:var(--muted);font-size:.72rem;font-weight:750}.session-result-note p{margin:0;color:var(--text);font-size:.9rem;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}

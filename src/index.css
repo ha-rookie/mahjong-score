@@ -574,3 +574,14 @@ h2 {
   .score-sheet__corner,.score-sheet__player,.score-sheet__label,.score-sheet__value,.score-sheet__input-cell { padding-inline: 2px; }
   .score-sheet__value,.score-sheet__input-cell { font-size: .82rem; }
 }
+
+.score-sheet__label--actions { flex-direction: column; gap: 2px; padding: 3px 1px; }
+.score-sheet__label--actions button { border: 0; padding: 1px 3px; background: transparent; color: var(--teal-dark); font-size: .62rem; font-weight: 800; }
+.score-sheet__input-cell { position: relative; flex-direction: column; gap: 2px; }
+.sign-toggle { width: 100%; min-height: 24px; border: 0; border-radius: 6px; background: rgb(22 124 116 / 12%); color: var(--teal-dark); font-weight: 900; }
+.game-meta-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
+.game-meta-editor select { min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px; }
+.settlement { margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--line); }
+.settlement h2 { margin-bottom: 6px; }
+.memo-field { display: grid; gap: 6px; margin: 14px 0; color: var(--muted); font-size: .82rem; font-weight: 750; }
+.memo-field textarea { min-height: 72px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px; color: var(--text); }

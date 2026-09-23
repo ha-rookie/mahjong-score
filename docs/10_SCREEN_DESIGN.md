@@ -167,6 +167,7 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - finalized Sessionを新しい順で表示
 - 選択するとResults画面を再利用する
 - Results表は上端と下端の両方にPlayer名を表示する
+- Session memoがある場合は過去Session一覧に最大2行のpreviewを表示し、全文はResultsで確認する
 
 
 ### Game Tag UI Phase 1対象外

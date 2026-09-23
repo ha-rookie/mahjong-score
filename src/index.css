@@ -652,3 +652,6 @@ h2 {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+
+.confirm-dialog__icon--danger { color: var(--danger); background: var(--danger-soft); }
+.button--danger { color: #fff; background: var(--danger); }

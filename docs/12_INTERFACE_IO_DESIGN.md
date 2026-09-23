@@ -45,4 +45,6 @@ Export時はAppDataStoreの現在Dataを読み、metadata付きJSONへ変換す�
 
 ## 6. API / External IF
 
-Worker API / D1 / LINE Loginは後続Phase。SQLはparameterized query / bindを必須とする。
+Phase 2でWorker API / D1 / Authenticationを導入する。SQLはparameterized query / bindを必須とする。
+
+Authentication providerは未確定。第一候補Google Identity / OpenID Connectを含めてHuman decisionで確定する。認証用途だけの場合はprofile識別に必要な最小scopeとし、Drive / Calendar等のGoogle API scopeを要求しない。

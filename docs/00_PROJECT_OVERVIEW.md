@@ -18,7 +18,7 @@ GitHub Repository: `ha-rookie/mahjong-score`
 
 Phase 1はRepository owner本人。
 
-Phase 3以降で、普段一緒に麻雀をする固定グループのメンバーへ拡張する。
+Phase 2以降で、普段一緒に麻雀をする固定グループのメンバーへ拡張する。
 
 ## Success Condition
 
@@ -69,6 +69,22 @@ Phase 1では以下を実装しない。
 - 主要スマートフォンフロー: Human確認済み
 - Backup / Restore: Phase 1ではRepository ownerを暫定Adminとして実機利用し、将来の認証・認可導入後はAdmin限定へ移行
 - Deferred: GameTag UI / Player別Memo / finalized Session訂正 / 同一Session内参加者変更 / 本格的な認証・認可
+
+## Phase 2 Scope
+
+Phase 2では個人端末内の記録アプリから、固定Groupの複数Memberが安全に利用できるWebアプリへ拡張する。
+
+- PWA（Manifest / App Icon / Service Worker / installability / standalone / static asset cache）
+- Authentication
+- Group authorization / Admin・Member role
+- Worker API
+- Cloudflare D1
+- multi-device sync
+- stale update / concurrency control
+- server audit log
+- Group作成とBackup / RestoreのAdmin限定化
+
+初期PWAではD1/APIデータのoffline write/syncを行わない。offline data synchronizationは競合解決設計と合わせて別途判断する。
 
 ## Technology
 

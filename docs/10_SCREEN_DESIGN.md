@@ -145,3 +145,9 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 ### Production実機レビュー追補
 - 編集用鉛筆はタップ領域だけでなく記号自体を約2remで表示し、狭幅スマホでも一目で編集操作と認識できること
 - 訂正終了と削除は同一の操作行に固定し、削除アイコンが画面右下へ独立して浮いて見えないこと
+
+
+### 編集アイコンの実装基準
+- フォント依存のUnicode鉛筆記号は使用しない
+- 24x24pxのinline SVGを44x44px以上のbutton内に中央配置する
+- SVGはcurrentColorを使い既存accentを継承し、外部icon dependencyは追加しない

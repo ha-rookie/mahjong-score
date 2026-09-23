@@ -82,7 +82,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | REQ-009 | 1 Chip = 5pointとしてOverall Scoreへ反映 | Must | calculation test | Planned |
 | REQ-010 | GameTag | Deferred | Phase 1 UIから除外。利用方法を再定義してから再検討 | Deferred |
 | REQ-011 | Session Memoを保持 | Should | Session単位のoptional memoを保存できる。Player別Memo UIは本人識別・認可導入まで延期 | Active |
-| REQ-012 | JSON Backup/Restore | Must | schema version付きexport/import | Planned |
+| REQ-012 | JSON Backup/Restore | Must | schema version付きexport/import。復元前に確認し、不正ファイルでは既存Dataを変更しない | Active |
 
 ## 8. 非機能要件
 

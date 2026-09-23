@@ -668,3 +668,5 @@ h2 {
 .result-review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
 
 .home-hero__group-line{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 28px}.home-hero__group-line .home-hero__meta{margin:0;min-width:0}.group-switcher{display:flex;align-items:center;gap:6px;flex:0 0 auto}.group-switcher span{font-size:.7rem;color:var(--muted);font-weight:700}.group-switcher select{max-width:150px;min-height:38px;padding:5px 26px 5px 8px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--teal-dark);font:inherit;font-size:.8rem;font-weight:750}@media(max-width:380px){.home-hero__group-line{align-items:flex-start;flex-direction:column}.group-switcher{width:100%}.group-switcher select{max-width:none;flex:1}}
+
+.backup-description{margin:0 0 12px;color:var(--muted);font-size:.84rem;line-height:1.6}.backup-actions{display:flex;gap:8px;flex-wrap:wrap}.backup-file-input{display:none}

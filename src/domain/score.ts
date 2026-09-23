@@ -1,5 +1,6 @@
 import { AppError, err, ok, type Result } from "../shared/errors";
-import type { GameResult, PlayerId } from "./models";
+import type { PlayerId } from "./ids";
+import type { GameResult } from "./models";
 
 const SUPPORTED_PLAYER_COUNTS = new Set([3, 4]);
 

@@ -4,7 +4,7 @@ import type { ActiveSessionSummary, SessionResultsSummary, PlayerPerformanceAggr
 import { createBrowserServices } from "./infrastructure/composition";
 import { Button, Section, TextField } from "./components/ui";
 
-type View = "home" | "session-setup" | "results" | "history" | "performance";
+type View = "home" | "session-setup" | "results" | "history" | "performance" | "members";
 const getLocalDateValue = (): string => {
   const now = new Date();
   return [now.getFullYear(), String(now.getMonth()+1).padStart(2,"0"), String(now.getDate()).padStart(2,"0")].join("-");
@@ -27,6 +27,7 @@ function App() {
   const [performanceMonth,setPerformanceMonth]=useState(new Date().getMonth()+1);
   const [groupName,setGroupName]=useState("");
   const [playerName,setPlayerName]=useState("");
+  const [showAddPlayer,setShowAddPlayer]=useState(false);
   const [selectedPlayerIds,setSelectedPlayerIds]=useState<readonly string[]>([]);
   const [sessionDate,setSessionDate]=useState(getLocalDateValue);
   const [scoreInputs,setScoreInputs]=useState<Record<string,string>>({});
@@ -77,7 +78,7 @@ function App() {
     e.preventDefault();if(!group)return;setIsBusy(true);setErrorMessage(null);
     const r=await services.addPlayerToGroup.execute({groupId:group.id,displayName:playerName});
     if(!r.ok){setErrorMessage(r.error.userMessage??"メンバーを追加できませんでした。");setIsBusy(false);return;}
-    setPlayerName("");await refresh(group.id);setIsBusy(false);
+    setPlayerName("");setShowAddPlayer(false);await refresh(group.id);setIsBusy(false);
   };
   const openSessionSetup=()=>{
     setSelectedPlayerIds(players.length>=3&&players.length<=4?players.map(p=>p.id):[]);
@@ -143,6 +144,7 @@ function App() {
       </section>:
       view==="performance"&&group?<section className="session-setup"><p className="screen-eyebrow">PERFORMANCE</p><h1>成績</h1><div className="period-controls"><div className="period-tabs">{(["all","year","month"] as const).map(p=><button key={p} type="button" className={performancePeriod===p?"tag-toggle tag-toggle--active":"tag-toggle"} onClick={()=>{setPerformancePeriod(p);void loadPerformance(p);}}>{p==="all"?"通算":p==="year"?"年間":"月間"}</button>)}</div>{performancePeriod!=="all"?<div className="period-selectors"><select aria-label="年" value={performanceYear} onChange={e=>{const y=Number(e.target.value);setPerformanceYear(y);void loadPerformance(performancePeriod,y,performanceMonth);}}>{Array.from({length:6},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}年</option>)}</select>{performancePeriod==="month"?<select aria-label="月" value={performanceMonth} onChange={e=>{const m=Number(e.target.value);setPerformanceMonth(m);void loadPerformance("month",performanceYear,m);}}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select>:null}</div>:null}</div>{performance.length===0?<p className="empty-hint">終了済みSessionの成績はまだありません。</p>:<div className="performance-list">{performance.map((a,index)=><article className="performance-card" key={a.playerId}><div><span className="performance-card__rank">{index+1}</span><strong>{playerNameById(a.playerId)}</strong></div><dl><div><dt>最終pt</dt><dd>{formatScore(a.finalPointTotal)}</dd></div><div><dt>麻雀pt</dt><dd>{formatScore(a.mahjongPointTotal)}</dd></div><div><dt>1位</dt><dd>{a.firstPlaceCount}回</dd></div><div><dt>Session</dt><dd>{a.sessionCount}回</dd></div><div><dt>半荘</dt><dd>{a.gameCount}回</dd></div></dl></article>)}</div>}</section>:
       view==="history"&&group?<section className="session-setup"><p className="screen-eyebrow">HISTORY</p><h1>過去の麻雀</h1>{history.length===0?<p className="empty-hint">終了済みのSessionはまだありません。</p>:<div className="form-stack">{history.map(s=><Button key={s.id} block variant="secondary" disabled={isBusy} onClick={()=>void openHistoryResult(s.id)}>{s.sessionDate} の結果を見る</Button>)}</div>}</section>:
+      view==="members"&&group?<section className="session-setup"><p className="screen-eyebrow">GROUP</p><h1>メンバー管理</h1><ul className="member-manage-list">{players.map(p=><li key={p.id}>{p.displayName}</li>)}</ul>{showAddPlayer?<form className="form-stack member-add-panel" onSubmit={handleAddPlayer}><TextField id="player-name" label="名前" value={playerName} onChange={e=>setPlayerName(e.target.value)} autoFocus/><div className="member-add-actions"><Button type="button" variant="quiet" onClick={()=>{setShowAddPlayer(false);setPlayerName("");}}>キャンセル</Button><Button type="submit" variant="secondary" disabled={isBusy}>追加</Button></div></form>:<Button block variant="secondary" onClick={()=>setShowAddPlayer(true)}>＋ メンバーを追加</Button>}</section>:
       view==="session-setup"&&group?<section className="session-setup">
         <p className="screen-eyebrow">SESSION SETUP</p><h1>今日の参加者</h1>
         <TextField id="session-date" label="日付" type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/>
@@ -172,10 +174,7 @@ function App() {
         <section className="settlement"><h2>チップ・メモ</h2><p className="score-sheet__hint">チップも1人分だけ空欄にします。1枚 = 5pt。</p><div className={"score-sheet score-sheet--"+participantIds.length}><div className="score-sheet__corner">チップ</div>{participantIds.map(id=><div className="score-sheet__player" key={"ch"+id}>{playerNameById(id)}</div>)}<div className="score-sheet__row score-sheet__row--input"><div className="score-sheet__label">枚</div>{participantIds.map(id=><div className="score-sheet__input-cell" key={id}>{chipMissingId===id&&calculatedChip!==null?<output>{formatScore(calculatedChip)}</output>:<><input inputMode="numeric" pattern="[0-9]*" value={chipInputs[id]??""} placeholder="入力" onChange={e=>setChipInputs(x=>({...x,[id]:e.target.value.replace(/[^0-9-]/g,"")}))}/><button className="sign-toggle" type="button" onClick={()=>toggleChipSign(id)} disabled={!chipInputs[id]}>±</button></>}</div>)}</div><div className="score-sheet__row"><div className="score-sheet__label">換算</div>{participantIds.map(id=><div className="score-sheet__value" key={id}>{formatScore(chipValue(id)*5)}</div>)}</div><div className="score-sheet__row score-sheet__row--subtotal"><div className="score-sheet__label">合計</div>{participantIds.map(id=><div className="score-sheet__value" key={id}>{formatScore((totals.get(id)??0)+chipValue(id)*5)}</div>)}</div></div><label className="memo-field">Sessionメモ<textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} /></label><Button block disabled={!canCalcChip||isBusy} onClick={()=>void saveSessionDetails()}>チップ・メモを保存</Button></section><section className="session-end"><Button block variant="quiet" disabled={isBusy} onClick={()=>void handleFinalizeSession()}>Sessionを終了</Button></section>
       </section>:
       <><section className="home-hero"><p className="screen-eyebrow">HOME</p><h1>仲間との麻雀を、静かに記録する。</h1><p className="home-hero__meta">{group.name} · {players.length}人登録</p>{players.length>=3?<Button block onClick={openSessionSetup}>今日の麻雀を始める</Button>:<p className="empty-hint">Sessionを始めるには、メンバーを3人以上登録してください。</p>}<Button block variant="secondary" disabled={isBusy} onClick={()=>void openHistory()}>過去の麻雀を見る</Button><Button block variant="secondary" disabled={isBusy} onClick={()=>void openPerformance()}>通算成績を見る</Button></section>
-      <Section eyebrow="GROUP" title="メンバー" action={<span className="member-count">{players.length}</span>}>
-        <ul className="member-list">{players.map(p=><li key={p.id}><span className="member-avatar">{p.displayName.slice(0,1)}</span><span>{p.displayName}</span></li>)}</ul>
-        <form className="member-form" onSubmit={handleAddPlayer}><TextField id="player-name" label="メンバーを追加" value={playerName} onChange={e=>setPlayerName(e.target.value)}/><Button type="submit" variant="secondary">追加</Button></form>
-      </Section></>}
+      <Section eyebrow="GROUP" title="メンバー" action={<span className="member-count">{players.length}人</span>}><div className="member-summary" aria-label="登録メンバー">{players.map(p=><span key={p.id}>{p.displayName}</span>)}</div><button className="member-manage-link" type="button" onClick={()=>{setShowAddPlayer(false);setPlayerName("");setView("members");}}>メンバー管理 <span aria-hidden="true">›</span></button></Section></>}
     </main><footer className="app-footer"><p>三麻スコア · Phase 1</p></footer>
   </div>;
 }

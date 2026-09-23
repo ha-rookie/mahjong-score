@@ -136,7 +136,7 @@ function App() {
 
   return <div className="app-shell">
     <header className="app-header"><div className="app-header__inner">
-      <div className="brand-lockup"><div className="brand-mark" aria-hidden="true"><span className="brand-tile"/><span className="brand-score-line brand-score-line--one"/><span className="brand-score-line brand-score-line--two"/><span className="brand-score-line brand-score-line--three"/></div><div><p className="eyebrow">MAHJONG SCORE</p><p className="brand-name">三麻スコア</p></div></div>
+      <div className="brand-lockup"><img className="brand-mark" src="/mahjong-score-icon.png" alt="" aria-hidden="true"/><div className="brand-copy"><p className="brand-name">三麻スコア</p><p className="brand-subtitle">SANMA SCORE</p></div></div>
       {view!=="home"?<Button variant="quiet" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}>戻る</Button>:null}
     </div></header>
     <main className="page">

@@ -10,6 +10,7 @@
 - ARCH-002: Phase 2でWorker API / D1へ移行できるよう、UIと永続化処理を分離する
 - ARCH-003: Public RepositoryへSecret値を保存しない
 - ARCH-004: GitHub Actionsで品質確認後、WranglerからCloudflare WorkersへDeployする
+- ARCH-005: Phase 2でPWAを採用し、ホーム画面追加・standalone起動・静的AssetのService Worker cacheを提供する。D1/APIデータのoffline同期は初期PWA範囲に含めない
 
 ## 3. System Context
 
@@ -140,5 +141,5 @@ Issue branch
 ## 13. 未決事項
 
 - TBD-ARCH-001: Preview環境のCloudflare公開方法
-- TBD-ARCH-002: PWA採用
+- TBD-ARCH-002: Resolved: Phase 2でPWA採用。初期範囲はManifest / App Icon / Service Worker / installability / standalone / static asset cache。業務データのoffline write/syncは排他・競合解決と合わせて将来判断
 - TBD-ARCH-003: Analytics採用

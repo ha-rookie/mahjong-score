@@ -15,12 +15,12 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-006 | N-1セル直接入力 / 残り1セル自動計算 | FUNC-003, SCR-004, DATA result | #14/#20/#23/#25 | score-sheet Domain helper + direct-entry UI | score/use-case tests + smartphone review | ACTIVE |
 | REQ-007 | 負Score Point許可 | FUNC-003, SCR-004, DATA invariant | #14/#20/#27 | integer score validation + ± sign toggle UI | score unit tests + PR CI | ACTIVE |
 | REQ-008 | Chip合計0 | FUNC-005, SCR-005, DATA-009 | #6/#10/#27 | validateChipResults + Session settlement UI | domain test + PR CI | ACTIVE |
-| REQ-009 | Chip 1枚=5pt / 最終合計 | FUNC-005, SCR-005 | #27 | chip conversion + final total UI | PR CI + Production review pending | ACTIVE |
+| REQ-009 | Chip 1枚=5pt / 最終合計 | FUNC-005, SCR-005 | #27 | chip conversion + final total UI | PR CI + Production smartphone review済み | ACTIVE |
 | REQ-010 | GameTag | FUNC-003, SCR-004 | #6/#27 | Domain互換は維持、新規/訂正UIは空配列保存 | 実機レビューでPhase 1 UIから除外 | DEFERRED |
 | REQ-011 | Session memo | SCR-004 | #6/#27 | Session.note + runtime UI | PR CI + Production review済み | ACTIVE |
 | REQ-011-FUTURE | Participant memo | Future auth/authorization | #6/#27 | Domain互換は維持、Phase 1 UIでは非表示 | 本人識別・認可導入時に再検討 | DEFERRED |
-| REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI | ACTIVE |
-| NFR-001 | 卓上スマホUsability | SCR-001..005 | #12/#25/#27 | mobile-first UI + direct score entry + ± sign toggle | Production smartphone review; 4-player review pending | ACTIVE |
+| REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI + UI実装 + smartphone review | ACTIVE |
+| NFR-001 | 卓上スマホUsability | SCR-001..005 | #12/#25/#27 | mobile-first UI + direct score entry + ± sign toggle | Production smartphone review済み | ACTIVE |
 
 ## 3. Score Implementation Gate
 

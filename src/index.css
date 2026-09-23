@@ -664,3 +664,5 @@ h2 {
 .confirm-dialog { border-radius: 14px; }
 
 .session-result-note{margin:14px 0 18px;padding:12px 14px;border-left:3px solid rgb(31 91 76 / 45%);background:rgb(255 253 248 / 48%)}.session-result-note span{display:block;margin-bottom:4px;color:var(--muted);font-size:.72rem;font-weight:750}.session-result-note p{margin:0;color:var(--text);font-size:.9rem;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+
+.result-review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}

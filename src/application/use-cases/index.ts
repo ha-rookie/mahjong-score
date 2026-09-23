@@ -5,3 +5,5 @@ export * from "./create-group";
 export * from "./read-models";
 export * from "./start-session";
 export * from "./manage-session-score-sheet";
+
+export * from "./finalize-session";

@@ -144,3 +144,9 @@ Requirement
 ```
 
 を追跡する。
+
+
+### Session finalization
+- active Sessionを終了するとstatus=`finalized`、endedAtが設定されること
+- finalized SessionがGetActiveSessionの対象外になること
+- 終了後に新しい3人/4人Sessionを開始できること

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import type { Game, Group, Player, PlayerId } from "./domain";
+import type { Game, GameTagType, Group, Player, PlayerId } from "./domain";
 import type { ActiveSessionSummary } from "./application/use-cases";
 import { createBrowserServices } from "./infrastructure/composition";
 import { Button, Section, TextField } from "./components/ui";
@@ -24,6 +24,12 @@ function App() {
   const [selectedPlayerIds,setSelectedPlayerIds]=useState<readonly string[]>([]);
   const [sessionDate,setSessionDate]=useState(getLocalDateValue);
   const [scoreInputs,setScoreInputs]=useState<Record<string,string>>({});
+  const [editingGameId,setEditingGameId]=useState<string|null>(null);
+  const [gameTagType,setGameTagType]=useState<GameTagType|"">("");
+  const [gameTagPlayerId,setGameTagPlayerId]=useState<string>("");
+  const [chipInputs,setChipInputs]=useState<Record<string,string>>({});
+  const [sessionNote,setSessionNote]=useState("");
+  const [participantNotes,setParticipantNotes]=useState<Record<string,string>>({});
   const [isLoading,setIsLoading]=useState(true);
   const [isBusy,setIsBusy]=useState(false);
   const [errorMessage,setErrorMessage]=useState<string|null>(null);
@@ -42,6 +48,7 @@ function App() {
     if(!playersResult.ok){setErrorMessage(playersResult.error.userMessage??"メンバーを読み込めませんでした。");setIsLoading(false);return;}
     if(!activeResult.ok){setErrorMessage(activeResult.error.userMessage??"Sessionを読み込めませんでした。");setIsLoading(false);return;}
     setPlayers(playersResult.value);setActiveSession(activeResult.value);
+    if(activeResult.value){setSessionNote(activeResult.value.session.note??"");setChipInputs(Object.fromEntries(activeResult.value.session.chipResults.map(x=>[x.playerId,String(x.chipCount)])));setParticipantNotes(Object.fromEntries(activeResult.value.session.participantNotes.map(x=>[x.playerId,x.note])));}
     if(activeResult.value===null)setGames([]);
     else {
       const result=await services.listGamesBySession.execute(activeResult.value.session.id);
@@ -90,15 +97,24 @@ function App() {
   const canCalculate=participantIds.length>=3&&!invalid&&entered.length===participantIds.length-1;
   const missingId=canCalculate?parsedEntries.find(x=>x.raw==="")?.id:null;
   const calculatedScore=canCalculate?-entered.reduce((sum,x)=>sum+(x.value??0),0):null;
+  const toggleScoreSign=(id:string)=>setScoreInputs(current=>{const raw=current[id]??"";if(raw==="")return current;return {...current,[id]:raw.startsWith("-")?raw.slice(1):"-"+raw};});
   const handleSaveGame=async()=>{
     if(!activeSession||!group||!canCalculate||!missingId)return;
     const scores:Record<PlayerId,number|null>={};
     for(const id of participantIds)scores[id]=id===missingId?null:parsedEntries.find(x=>x.id===id)?.value??null;
     setIsBusy(true);setErrorMessage(null);setStatusMessage(null);
-    const r=await services.addGameResult.execute({sessionId:activeSession.session.id,scorePointsByPlayer:scores});
+    const tags=gameTagType?[{type:gameTagType,playerId:gameTagPlayerId||null}]:[];
+    const r=editingGameId?await services.updateGame.execute({gameId:editingGameId,scorePointsByPlayer:scores,tags}):await services.addGameResult.execute({sessionId:activeSession.session.id,scorePointsByPlayer:scores});
     if(!r.ok){setErrorMessage(r.error.userMessage??"半荘結果を保存できませんでした。");setIsBusy(false);return;}
-    setScoreInputs({});await refresh(group.id);setStatusMessage("半荘結果を保存しました。");setIsBusy(false);
+    setScoreInputs({});setEditingGameId(null);setGameTagType("");setGameTagPlayerId("");await refresh(group.id);setStatusMessage(editingGameId?"半荘結果を更新しました。":"半荘結果を保存しました。");setIsBusy(false);
   };
+  const startEditGame=(game:Game)=>{setEditingGameId(game.id);setScoreInputs(Object.fromEntries(game.results.map(x=>[x.playerId,String(x.scorePoint)])));const tag=game.tags[0];setGameTagType(tag?.type??"");setGameTagPlayerId(tag?.playerId??"");};
+  const handleDeleteGame=async(game:Game)=>{if(!group||!window.confirm(`${game.sequence}半荘目を削除しますか？`))return;setIsBusy(true);const r=await services.deleteGame.execute(game.id);if(!r.ok)setErrorMessage(r.error.userMessage??"削除できませんでした。");else{if(editingGameId===game.id){setEditingGameId(null);setScoreInputs({});}await refresh(group.id);setStatusMessage("半荘結果を削除しました。");}setIsBusy(false);};
+  const chipParsed=participantIds.map(id=>{const raw=chipInputs[id]?.trim()??"";return {id,raw,value:/^-?\d+$/.test(raw)?Number(raw):null};});
+  const chipEntered=chipParsed.filter(x=>x.raw!==""&&x.value!==null);const chipInvalid=chipParsed.some(x=>x.raw!==""&&x.value===null);const canCalcChip=participantIds.length>=3&&!chipInvalid&&chipEntered.length===participantIds.length-1;const chipMissingId=canCalcChip?chipParsed.find(x=>x.raw==="")?.id:null;const calculatedChip=canCalcChip?-chipEntered.reduce((s,x)=>s+(x.value??0),0):null;
+  const chipValue=(id:string)=>id===chipMissingId&&calculatedChip!==null?calculatedChip:(chipParsed.find(x=>x.id===id)?.value??0);
+  const toggleChipSign=(id:string)=>setChipInputs(current=>{const raw=current[id]??"";if(raw==="")return current;return {...current,[id]:raw.startsWith("-")?raw.slice(1):"-"+raw};});
+  const saveSessionDetails=async()=>{if(!activeSession||!group||!canCalcChip)return;const chips=participantIds.map(id=>({playerId:id,chipCount:chipValue(id)}));const notes=participantIds.map(id=>({playerId:id,note:(participantNotes[id]??"").trim()})).filter(x=>x.note!=="");setIsBusy(true);const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,note:sessionNote.trim()||null,participantNotes:notes,chipResults:chips});if(!r.ok)setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");else{await refresh(group.id);setStatusMessage("チップとメモを保存しました。");}setIsBusy(false);};
   const totals=useMemo(()=>{
     const m=new Map<string,number>();for(const g of games)for(const r of g.results)m.set(r.playerId,(m.get(r.playerId)??0)+r.scorePoint);return m;
   },[games]);
@@ -129,15 +145,18 @@ function App() {
         <div className={"score-sheet score-sheet--"+participantIds.length}>
           <div className="score-sheet__corner">半荘</div>{participantIds.map(id=><div className="score-sheet__player" key={"h"+id}>{playerNameById(id)}</div>)}
           {games.map(game=><div className="score-sheet__row" key={game.id}>
-            <div className="score-sheet__label">{game.sequence}</div>{participantIds.map(id=>{const v=resultFor(game,id);return <div className="score-sheet__value" key={id}>{v===undefined?"—":formatScore(v)}</div>;})}
+            <div className="score-sheet__label score-sheet__label--actions"><span>{game.sequence}</span><button type="button" onClick={()=>startEditGame(game)}>編集</button><button type="button" onClick={()=>void handleDeleteGame(game)}>削除</button></div>{participantIds.map(id=>{const v=resultFor(game,id);return <div className="score-sheet__value" key={id}>{v===undefined?"—":formatScore(v)}</div>;})}
           </div>)}
           <div className="score-sheet__row score-sheet__row--input">
-            <div className="score-sheet__label">{games.length+1}</div>{participantIds.map(id=><div className="score-sheet__input-cell" key={id}>{missingId===id&&calculatedScore!==null?<output>{formatScore(calculatedScore)}</output>:<input aria-label={playerNameById(id)+"のポイント"} inputMode="numeric" pattern="-?[0-9]*" placeholder="入力" value={scoreInputs[id]??""} onChange={e=>setScoreInputs(current=>({...current,[id]:e.target.value}))}/>}</div>)}
+            <div className="score-sheet__label">{editingGameId?"訂正":games.length+1}</div>{participantIds.map(id=><div className="score-sheet__input-cell" key={id}>{missingId===id&&calculatedScore!==null?<output>{formatScore(calculatedScore)}</output>:<><input aria-label={playerNameById(id)+"のポイント"} inputMode="numeric" pattern="[0-9]*" placeholder="入力" value={scoreInputs[id]??""} onChange={e=>setScoreInputs(current=>({...current,[id]:e.target.value.replace(/[^0-9-]/g,"")}))}/><button className="sign-toggle" type="button" onClick={()=>toggleScoreSign(id)} disabled={!scoreInputs[id]}>±</button></>}</div>)}
           </div>
           <div className="score-sheet__row score-sheet__row--subtotal"><div className="score-sheet__label">小計</div>{participantIds.map(id=><div className="score-sheet__value" key={id}>{formatScore(totals.get(id)??0)}</div>)}</div>
         </div>
-        <p className="score-sheet__hint">1人分だけ空欄にして、残りを入力してください。空欄は合計0になるよう自動計算します。</p>
-        <Button block disabled={!canCalculate||isBusy} onClick={()=>void handleSaveGame()}>{isBusy?"保存しています…":"この半荘を保存"}</Button>
+        <p className="score-sheet__hint">1人分だけ空欄にして、残りを入力してください。負数は数字を入力してから ± を押します。</p>
+        <div className="game-meta-editor"><select aria-label="タグ" value={gameTagType} onChange={e=>setGameTagType(e.target.value as GameTagType|"")}><option value="">タグなし</option><option value="yakuman">役満</option><option value="double-yakuman">ダブル役満</option></select><select aria-label="タグ対象者" value={gameTagPlayerId} onChange={e=>setGameTagPlayerId(e.target.value)} disabled={!gameTagType}><option value="">対象者なし</option>{participantIds.map(id=><option key={id} value={id}>{playerNameById(id)}</option>)}</select></div>
+        <Button block disabled={!canCalculate||isBusy} onClick={()=>void handleSaveGame()}>{isBusy?"保存しています…":editingGameId?"訂正を保存":"この半荘を保存"}</Button>
+        {editingGameId?<Button block variant="quiet" onClick={()=>{setEditingGameId(null);setScoreInputs({});setGameTagType("");setGameTagPlayerId("");}}>訂正をやめる</Button>:null}
+        <section className="settlement"><h2>チップ・メモ</h2><p className="score-sheet__hint">チップも1人分だけ空欄にします。1枚 = 5pt。</p><div className={"score-sheet score-sheet--"+participantIds.length}><div className="score-sheet__corner">チップ</div>{participantIds.map(id=><div className="score-sheet__player" key={"ch"+id}>{playerNameById(id)}</div>)}<div className="score-sheet__row score-sheet__row--input"><div className="score-sheet__label">枚</div>{participantIds.map(id=><div className="score-sheet__input-cell" key={id}>{chipMissingId===id&&calculatedChip!==null?<output>{formatScore(calculatedChip)}</output>:<><input inputMode="numeric" pattern="[0-9]*" value={chipInputs[id]??""} placeholder="入力" onChange={e=>setChipInputs(x=>({...x,[id]:e.target.value.replace(/[^0-9-]/g,"")}))}/><button className="sign-toggle" type="button" onClick={()=>toggleChipSign(id)} disabled={!chipInputs[id]}>±</button></>}</div>)}</div><div className="score-sheet__row"><div className="score-sheet__label">換算</div>{participantIds.map(id=><div className="score-sheet__value" key={id}>{formatScore(chipValue(id)*5)}</div>)}</div><div className="score-sheet__row score-sheet__row--subtotal"><div className="score-sheet__label">合計</div>{participantIds.map(id=><div className="score-sheet__value" key={id}>{formatScore((totals.get(id)??0)+chipValue(id)*5)}</div>)}</div></div><label className="memo-field">Sessionメモ<textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} /></label>{participantIds.map(id=><label className="memo-field" key={id}>{playerNameById(id)} メモ<textarea value={participantNotes[id]??""} onChange={e=>setParticipantNotes(x=>({...x,[id]:e.target.value}))}/></label>)}<Button block disabled={!canCalcChip||isBusy} onClick={()=>void saveSessionDetails()}>チップ・メモを保存</Button></section>
       </section>:
       <><section className="home-hero"><p className="screen-eyebrow">HOME</p><h1>仲間との麻雀を、静かに記録する。</h1><p className="home-hero__meta">{group.name} · {players.length}人登録</p>{players.length>=3?<Button block onClick={openSessionSetup}>今日の麻雀を始める</Button>:<p className="empty-hint">Sessionを始めるには、メンバーを3人以上登録してください。</p>}</section>
       <Section eyebrow="GROUP" title="メンバー" action={<span className="member-count">{players.length}</span>}>

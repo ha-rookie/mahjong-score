@@ -159,6 +159,7 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 行は半荘、小計、チップ、換算、合計、順位
 - Homeへ戻る操作を提供する
 - finalized Sessionの訂正は行わない
+- Session memoが保存されている場合は、日付・対局概要の下、Score Sheetの前に表示する。空の場合は表示しない
 
 
 ### HISTORY / Results再表示

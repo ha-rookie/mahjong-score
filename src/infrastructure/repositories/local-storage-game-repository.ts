@@ -105,4 +105,11 @@ export class LocalStorageGameRepository implements GameRepository {
       return ok({ ...current, games });
     });
   }
+
+  async remove(id: GameId): Promise<Result<void>> {
+    return this.store.update((current) => ok({
+      ...current,
+      games: current.games.filter((item) => item.id !== id),
+    }));
+  }
 }

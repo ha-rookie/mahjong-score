@@ -1,7 +1,6 @@
 # 機能設計
 
 ## 1. 目的
-
 機能一覧と機能詳細をDesign IDで管理する。
 
 ## 2. Function Catalog
@@ -10,16 +9,55 @@
 | --- | --- | --- | --- |
 | FUNC-001 | Group / Player管理 | 1 | Active: UI connected |
 | FUNC-002 | Session開始・参加者選択 | 1 | Active: UI connected |
-| FUNC-003 | 半荘結果入力 | 1 | Planned |
+| FUNC-003 | 半荘結果入力 | 1 | Ready for Domain implementation |
 | FUNC-004 | 参加者変更 | 1 | Planned |
 | FUNC-005 | Chip精算 | 1 | Planned |
 | FUNC-006 | 成績集計 | 1 | Planned |
 | FUNC-007 | Backup export/import | 1 | Application active / UI pending |
 | FUNC-008 | 認証・認可 | 2-3 | Deferred |
 
-## 3. Phase 1 Vertical Slice
+## 3. FUNC-003 半荘結果入力
 
-Issue #12で最初のRuntime Vertical Sliceを接続する。
+3人三麻:
+- 半荘結果対象は3人
+- 順位順に3人を入力
+- 2位/3位のScore Pointを入力
+- 1位のScore Pointは自動計算
+
+4人回し三麻:
+- 局ごとの着席は3人、待機は1人
+- 局単位のローテーションはアプリ管理外
+- 半荘結果対象は4人
+- 順位順に4人を入力
+- 2位/3位/4位のScore Pointを入力
+- 1位のScore Pointは自動計算
+
+Score Point:
+- Userは最終持点ではなくScore Pointを直接入力
+- 0.1point単位を許可
+- Appで丸めない
+- 1位 = -(2位以下の合計)
+- Game全体のScore Point合計は0.0
+- 負値を許可
+
+Rank:
+- Playerの入力順 = rank
+- Score Pointが同じでも入力順を優先
+- Score値からrankを再計算しない
+
+## 4. Implementation Acceptance Criteria
+
+- 3人Gameは3人Result、4人回しGameは4人Result
+- Result Player集合がParticipantSegmentと一致
+- result orderを保持
+- 1位Scoreのmanual input不要
+- 0.1point単位をlossなく扱う
+- 1Game合計0
+- duplicate Player拒否
+- missing / extra Player拒否
+- Unit Testで3人/4人/同Score/負値/小数を確認
+
+## 5. Phase 1 Vertical Slice
 
 ```text
 Home
@@ -29,20 +67,6 @@ Home
  -> Session開始
  -> Active Session表示
 ```
-
-UIはApplication Use Caseを経由し、localStorageへ直接accessしない。
-
-## 4. Read Query Use Cases
-
-- ListGroupsUseCase
-- ListPlayersByGroupUseCase
-- GetActiveSessionUseCase
-
-Write Use Caseと同じApplication境界へ置き、PresentationからRepository実装を直接操作しない。
-
-## 5. Function Detail Template
-
-各FunctionはPurpose、Actor、Preconditions、Trigger、Normal/Alternate/Error Flow、Validation、Authorization、Transaction、Audit、Message、Data、IF、NFRを持つ。
 
 ## 6. Processing Flow
 

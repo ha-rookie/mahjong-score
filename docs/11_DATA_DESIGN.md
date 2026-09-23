@@ -48,22 +48,19 @@ Group
 - GameResult全体のScore Point合計は0
 - 負値を許可
 
-## 4. Current Model Gap
+## 4. Runtime GameResult Contract
 
-現在のRuntime `GameResult` は `finalPoints` と `mahjongScore` を保持しているが、Human確認済みの入力契約は「Score Point直接入力」である。
+Issue #20でRuntime ModelをHuman確認済み入力契約へ整合する。
 
-Score Domain実装Issueで、GameResultの永続化契約を入力仕様に合わせて整理する。半荘結果入力UIはまだ未実装でProduction上にGame recordは作成されないため、既存User操作DataへのGame migrationは発生していない。
-
-候補:
 ```text
 GameResult
 - playerId
-- scorePoint
+- scorePoint: integer
 
-rankはGame.resultsの配列順で表現
+rank = Game.results array order
 ```
 
-schemaVersionを維持するか更新するかは実装Issueでstrict validator / Backup互換性を確認して決定する。
+旧 `finalPoints` / `mahjongScore` は廃止する。半荘結果入力UIはIssue #20時点で未実装であり、ProductionのUser操作ではGame recordを生成できなかったため、既存Group / Player / Session / ParticipantSegmentを保持したままschemaVersion 1を継続する。legacy GameResult shapeを含む手動/旧Backupはstrict validatorで不正として扱う。
 
 ## 5. Invariants
 
@@ -101,4 +98,4 @@ schemaVersionを維持するか更新するかは実装Issueでstrict validator 
 - 1 keyにAppDataSchema全体をJSON保存
 - write時は全root schemaをvalidationしてから保存
 
-GameResult contract変更は次Implementation IssueでBackup互換性とともに扱う。
+GameResultは`scorePoint`整数契約。strict validatorも同一shapeを要求する。

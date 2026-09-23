@@ -55,7 +55,46 @@ export const validateGameResults = (
     });
   }
 
+  if (!results.every((result) => Number.isInteger(result.scorePoint))) {
+    issues.push({
+      code: "game_score_not_integer",
+      path: "results",
+      message: "スコアは1,000点単位の整数である必要があります。",
+    });
+  }
+
+  const total = results.reduce((sum, result) => sum + result.scorePoint, 0);
+
+  if (total !== 0) {
+    issues.push({
+      code: "game_score_balance",
+      path: "results",
+      message: "対局スコアの合計は0である必要があります。",
+    });
+  }
+
   return issues.length === 0 ? valid() : invalid(...issues);
+};
+
+export const validateGameParticipants = (
+  results: readonly GameResult[],
+  participantPlayerIds: readonly string[],
+): ValidationResult => {
+  const resultIds = new Set(results.map((result) => result.playerId));
+  const participantIds = new Set(participantPlayerIds);
+
+  if (
+    resultIds.size !== participantIds.size ||
+    [...resultIds].some((playerId) => !participantIds.has(playerId))
+  ) {
+    return invalid({
+      code: "game_participant_mismatch",
+      path: "results",
+      message: "対局結果の参加者が現在の参加者構成と一致しません。",
+    });
+  }
+
+  return valid();
 };
 
 export const validateChipResults = (

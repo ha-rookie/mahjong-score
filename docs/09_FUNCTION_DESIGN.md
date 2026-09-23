@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | FUNC-001 | Group / Player管理 | 1 | Active: UI connected |
 | FUNC-002 | Session開始・参加者選択 | 1 | Active: UI connected |
-| FUNC-003 | 半荘結果入力 | 1 | Ready for Domain implementation |
+| FUNC-003 | 半荘結果入力 | 1 | Domain / persistence implemented, UI pending |
 | FUNC-004 | 参加者変更 | 1 | Planned |
 | FUNC-005 | Chip精算 | 1 | Planned |
 | FUNC-006 | 成績集計 | 1 | Planned |
@@ -45,7 +45,18 @@ Rank:
 - Score Pointが同じでも入力順を優先
 - Score値からrankを再計算しない
 
-## 4. Implementation Acceptance Criteria
+## 4. Runtime Domain / Persistence
+
+Issue #20で以下を実装する。
+
+- `GameResult = { playerId, scorePoint }`
+- `createRankedGameResults` が順位順Player IDと2位以下の整数Score Pointから1位を自動計算
+- `validateGameResults` が3/4人、重複、整数、合計0を検証
+- `validateGameParticipants` がParticipantSegmentとのPlayer集合一致を検証
+- `LocalStorageGameRepository` がSession / Segment整合性を確認して保存
+- Score値からrankを再計算せず、`Game.results` 順序をそのまま保持
+
+## 5. Implementation Acceptance Criteria
 
 - 3人Gameは3人Result、4人回しGameは4人Result
 - Result Player集合がParticipantSegmentと一致
@@ -57,7 +68,7 @@ Rank:
 - missing / extra Player拒否
 - Unit Testで3人/4人/同Score/負値/整数を確認
 
-## 5. Phase 1 Vertical Slice
+## 6. Phase 1 Vertical Slice
 
 ```text
 Home
@@ -68,7 +79,7 @@ Home
  -> Active Session表示
 ```
 
-## 6. Processing Flow
+## 7. Processing Flow
 
 ```text
 Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Result -> UI

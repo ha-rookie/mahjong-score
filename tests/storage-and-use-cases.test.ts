@@ -85,7 +85,7 @@ test("schema validation rejects unknown root fields", () => {
   }
 });
 
-test("local storage adapter round-trips schema v1", async () => {
+test("local storage adapter round-trips schema v2", async () => {
   const { keyValueStore, store } = createFixture();
   const data: AppDataSchema = {
     ...createEmptyAppData(),
@@ -106,7 +106,7 @@ test("local storage adapter round-trips schema v1", async () => {
   const loaded = await store.load();
   assert.equal(loaded.ok, true);
   if (loaded.ok) {
-    assert.equal(loaded.value.schemaVersion, 1);
+    assert.equal(loaded.value.schemaVersion, 2);
     assert.equal(loaded.value.groups[0]?.name, "三麻会");
   }
 });

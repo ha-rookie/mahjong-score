@@ -13,7 +13,8 @@ import type {
 } from "../../domain";
 import { AppError, err, ok, type Result } from "../../shared/errors";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
+export const LEGACY_SCHEMA_VERSION = 1;
 
 const ROOT_KEYS = [
   "schemaVersion",
@@ -118,10 +119,9 @@ const isParticipantSegment = (value: unknown): value is ParticipantSegment =>
 
 const isGameResult = (value: unknown): value is GameResult =>
   isRecord(value) &&
-  hasExactKeys(value, ["playerId", "finalPoints", "mahjongScore"]) &&
+  hasExactKeys(value, ["playerId", "scorePoint"]) &&
   isString(value.playerId) &&
-  isFiniteNumber(value.finalPoints) &&
-  isFiniteNumber(value.mahjongScore);
+  isInteger(value.scorePoint);
 
 const isGameTag = (value: unknown): value is GameTag =>
   isRecord(value) &&
@@ -150,6 +150,18 @@ const isGame = (value: unknown): value is Game =>
   Array.isArray(value.tags) &&
   value.tags.every(isGameTag);
 
+const hasValidUnchangedCollections = (value: JsonRecord): boolean =>
+  Array.isArray(value.groups) &&
+  value.groups.every(isGroup) &&
+  Array.isArray(value.players) &&
+  value.players.every(isPlayer) &&
+  Array.isArray(value.groupMembers) &&
+  value.groupMembers.every(isGroupMember) &&
+  Array.isArray(value.sessions) &&
+  value.sessions.every(isSession) &&
+  Array.isArray(value.participantSegments) &&
+  value.participantSegments.every(isParticipantSegment);
+
 export const createEmptyAppData = (): AppDataSchema => ({
   schemaVersion: CURRENT_SCHEMA_VERSION,
   groups: [],
@@ -160,17 +172,29 @@ export const createEmptyAppData = (): AppDataSchema => ({
   games: [],
 });
 
+const invalidRoot = () =>
+  err(
+    new AppError({
+      code: "storage_schema_invalid",
+      message: "App data root schema is invalid.",
+      userMessage: "保存データの形式を確認できませんでした。",
+    }),
+  );
+
+const invalidCollections = () =>
+  err(
+    new AppError({
+      code: "storage_schema_invalid",
+      message: "One or more app data collections are invalid.",
+      userMessage: "保存データの内容を確認できませんでした。",
+    }),
+  );
+
 export const validateAppDataSchema = (
   value: unknown,
 ): Result<AppDataSchema> => {
   if (!isRecord(value) || !hasExactKeys(value, ROOT_KEYS)) {
-    return err(
-      new AppError({
-        code: "storage_schema_invalid",
-        message: "App data root schema is invalid.",
-        userMessage: "保存データの形式を確認できませんでした。",
-      }),
-    );
+    return invalidRoot();
   }
 
   if (value.schemaVersion !== CURRENT_SCHEMA_VERSION) {
@@ -183,29 +207,65 @@ export const validateAppDataSchema = (
     );
   }
 
-  const validCollections =
-    Array.isArray(value.groups) &&
-    value.groups.every(isGroup) &&
-    Array.isArray(value.players) &&
-    value.players.every(isPlayer) &&
-    Array.isArray(value.groupMembers) &&
-    value.groupMembers.every(isGroupMember) &&
-    Array.isArray(value.sessions) &&
-    value.sessions.every(isSession) &&
-    Array.isArray(value.participantSegments) &&
-    value.participantSegments.every(isParticipantSegment) &&
-    Array.isArray(value.games) &&
-    value.games.every(isGame);
+  if (
+    !hasValidUnchangedCollections(value) ||
+    !Array.isArray(value.games) ||
+    !value.games.every(isGame)
+  ) {
+    return invalidCollections();
+  }
 
-  if (!validCollections) {
+  return ok(value as unknown as AppDataSchema);
+};
+
+export const normalizeAppDataSchema = (
+  value: unknown,
+): Result<AppDataSchema> => {
+  if (!isRecord(value) || !hasExactKeys(value, ROOT_KEYS)) {
+    return invalidRoot();
+  }
+
+  if (value.schemaVersion === CURRENT_SCHEMA_VERSION) {
+    return validateAppDataSchema(value);
+  }
+
+  if (value.schemaVersion !== LEGACY_SCHEMA_VERSION) {
     return err(
       new AppError({
-        code: "storage_schema_invalid",
-        message: "One or more app data collections are invalid.",
-        userMessage: "保存データの内容を確認できませんでした。",
+        code: "storage_schema_unsupported",
+        message: `Unsupported schema version: ${String(value.schemaVersion)}`,
+        userMessage: "この保存データのバージョンには対応していません。",
       }),
     );
   }
 
-  return ok(value as unknown as AppDataSchema);
+  if (
+    !hasValidUnchangedCollections(value) ||
+    !Array.isArray(value.games)
+  ) {
+    return invalidCollections();
+  }
+
+  if (value.games.length > 0) {
+    return err(
+      new AppError({
+        code: "storage_migration_manual_required",
+        message:
+          "Schema v1 contains Game records that cannot be migrated without guessing score semantics.",
+        userMessage:
+          "旧形式の半荘結果が含まれているため、自動移行できません。",
+      }),
+    );
+  }
+
+  return ok({
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    groups: value.groups as readonly Group[],
+    players: value.players as readonly Player[],
+    groupMembers: value.groupMembers as readonly GroupMember[],
+    sessions: value.sessions as readonly Session[],
+    participantSegments:
+      value.participantSegments as readonly ParticipantSegment[],
+    games: [],
+  });
 };

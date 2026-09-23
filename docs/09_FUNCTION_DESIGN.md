@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | FUNC-001 | Group / Player管理 | 1 | Active: UI connected |
 | FUNC-002 | Session開始・参加者選択 | 1 | Active: UI connected |
-| FUNC-003 | 半荘結果入力 | 1 | Ready for Domain implementation |
+| FUNC-003 | 半荘結果入力 | 1 | Domain / persistence active, UI pending |
 | FUNC-004 | 参加者変更 | 1 | Planned |
 | FUNC-005 | Chip精算 | 1 | Planned |
 | FUNC-006 | 成績集計 | 1 | Planned |

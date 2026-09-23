@@ -48,22 +48,19 @@ Group
 - GameResult全体のScore Point合計は0
 - 負値を許可
 
-## 4. Current Model Gap
+## 4. GameResult Persistence Contract
 
-現在のRuntime `GameResult` は `finalPoints` と `mahjongScore` を保持しているが、Human確認済みの入力契約は「Score Point直接入力」である。
+Issue #18でRuntime Modelを確定仕様へ更新する。
 
-Score Domain実装Issueで、GameResultの永続化契約を入力仕様に合わせて整理する。半荘結果入力UIはまだ未実装でProduction上にGame recordは作成されないため、既存User操作DataへのGame migrationは発生していない。
-
-候補:
 ```text
 GameResult
 - playerId
 - scorePoint
 
-rankはGame.resultsの配列順で表現
+rank = Game.resultsの配列順
 ```
 
-schemaVersionを維持するか更新するかは実装Issueでstrict validator / Backup互換性を確認して決定する。
+`finalPoints` / `mahjongScore` はRuntime永続化契約から削除する。Score Pointは整数で、1point=1,000点。
 
 ## 5. Invariants
 
@@ -96,9 +93,20 @@ schemaVersionを維持するか更新するかは実装Issueでstrict validator 
 
 ## 7. Phase 1 Persistence
 
-- storage key: `mahjong-score:app-data:v1`
-- 現行schemaVersion: `1`
+Current:
+- storage key: `mahjong-score:app-data:v2`
+- schemaVersion: `2`
+- legacy key: `mahjong-score:app-data:v1`
 - 1 keyにAppDataSchema全体をJSON保存
 - write時は全root schemaをvalidationしてから保存
 
-GameResult contract変更は次Implementation IssueでBackup互換性とともに扱う。
+### v1 -> v2 migration
+
+- v2 keyが存在する場合はv2を優先
+- v2 keyがなくv1 keyがある場合のみmigration
+- v1で `games.length === 0` の場合だけlossless migration
+- v1にGame recordがある場合はscore意味を推測せず `storage_migration_manual_required`
+- migration成功後もlegacy v1 keyは削除しない
+- Backup importも同じnormalize/migration policyを使う
+
+この方針により、既存ProductionのGroup / Player / Session / ParticipantSegmentを保持したままv2へ移行できる。

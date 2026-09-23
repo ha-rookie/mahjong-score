@@ -47,13 +47,22 @@ npm test
 Domain:
 - 3/4人Participant validation
 - duplicate participant
-- GameResult participant count / negative final points
+- 3人/4人 ranked Score calculation
+- 1位Score自動計算
+- input order保持
+- integer Score Point validation
+- Game Score合計0
+- ParticipantSegment / Game player集合整合
+- negative Score Point
 - Chip balance
 
 Infrastructure:
 - AppDataSchema exact root validation
-- schema v1 round trip
+- schema v2 round trip
 - localStorage adapter
+- v1 empty-games -> v2 migration
+- v1 Gameありmigration拒否
+- LocalStorageGameRepository list/find/save
 
 Application:
 - Group作成

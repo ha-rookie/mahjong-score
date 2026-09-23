@@ -163,3 +163,10 @@ Requirement
 - 複数Gameの小計、chip x 5、最終合計を確認すること
 - 同点時は同順位になること
 - 結果表示後Homeへ戻れること
+
+
+### Session History
+- Homeからfinalized Session一覧へ遷移できること
+- active Sessionは履歴に含めないこと
+- 選択したSessionの結果を再表示できること
+- Results表の上端/下端でPlayer列が一致すること

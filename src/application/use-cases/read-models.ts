@@ -120,10 +120,10 @@ export class GetPlayerPerformanceAggregatesUseCase {
     private readonly games: GameRepository,
   ) {}
 
-  async execute(groupId: GroupId): Promise<Result<readonly PlayerPerformanceAggregate[]>> {
+  async execute(groupId: GroupId, period?: { year: number; month?: number }): Promise<Result<readonly PlayerPerformanceAggregate[]>> {
     const listed = await this.sessions.listByGroup(groupId);
     if (!listed.ok) return listed;
-    const finalized = listed.value.filter(s=>s.status==="finalized");
+    const finalized = listed.value.filter(s=>{if(s.status!=="finalized")return false;if(!period)return true;const [year,month]=s.sessionDate.split("-").map(Number);return year===period.year&&(period.month===undefined||month===period.month);});
     const aggregates = new Map<PlayerId, {sessionCount:number;gameCount:number;mahjongPointTotal:number;finalPointTotal:number;firstPlaceCount:number}>();
 
     for (const session of finalized) {

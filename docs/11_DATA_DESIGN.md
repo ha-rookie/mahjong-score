@@ -41,10 +41,11 @@ Group
 ### Score value
 
 - User inputはScore Point
-- 0.1point単位を許可
+- 符計算は行わず、100点単位は扱わない
+- 1point=1,000点としてScore Pointは整数
 - 最終持点そのものは入力元にしない
 - 1位Score Pointは2位以下の合計の符号反転で算出
-- GameResult全体のScore Point合計は0.0
+- GameResult全体のScore Point合計は0
 - 負値を許可
 
 ## 4. Current Model Gap
@@ -72,7 +73,7 @@ schemaVersionを維持するか更新するかは実装Issueでstrict validator 
 - GameResult内Player重複禁止
 - GameResultのPlayer集合は対象ParticipantSegmentのPlayer集合と一致する
 - Game.results順序をrankとして保持
-- Score Pointは0.1point単位
+- Score Pointは整数
 - Score Point合計は0
 - 1位Scoreは自動算出
 - negative Score Pointを許可
@@ -84,8 +85,8 @@ schemaVersionを維持するか更新するかは実装Issueでstrict validator 
 | Rule | Decision |
 | --- | --- |
 | user input | Score Point直接入力 |
-| precision | 0.1point |
-| rounding | なし |
+| precision | integer point only |
+| point basis | 1point = 1,000点 |
 | rank | input order / Game.results order |
 | tied Score Point | input orderで順位確定 |
 | first place score | negative sum of remaining scores |

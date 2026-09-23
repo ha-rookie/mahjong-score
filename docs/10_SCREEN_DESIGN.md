@@ -65,7 +65,7 @@ Member:
 - 登録済み一覧
 - 空欄はApplication Use Caseで拒否
 
-Phase 1の複数Group切替UIは未決のため、このVertical Sliceでは既存先頭Groupをcurrent groupとして扱う。複数Group方針はTBDのまま維持する。
+Phase 1は複数Groupを保持できる。所属Groupが1つの場合は切替UIを表示せず、2つ以上の場合のみHomeにGroup切替UIを表示する。切替後はMember / Active Session / History / Performanceを選択Group単位で再読込する。Group作成は管理者のみとするが、Phase 1では認証・認可を実装しないため、初回セットアップ以外のGroup作成UIは提供しない。
 
 ## 6. Session Setup
 

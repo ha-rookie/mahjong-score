@@ -3,6 +3,7 @@ import {
   AddPlayerToGroupUseCase,
   CreateGroupUseCase,
   GetActiveSessionUseCase,
+  GetSessionResultsUseCase,
   ListGamesBySessionUseCase,
   ListGroupsUseCase,
   ListPlayersByGroupUseCase,
@@ -46,6 +47,7 @@ export const createBrowserServices = () => {
     listGroups: new ListGroupsUseCase(groups),
     listPlayersByGroup: new ListPlayersByGroupUseCase(players),
     getActiveSession: new GetActiveSessionUseCase(sessions),
+    getSessionResults: new GetSessionResultsUseCase(sessions, games),
     listGamesBySession: new ListGamesBySessionUseCase(games),
   };
 };

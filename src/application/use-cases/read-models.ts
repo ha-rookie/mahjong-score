@@ -65,3 +65,33 @@ export class ListGamesBySessionUseCase {
     return this.games.listBySession(sessionId);
   }
 }
+
+
+export interface SessionResultsSummary {
+  readonly session: Session;
+  readonly participantPlayerIds: readonly PlayerId[];
+  readonly games: readonly Game[];
+}
+
+export class GetSessionResultsUseCase {
+  constructor(
+    private readonly sessions: SessionRepository,
+    private readonly games: GameRepository,
+  ) {}
+
+  async execute(sessionId: SessionId): Promise<Result<SessionResultsSummary | null>> {
+    const session = await this.sessions.findById(sessionId);
+    if (!session.ok) return session;
+    if (session.value === null) return ok(null);
+
+    const segments = await this.sessions.listSegments(sessionId);
+    if (!segments.ok) return segments;
+    const firstSegment = [...segments.value].sort((a,b)=>a.sequence-b.sequence)[0];
+    if (firstSegment === undefined) return ok(null);
+
+    const games = await this.games.listBySession(sessionId);
+    if (!games.ok) return games;
+
+    return ok({ session: session.value, participantPlayerIds: firstSegment.participantPlayerIds, games: games.value });
+  }
+}

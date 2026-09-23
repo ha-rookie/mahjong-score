@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Game, GameTagType, Group, Player, PlayerId } from "./domain";
-import type { ActiveSessionSummary } from "./application/use-cases";
+import type { ActiveSessionSummary, SessionResultsSummary } from "./application/use-cases";
 import { createBrowserServices } from "./infrastructure/composition";
 import { Button, Section, TextField } from "./components/ui";
 
-type View = "home" | "session-setup";
+type View = "home" | "session-setup" | "results";
 const getLocalDateValue = (): string => {
   const now = new Date();
   return [now.getFullYear(), String(now.getMonth()+1).padStart(2,"0"), String(now.getDate()).padStart(2,"0")].join("-");
@@ -19,6 +19,7 @@ function App() {
   const [players,setPlayers]=useState<readonly Player[]>([]);
   const [activeSession,setActiveSession]=useState<ActiveSessionSummary|null>(null);
   const [games,setGames]=useState<readonly Game[]>([]);
+  const [sessionResults,setSessionResults]=useState<SessionResultsSummary|null>(null);
   const [groupName,setGroupName]=useState("");
   const [playerName,setPlayerName]=useState("");
   const [selectedPlayerIds,setSelectedPlayerIds]=useState<readonly string[]>([]);
@@ -113,7 +114,7 @@ function App() {
   const chipValue=(id:string)=>id===chipMissingId&&calculatedChip!==null?calculatedChip:(chipParsed.find(x=>x.id===id)?.value??0);
   const toggleChipSign=(id:string)=>setChipInputs(current=>{const raw=current[id]??"";if(raw==="")return current;return {...current,[id]:raw.startsWith("-")?raw.slice(1):"-"+raw};});
   const saveSessionDetails=async()=>{if(!activeSession||!group||!canCalcChip)return;const chips=participantIds.map(id=>({playerId:id,chipCount:chipValue(id)}));setIsBusy(true);const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,note:sessionNote.trim()||null,participantNotes:activeSession.session.participantNotes,chipResults:chips});if(!r.ok)setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");else{await refresh(group.id);setStatusMessage("チップとメモを保存しました。");}setIsBusy(false);};
-  const handleFinalizeSession=async()=>{if(!activeSession||!group||!window.confirm("このSessionを終了しますか？"))return;setIsBusy(true);setErrorMessage(null);const r=await services.finalizeSession.execute(activeSession.session.id);if(!r.ok){setErrorMessage(r.error.userMessage??"Sessionを終了できませんでした。");setIsBusy(false);return;}setScoreInputs({});setEditingGameId(null);setGameTagType("");setChipInputs({});setSessionNote("");await refresh(group.id);setStatusMessage("Sessionを終了しました。");setView("home");setIsBusy(false);};
+  const handleFinalizeSession=async()=>{if(!activeSession||!group||!window.confirm("このSessionを終了しますか？"))return;const sessionId=activeSession.session.id;setIsBusy(true);setErrorMessage(null);const r=await services.finalizeSession.execute(sessionId);if(!r.ok){setErrorMessage(r.error.userMessage??"Sessionを終了できませんでした。");setIsBusy(false);return;}const result=await services.getSessionResults.execute(sessionId);if(!result.ok||!result.value){setErrorMessage(result.ok?"結果を読み込めませんでした。":result.error.userMessage??"結果を読み込めませんでした。");await refresh(group.id);setIsBusy(false);return;}setSessionResults(result.value);setScoreInputs({});setEditingGameId(null);setGameTagType("");setChipInputs({});setSessionNote("");await refresh(group.id);setStatusMessage("Sessionを終了しました。");setView("results");setIsBusy(false);};
   const totals=useMemo(()=>{
     const m=new Map<string,number>();for(const g of games)for(const r of g.results)m.set(r.playerId,(m.get(r.playerId)??0)+r.scorePoint);return m;
   },[games]);
@@ -128,6 +129,11 @@ function App() {
       {errorMessage?<div className="notice notice--error" role="alert">{errorMessage}</div>:null}
       {statusMessage?<div className="notice" role="status">{statusMessage}</div>:null}
       {isLoading?<div className="loading">記録を読み込んでいます…</div>:
+      view==="results"&&sessionResults?<section className="score-session">
+        <p className="screen-eyebrow">SESSION RESULTS</p><h1>{sessionResults.session.sessionDate}</h1>
+        <p className="score-session__meta">{getModeLabel(sessionResults.participantPlayerIds.length)} · {sessionResults.games.length}半荘</p>
+        {(()=>{const ids=sessionResults.participantPlayerIds;const sums=new Map<string,number>();for(const g of sessionResults.games)for(const r of g.results)sums.set(r.playerId,(sums.get(r.playerId)??0)+r.scorePoint);const chip=(id:string)=>sessionResults.session.chipResults.find(x=>x.playerId===id)?.chipCount??0;const final=(id:string)=>(sums.get(id)??0)+chip(id)*5;const sorted=[...ids].sort((a,b)=>final(b)-final(a));const rank=(id:string)=>sorted.findIndex(x=>final(x)===final(id))+1;return <><div className={"score-sheet score-sheet--"+ids.length}><div className="score-sheet__corner">半荘</div>{ids.map(id=><div className="score-sheet__player" key={"rh"+id}>{playerNameById(id)}</div>)}{sessionResults.games.map(g=><div className="score-sheet__row" key={g.id}><div className="score-sheet__label">{g.sequence}</div>{ids.map(id=><div className="score-sheet__value" key={id}>{formatScore(g.results.find(r=>r.playerId===id)?.scorePoint??0)}</div>)}</div>)}<div className="score-sheet__row score-sheet__row--subtotal"><div className="score-sheet__label">小計</div>{ids.map(id=><div className="score-sheet__value" key={id}>{formatScore(sums.get(id)??0)}</div>)}</div><div className="score-sheet__row"><div className="score-sheet__label">チップ</div>{ids.map(id=><div className="score-sheet__value" key={id}>{formatScore(chip(id))}</div>)}</div><div className="score-sheet__row"><div className="score-sheet__label">換算</div>{ids.map(id=><div className="score-sheet__value" key={id}>{formatScore(chip(id)*5)}</div>)}</div><div className="score-sheet__row score-sheet__row--subtotal"><div className="score-sheet__label">合計</div>{ids.map(id=><div className="score-sheet__value" key={id}>{formatScore(final(id))}</div>)}</div><div className="score-sheet__row"><div className="score-sheet__label">順位</div>{ids.map(id=><div className="score-sheet__value" key={id}>{rank(id)}位</div>)}</div></div><Button block onClick={()=>{setSessionResults(null);setStatusMessage(null);setView("home");}}>Homeへ戻る</Button></>})()}
+      </section>:
       view==="session-setup"&&group?<section className="session-setup">
         <p className="screen-eyebrow">SESSION SETUP</p><h1>今日の参加者</h1>
         <TextField id="session-date" label="日付" type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/>

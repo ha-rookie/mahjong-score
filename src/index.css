@@ -6,16 +6,16 @@
   background: #f5f1e8;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --bg: #f5f1e8;
-  --surface: #fffdf8;
+  --bg: #f3f5f1;
+  --surface: rgb(255 255 252 / 88%);
   --surface-strong: #ffffff;
-  --text: #282a28;
-  --muted: #6f716c;
+  --text: #1f2925;
+  --muted: #68736e;
   --subtle: #8b8d87;
   --line: rgb(40 42 40 / 12%);
-  --teal: #167c74;
-  --teal-dark: #0f625c;
-  --teal-soft: #e7f2ef;
+  --teal: #176b57;
+  --teal-dark: #10513f;
+  --teal-soft: #e8f1ed;
   --danger: #9c3f32;
   --negative: #a24b42;
   --danger-soft: #f8eae6;
@@ -29,9 +29,13 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top right, rgb(22 124 116 / 8%), transparent 30rem),
-    var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgb(243 245 241 / 78%), rgb(243 245 241 / 86%)),
+    url("/mahjong-bg-ink-landscape.png");
+  background-size: cover;
+  background-position: center bottom;
+  background-attachment: fixed;
 }
 
 button,
@@ -65,13 +69,13 @@ input:focus-visible {
   top: 0;
   z-index: 10;
   border-bottom: 1px solid var(--line);
-  background: rgb(245 241 232 / 92%);
+  background: rgb(247 249 246 / 86%);
   backdrop-filter: blur(16px);
 }
 
 .app-header__inner {
   width: min(100%, 760px);
-  min-height: 72px;
+  min-height: 68px;
   margin: 0 auto;
   padding: 12px 18px;
   display: flex;
@@ -91,7 +95,7 @@ input:focus-visible {
   flex: 0 0 auto;
   width: 42px;
   height: 42px;
-  border-radius: 13px;
+  border-radius: 10px;
   background: var(--teal);
 }
 
@@ -146,7 +150,7 @@ input:focus-visible {
 .page {
   width: min(100%, 760px);
   margin: 0 auto;
-  padding: 28px 18px 56px;
+  padding: 32px 18px 56px;
 }
 
 h1,
@@ -157,9 +161,9 @@ p {
 
 h1 {
   margin: 8px 0 0;
-  font-size: clamp(2rem, 8.5vw, 3.4rem);
-  line-height: 1.12;
-  letter-spacing: -0.045em;
+  font-size: clamp(1.85rem, 7.2vw, 2.8rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
 }
 
 h2 {
@@ -181,8 +185,10 @@ h2 {
   padding: 8px 0 30px;
 }
 
+.home-hero__description { margin: 10px 0 0; color: var(--muted); font-size: .92rem; }
+
 .home-hero__meta {
-  margin: 14px 0 28px;
+  margin: 8px 0 28px;
   color: var(--muted);
   font-size: 0.92rem;
 }
@@ -239,9 +245,9 @@ h2 {
   min-height: 52px;
   padding: 12px 14px;
   border: 1px solid rgb(40 42 40 / 18%);
-  border-radius: 12px;
+  border-radius: 9px;
   color: var(--text);
-  background: var(--surface-strong);
+  background: rgb(255 255 255 / 92%);
 }
 
 .field__input::placeholder {
@@ -257,8 +263,8 @@ h2 {
   min-height: 50px;
   padding: 11px 18px;
   border: 0;
-  border-radius: 12px;
-  font-weight: 800;
+  border-radius: 9px;
+  font-weight: 750;
   cursor: pointer;
   transition:
     transform 120ms ease,
@@ -286,7 +292,8 @@ h2 {
 
 .button--secondary {
   color: var(--teal-dark);
-  background: var(--teal-soft);
+  border: 1px solid rgb(23 107 87 / 16%);
+  background: rgb(255 255 255 / 70%);
 }
 
 .button--quiet {
@@ -662,3 +669,11 @@ h2 {
 
 /* Test utility: keep isolated so Session deletion can be hidden easily before regular use. */
 .history-session-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;align-items:stretch}.history-session-delete{min-width:48px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--danger);font-size:1rem;cursor:pointer}.history-session-delete:disabled{opacity:.5;cursor:default}
+
+/* Modern application surface */
+.home-hero { padding: 22px 0 32px; }
+.home-hero .button + .button { margin-top: 8px; }
+.section { border-top-color: rgb(31 41 37 / 10%); }
+.score-sheet,.performance-card,.diverging-chart,.member-choice,.memo-field textarea,.game-meta-editor select,.period-selectors select { backdrop-filter: blur(10px); }
+.performance-card,.diverging-chart { border-radius: 10px; background: rgb(255 255 252 / 82%); box-shadow: 0 8px 24px rgb(31 50 42 / 5%); }
+.confirm-dialog { border-radius: 14px; }

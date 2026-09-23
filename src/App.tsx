@@ -104,7 +104,7 @@ function App() {
     for(const id of participantIds)scores[id]=id===missingId?null:parsedEntries.find(x=>x.id===id)?.value??null;
     setIsBusy(true);setErrorMessage(null);setStatusMessage(null);
     const tags=gameTagType?[{type:gameTagType,playerId:gameTagPlayerId||null}]:[];
-    const r=editingGameId?await services.updateGame.execute({gameId:editingGameId,scorePointsByPlayer:scores,tags}):await services.addGameResult.execute({sessionId:activeSession.session.id,scorePointsByPlayer:scores});
+    const r=editingGameId?await services.updateGame.execute({gameId:editingGameId,scorePointsByPlayer:scores,tags}):await services.addGameResult.execute({sessionId:activeSession.session.id,scorePointsByPlayer:scores,tags});
     if(!r.ok){setErrorMessage(r.error.userMessage??"半荘結果を保存できませんでした。");setIsBusy(false);return;}
     setScoreInputs({});setEditingGameId(null);setGameTagType("");setGameTagPlayerId("");await refresh(group.id);setStatusMessage(editingGameId?"半荘結果を更新しました。":"半荘結果を保存しました。");setIsBusy(false);
   };

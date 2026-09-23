@@ -132,6 +132,8 @@ Phase 1:
 - AuthenticationでUserを識別する
 - Group単位でAdmin / Memberを認可する
 - User（認証主体）とPlayer（成績対象）を分離し、ログインしていないPlayerも保持可能とする
+- AdminはPlayer編集から未ログインPlayerを招待でき、認証完了後にそのUserとPlayerを紐付ける
+- 既存UserはAdminが対象Playerへ紐付けできる。紐付け時にGroup Membershipも作成または確認する
 - AdminはGroup/Membership管理・Backup/Restoreを実行でき、Memberは通常の麻雀記録・参照を実行できる
 - 認可はFrontend表示制御だけでなくWorker API側で強制する
 - Group作成、Backup / RestoreはAdminのみ実行できる

@@ -132,7 +132,24 @@ User
 Group resourceへのread/writeは、Frontend表示状態ではなくWorker API側でMembershipを確認して許可する。
 
 ### Playerとの関係
-Phase 2初期ではUserとPlayerを強制的に1:1対応させない。ログインしていないPlayerも成績対象として保持できる。将来、本人紐付けが必要になった時点でPlayer-User linkを追加判断する。
+UserとPlayerは別Entityのまま、Group内Playerを必要に応じてUserへ紐付ける。
+
+- Playerは未ログイン状態でも作成・成績記録できる
+- Playerは0または1つのUserへ紐付け可能
+- 1 Userは複数GroupそれぞれのPlayerへ紐付くことができる
+- 同一Group内では1 Userを複数Playerへ紐付けない
+- User紐付け後も過去のGameResult等はPlayer IDを維持し、成績履歴を作り直さない
+
+### Invitation / Linking flow
+管理者はGroupのPlayer編集画面からPlayerをUserへ紐付ける。
+
+1. Playerが未ログインならAdminが招待を発行する
+2. 招待された人が認証を完了した時点で、そのUserを対象PlayerとGroupMembershipへ紐付ける
+3. 対象者がすでにUserとして登録済みなら、Adminは既存Userを選択してPlayerへ紐付ける
+4. 既存Userを紐付ける場合も対象GroupのMembershipを作成または確認する
+5. Admin自身を含め、同一Group内のPlayer/User重複紐付けは禁止する
+
+招待先の本人確認方法、招待tokenの有効期限・再送・取消はAuthentication方式決定時に具体化する。
 
 ### Concurrency
 D1移行時は更新対象にversionまたはupdatedAt等の競合検知情報を持たせ、古い状態からの更新を黙って上書きしない。

@@ -1,10 +1,11 @@
 import type { Clock, GameRepository, IdGenerator, SessionRepository } from "../ports";
-import { createGameResultsFromScoreSheet, type Game, type PlayerId, type SessionId } from "../../domain";
+import { createGameResultsFromScoreSheet, type Game, type GameTag, type PlayerId, type SessionId } from "../../domain";
 import { AppError, err, ok, type Result } from "../../shared/errors";
 
 export interface AddGameResultInput {
   readonly sessionId: SessionId;
   readonly scorePointsByPlayer: Readonly<Record<PlayerId, number | null>>;
+  readonly tags?: readonly GameTag[];
 }
 
 export class AddGameResultUseCase {
@@ -65,7 +66,7 @@ export class AddGameResultUseCase {
       sequence: existing.value.reduce((max, item) => Math.max(max, item.sequence), 0) + 1,
       playedAt: this.clock.now(),
       results: results.value,
-      tags: [],
+      tags: input.tags ?? [],
     };
     const saved = await this.games.save(game);
     return saved.ok ? ok(game) : saved;

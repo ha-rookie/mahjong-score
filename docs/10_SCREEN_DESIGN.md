@@ -11,7 +11,7 @@ Screen Map、画面遷移、項目、Event、画面-Data Mapping、Wireframe/Moc
 | SCR-001 | Home | Single-page state | 入口 / 現在状態 | User | Phase 1なし | 1 | Active |
 | SCR-002 | Group / Member Setup | Home内 | Group作成 / Member追加 | User | Phase 1なし | 1 | Active |
 | SCR-003 | Session Setup | Single-page state | 日付 / 参加者選択 / Session開始 | User | Phase 1なし | 1 | Active |
-| SCR-004 | Score Sheet | TBD | 半荘結果入力・累計 | User | TBD | 1 | Planned |
+| SCR-004 | Score Sheet | Single-page state | 半荘結果入力・累計 | User | Phase 1なし | 1 | Active |
 | SCR-005 | Chip Settlement | TBD | Session終了時Chip精算 | User | TBD | 1 | Planned |
 | SCR-006 | Results | TBD | Session / 日次成績 | User | TBD | 1 | Planned |
 | SCR-007 | Statistics | TBD | 月・年・通算 | User | TBD | 1 | Planned |
@@ -35,7 +35,7 @@ Home
  -> Home / Active Session表示
 ```
 
-Active Session開始後のScore Sheet接続は次Feature。
+Active Session開始後は「＋ 半荘結果を追加」からScore Sheetへ遷移する。
 
 ## 4. Home
 
@@ -80,7 +80,18 @@ Phase 1の複数Group切替UIは未決のため、このVertical Sliceでは既�
 
 3人/4人のみ登録済みの場合は初期選択する。5人以上の場合は未選択から開始する。
 
-## 7. UI Rules
+## 7. Score Sheet
+
+- 現在ParticipantSegmentの全Playerを順位順に表示
+- 上下Buttonで順位を変更
+- 2位以下は整数Score Pointを入力
+- 1位は入力欄を持たず合計0となるScoreを自動preview
+- 1pt=1,000点、小数入力不可
+- 保存成功後Homeへ戻り、今日のPlayer別累計と半荘履歴を更新
+- 履歴は新しい半荘から表示
+- 過去Gameの訂正/削除はPhase 1の本Issue対象外
+
+## 8. UI Rules
 
 - 320px以上で横スクロールさせない
 - Touch targetは概ね48px以上
@@ -90,7 +101,7 @@ Phase 1の複数Group切替UIは未決のため、このVertical Sliceでは既�
 - focus-visibleを明示する
 - Button / TextField / Sectionを最小Reusable Componentとして利用する
 
-## 8. Future Flow
+## 9. Future Flow
 
 ```text
 Active Session
@@ -102,6 +113,6 @@ Active Session
            -> Results
 ```
 
-## 9. Screen / API / Domain / DB Mapping
+## 10. Screen / API / Domain / DB Mapping
 
 Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelとの対応を追跡する。Phase 2でAPI/DB Mappingを追加する。

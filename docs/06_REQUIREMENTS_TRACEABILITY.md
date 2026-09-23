@@ -10,9 +10,9 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-001 | Group/Player管理 | FUNC-001, SCR-001/002 | #6/#8/#10/#12 | Domain + localStorage + React UI | CI + smartphone evidence | ACTIVE |
 | REQ-002 | Session開始/参加者選択 | FUNC-002, SCR-003 | #6/#8/#10/#12 | StartSession + React UI | CI + smartphone evidence | ACTIVE |
 | REQ-003 | 参加者構成履歴 | FUNC-002, DATA-005 | #6/#8/#10/#12 | ParticipantSegment | automated tests | ACTIVE |
-| REQ-004 | 半荘結果対象3/4人 | FUNC-003, DATA Game semantics | #14 | Human-confirmed design | design review | ACTIVE |
-| REQ-005 | Integer Score Point / 1point=1,000点 / 合計0 | FUNC-003, DATA score decisions | #14/#16/#20 | GameResult.scorePoint + score domain + repository | score/domain/repository tests | ACTIVE |
-| REQ-006 | input order rank / first place auto score | FUNC-003, DATA result order | #14/#20 | createRankedGameResults + Game.results order | score unit tests | ACTIVE |
+| REQ-004 | 半荘結果対象3/4人 | FUNC-003, SCR-004, DATA Game semantics | #14/#20/#23 | Domain + persistence + React UI | automated tests + UI review | ACTIVE |
+| REQ-005 | Integer Score Point / 1point=1,000点 / 合計0 | FUNC-003, SCR-004, DATA score decisions | #14/#16/#20/#23 | GameResult.scorePoint + score domain + repository + UI | score/domain/repository/use-case tests | ACTIVE |
+| REQ-006 | input order rank / first place auto score | FUNC-003, SCR-004, DATA result order | #14/#20/#23 | createRankedGameResults + ranked UI + Game.results order | score/use-case tests | ACTIVE |
 | REQ-007 | 負Score Point許可 | FUNC-003, DATA invariant | #14/#20 | integer score validation | score unit tests | ACTIVE |
 | REQ-008 | Chip合計0 | DATA-009 | #6/#10 | validateChipResults | domain test / CI | ACTIVE |
 | REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI | ACTIVE |
@@ -25,7 +25,7 @@ Human decisions completed:
 - TBD-002 Resolved: Player入力順を順位として扱い、同じScore Pointでも順序を維持
 - 4人回し三麻は半荘結果4人分
 
-FUNC-003のScore Domain / Game persistenceはIssue #20で実装。React半荘結果入力UIは次Issue。
+FUNC-003のScore Domain / Game persistenceはIssue #20、React半荘結果入力UIとSession内履歴/累計はIssue #23で接続。
 
 ## 4. Model Gap Resolution
 

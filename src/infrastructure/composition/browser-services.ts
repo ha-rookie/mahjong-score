@@ -1,12 +1,15 @@
 import {
+  AddGameResultUseCase,
   AddPlayerToGroupUseCase,
   CreateGroupUseCase,
   GetActiveSessionUseCase,
+  ListGamesBySessionUseCase,
   ListGroupsUseCase,
   ListPlayersByGroupUseCase,
   StartSessionUseCase,
 } from "../../application/use-cases";
 import {
+  LocalStorageGameRepository,
   LocalStorageGroupRepository,
   LocalStoragePlayerRepository,
   LocalStorageSessionRepository,
@@ -23,6 +26,7 @@ export const createBrowserServices = () => {
   const groups = new LocalStorageGroupRepository(store);
   const players = new LocalStoragePlayerRepository(store);
   const sessions = new LocalStorageSessionRepository(store);
+  const games = new LocalStorageGameRepository(store);
   const ids = new CryptoIdGenerator();
   const clock = new SystemClock();
 
@@ -30,9 +34,11 @@ export const createBrowserServices = () => {
     createGroup: new CreateGroupUseCase(groups, ids, clock),
     addPlayerToGroup: new AddPlayerToGroupUseCase(players, ids, clock),
     startSession: new StartSessionUseCase(sessions, players, ids, clock),
+    addGameResult: new AddGameResultUseCase(games, sessions, ids, clock),
     listGroups: new ListGroupsUseCase(groups),
     listPlayersByGroup: new ListPlayersByGroupUseCase(players),
     getActiveSession: new GetActiveSessionUseCase(sessions),
+    listGamesBySession: new ListGamesBySessionUseCase(games),
   };
 };
 

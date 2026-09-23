@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  createGameResultsFromScoreSheet,
   createRankedGameResults,
   validateGameParticipants,
   validateGameResults,
@@ -31,7 +32,40 @@ class MemoryKeyValueStore implements KeyValueStore {
   }
 }
 
-test("creates ranked three-player results from two integer score inputs", () => {
+test("creates score-sheet results from any two entered three-player cells", () => {
+  const result = createGameResultsFromScoreSheet({
+    participantPlayerIds: ["p1", "p2", "p3"],
+    scorePointsByPlayer: { p1: -5, p2: null, p3: 20 },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.value, [
+    { playerId: "p1", scorePoint: -5 },
+    { playerId: "p2", scorePoint: -15 },
+    { playerId: "p3", scorePoint: 20 },
+  ]);
+});
+
+test("creates four-player score-sheet results with one calculated cell", () => {
+  const result = createGameResultsFromScoreSheet({
+    participantPlayerIds: ["p1", "p2", "p3", "p4"],
+    scorePointsByPlayer: { p1: 10, p2: -5, p3: null, p4: -20 },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.value.map(x => x.scorePoint), [10, -5, 15, -20]);
+});
+
+test("score sheet requires exactly one empty cell", () => {
+  const result = createGameResultsFromScoreSheet({
+    participantPlayerIds: ["p1", "p2", "p3"],
+    scorePointsByPlayer: { p1: null, p2: null, p3: 20 },
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error.code, "score_input_count_invalid");
+});
+
+test("legacy ranked helper remains compatible", () => {
   const result = createRankedGameResults({
     rankedPlayerIds: ["p1", "p2", "p3"],
     lowerRankScorePoints: [3, -8],

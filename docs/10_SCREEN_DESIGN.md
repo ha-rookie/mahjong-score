@@ -82,14 +82,21 @@ Phase 1の複数Group切替UIは未決のため、このVertical Sliceでは既�
 
 ## 7. Score Sheet
 
-- 現在ParticipantSegmentの全Playerを順位順に表示
-- 上下Buttonで順位を変更
-- 2位以下は整数Score Pointを入力
-- 1位は入力欄を持たず合計0となるScoreを自動preview
-- 1pt=1,000点、小数入力不可
-- 保存成功後Homeへ戻り、今日のPlayer別累計と半荘履歴を更新
-- 履歴は新しい半荘から表示
-- 過去Gameの訂正/削除はPhase 1の本Issue対象外
+Production実機レビューで紙の麻雀得点記録表を操作モデルとして採用する。
+
+- Active Session画面そのものをScore Sheetとする
+- 列 = 現在ParticipantSegmentのPlayer
+- 行 = 保存済みGame（半荘）
+- 最下部に新規入力行を常設
+- 3人なら任意2セル、4人なら任意3セルを入力
+- 残り1セルは合計0になるよう自動計算して同じ行に表示
+- 順位選択 / 順位並べ替えUIは持たない
+- 1pt=1,000点、小数入力不可、負値可
+- 小計行をPlayer列ごとに表示
+- 保存成功後もScore Sheetに留まり次の半荘入力へ続けられる
+- Active Session中はGroup / Member追加UIを隠す
+- Chip / 合計行は将来追加可能だがIssue #25では未実装
+- 過去Gameの訂正/削除は対象外
 
 ## 8. UI Rules
 

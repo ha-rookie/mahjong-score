@@ -176,7 +176,7 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - finalized Sessionを新しい順で表示
 - 選択するとResults画面を再利用する
 - Results表は上端と下端の両方にPlayer名を表示する
-- 過去Session一覧は日付ボタンと削除ボタンの下に「N半荘 · Session memo」を1行で表示する。memoが長い場合は一覧では省略し、全文はResultsで確認する
+- 過去Session一覧は各Sessionを1行にまとめ、「日付 / N半荘 / Session memo / 削除」を横並び表示する。memoが長い場合は一覧では省略し、全文はResultsで確認する
 
 
 ### Game Tag UI Phase 1対象外

@@ -653,7 +653,7 @@ h2 {
 .diverging-chart__negative .diverging-chart__bar { background: var(--negative); opacity: .72; }
 
 /* Test utility: keep isolated so Session deletion can be hidden easily before regular use. */
-.history-session-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;align-items:stretch}.history-session-delete{min-width:48px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--danger);font-size:1rem;cursor:pointer}.history-session-meta{grid-column:1/-1;min-width:0;margin:-1px 4px 0;color:var(--muted);font-size:.78rem;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.history-session-note{white-space:nowrap}.history-session-delete:disabled{opacity:.5;cursor:default}
+.history-session-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;align-items:stretch}.history-session-open{min-width:0;min-height:58px;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid rgb(23 107 87 / 16%);border-radius:9px;background:rgb(255 255 255 / 70%);color:var(--teal-dark);cursor:pointer}.history-session-open:disabled{opacity:.45;cursor:not-allowed}.history-session-date{flex:0 0 auto;font-weight:800;font-variant-numeric:tabular-nums}.history-session-count{flex:0 0 auto;color:var(--muted);font-size:.78rem;font-weight:700}.history-session-note{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.78rem;font-weight:500}.history-session-delete{min-width:48px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--danger);font-size:1rem;cursor:pointer}.history-session-delete:disabled{opacity:.5;cursor:default}
 
 /* Modern application surface */
 .home-hero { padding: 22px 0 32px; }

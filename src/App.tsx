@@ -106,7 +106,7 @@ function App() {
     if(!r.ok){setErrorMessage(r.error.userMessage??"半荘結果を保存できませんでした。");setIsBusy(false);return;}
     setScoreInputs({});setEditingGameId(null);setGameTagType("");await refresh(group.id);setStatusMessage(editingGameId?"半荘結果を更新しました。":"半荘結果を保存しました。");setIsBusy(false);
   };
-  const startEditGame=(game:Game)=>{setEditingGameId(game.id);setScoreInputs(Object.fromEntries(game.results.map(x=>[x.playerId,String(x.scorePoint)])));setGameTagType(game.tags[0]?.type??"");};
+  const startEditGame=(game:Game)=>{const autoPlayerId=participantIds[participantIds.length-1];setEditingGameId(game.id);setScoreInputs(Object.fromEntries(game.results.map(x=>[x.playerId,x.playerId===autoPlayerId?"":String(x.scorePoint)])));setGameTagType(game.tags[0]?.type??"");};
   const handleDeleteGame=async(game:Game)=>{if(!group||!window.confirm(`${game.sequence}半荘目を削除しますか？`))return;setIsBusy(true);const r=await services.deleteGame.execute(game.id);if(!r.ok)setErrorMessage(r.error.userMessage??"削除できませんでした。");else{if(editingGameId===game.id){setEditingGameId(null);setScoreInputs({});}await refresh(group.id);setStatusMessage("半荘結果を削除しました。");}setIsBusy(false);};
   const chipParsed=participantIds.map(id=>{const raw=chipInputs[id]?.trim()??"";return {id,raw,value:/^-?\d+$/.test(raw)?Number(raw):null};});
   const chipEntered=chipParsed.filter(x=>x.raw!==""&&x.value!==null);const chipInvalid=chipParsed.some(x=>x.raw!==""&&x.value===null);const canCalcChip=participantIds.length>=3&&!chipInvalid&&chipEntered.length===participantIds.length-1;const chipMissingId=canCalcChip?chipParsed.find(x=>x.raw==="")?.id:null;const calculatedChip=canCalcChip?-chipEntered.reduce((s,x)=>s+(x.value??0),0):null;

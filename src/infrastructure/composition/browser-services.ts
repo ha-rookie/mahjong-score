@@ -7,6 +7,9 @@ import {
   ListGroupsUseCase,
   ListPlayersByGroupUseCase,
   StartSessionUseCase,
+  UpdateGameUseCase,
+  DeleteGameUseCase,
+  UpdateSessionDetailsUseCase,
 } from "../../application/use-cases";
 import {
   LocalStorageGameRepository,
@@ -35,6 +38,9 @@ export const createBrowserServices = () => {
     addPlayerToGroup: new AddPlayerToGroupUseCase(players, ids, clock),
     startSession: new StartSessionUseCase(sessions, players, ids, clock),
     addGameResult: new AddGameResultUseCase(games, sessions, ids, clock),
+    updateGame: new UpdateGameUseCase(games, sessions),
+    deleteGame: new DeleteGameUseCase(games),
+    updateSessionDetails: new UpdateSessionDetailsUseCase(sessions),
     listGroups: new ListGroupsUseCase(groups),
     listPlayersByGroup: new ListPlayersByGroupUseCase(players),
     getActiveSession: new GetActiveSessionUseCase(sessions),

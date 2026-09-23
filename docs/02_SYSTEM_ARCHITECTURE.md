@@ -2,125 +2,143 @@
 
 ## 1. 文書目的
 
-この文書は、ユーザー・Cloudflare・GitHub・外部サービス・データストア等を含む「システム全体の構成」の正本とする。
+この文書は、ユーザー・Cloudflare・GitHub・データストア等を含む「システム全体の構成」の正本とする。
 
 ## 2. Architecture Goals
 
-- ARCH-001: CHANGE-ME
-- ARCH-002: CHANGE-ME
+- ARCH-001: Phase 1ではサーバー側データストアを持たず、麻雀アプリ本体のUX検証を優先する
+- ARCH-002: Phase 2でWorker API / D1へ移行できるよう、UIと永続化処理を分離する
+- ARCH-003: Public RepositoryへSecret値を保存しない
+- ARCH-004: GitHub Actionsで品質確認後、WranglerからCloudflare WorkersへDeployする
 
 ## 3. System Context
 
 ```text
-User / Browser
+User / Smartphone Browser
       |
       v
-CHANGE-ME Web App
+React SPA
       |
-      +--> CHANGE-ME External Service
+      v
+Repository abstraction
       |
-      +--> CHANGE-ME Data / API
+      v
+localStorage
 
 GitHub
   |
-  +--> CI / Build / Data Update
-  |
   v
-Cloudflare Pages / Workers / CHANGE-ME
+GitHub Actions
+  |- lint
+  |- build
+  `- wrangler deploy
+      |
+      v
+Cloudflare Workers + Static Assets
 ```
 
-実際の採用構成に合わせ、使わない要素は削除せず「該当なし」と明記する。
+Phase 1のRuntimeでは外部APIへ依存しない。
 
 ## 4. Deployment Architecture
 
 | ID | Component | Platform | Responsibility | Production | Preview |
 | --- | --- | --- | --- | --- | --- |
-| ARCH-010 | Frontend | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME |
-| ARCH-011 | Server/API | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME |
-| ARCH-012 | Data Store | CHANGE-ME | CHANGE-ME | CHANGE-ME | CHANGE-ME |
+| ARCH-010 | Frontend | React + Vite | UI / client-side logic | Yes | PR CIのみ。Cloudflare Previewは後続判断 |
+| ARCH-011 | Static delivery | Cloudflare Workers Static Assets | SPA配信 | Yes | TBD |
+| ARCH-012 | Server/API | 該当なし（Phase 1） | 該当なし | No | No |
+| ARCH-013 | Data Store | Browser localStorage | Phase 1データ永続化 | Client only | Client only |
 
 ### Environment Separation
 
-- ProductionとPreviewのSecrets/Variables/Bindingsを分離する
-- PreviewからProductionデータへ書き込まない
-- Production固有のDomain/Auth/Billing設定をPreviewへコピーしない
-- 環境差分がある場合はこの文書と `CLOUDFLARE_SETUP.md` の役割を分ける
-  - なぜ分けるか・何を分けるか → 本文書
-  - 具体的な設定手順 → Cloudflare Setup
+Phase 1ではサーバー側データを持たない。
+
+- Production deploy用SecretはGitHub Actions Secretsで管理
+- Secret値をRepositoryへcommitしない
+- PreviewからProductionデータへ書き込むサーバー経路はPhase 1には存在しない
+- Phase 2でD1導入時にProduction / Preview Bindingsを分離する
 
 ## 5. Runtime Data Flow
 
 ```text
-CHANGE-ME
+User operation
+  -> React UI
+  -> Application / domain logic
+  -> Repository interface
+  -> LocalStorageRepository
+  -> localStorage
 ```
 
-ユーザー操作時に発生する通信・計算・保存を記載する。
+Browser外へ麻雀データを送信しない。
 
-## 6. Build / Update Data Flow
+## 6. Build / Deploy Data Flow
 
 ```text
-CHANGE-ME
+Issue branch
+  -> Pull Request
+  -> GitHub Actions
+       -> npm install
+       -> lint
+       -> build
+  -> Human review
+  -> Merge to main
+  -> GitHub Actions
+       -> lint
+       -> build
+       -> wrangler deploy
+  -> Cloudflare Workers + Static Assets
 ```
-
-CI、定期更新、バッチ、事前生成がある場合、Runtimeと分けて記載する。
 
 ## 7. External Dependencies
 
 | ID | Service | Purpose | Runtime Dependency | Auth | Failure Behavior |
 | --- | --- | --- | --- | --- | --- |
-| IF-001 | CHANGE-ME | CHANGE-ME | Yes/No | CHANGE-ME | CHANGE-ME |
-
-外部障害時にコア機能まで停止させるか、縮退できるかを明示する。
+| IF-001 | Cloudflare Workers | SPA hosting | Yes | Deploy時のみAPI Token | 配信不可 |
+| IF-002 | GitHub Actions | CI / Deploy | No | Repository Secrets | Deploy不可。ローカル利用には影響なし |
 
 ## 8. Trust Boundaries / Security
 
-- Browserで保持してよい情報: CHANGE-ME
-- Browserへ出してはいけない情報: Secrets / tokens / CHANGE-ME
-- Server側検証: CHANGE-ME
-- CORS / CSP / same-origin: CHANGE-ME
-- 認証・認可: CHANGE-ME
-- 個人情報: CHANGE-ME
-- Rate limit / abuse対策: CHANGE-ME
+- Browserで保持してよい情報: Phase 1の麻雀スコア、グループ、メンバー名、任意メモ
+- Browserへ出してはいけない情報: Cloudflare API Token等のSecrets
+- Server側検証: Phase 1はServerなし
+- CORS: Phase 1の独自APIなし
+- 認証・認可: Phase 1はなし
+- 個人情報: 公開Repositoryへ実在メンバーのデータをcommitしない
+- Secret管理: GitHub Actions Secrets
 
 ## 9. Availability / Failure Strategy
 
 | Failure | User-visible behavior | Fallback | Logging/Detection |
 | --- | --- | --- | --- |
-| External API unavailable | CHANGE-ME | CHANGE-ME | CHANGE-ME |
-| Data missing | CHANGE-ME | CHANGE-ME | CHANGE-ME |
-| Analytics unavailable | Core機能へ波及させない/CHANGE-ME | CHANGE-ME | CHANGE-ME |
-
-架空値を生成して正常に見せるより、取得失敗・データ不足を明示する。
+| Cloudflare配信障害 | Webアプリへアクセスできない | なし | Cloudflare / Actions |
+| localStorage unavailable | 保存できない旨を明示 | JSON export等を後続実装 | Client error |
+| 保存データ破損 | 正常値として扱わない | Backup importを後続実装 | Client validation |
 
 ## 10. Observability
 
-- Cloudflare Web Analytics: CHANGE-ME
-- Application events: CHANGE-ME
-- Error logs: CHANGE-ME
-- Deployment history: CHANGE-ME
-- Privacy boundary: CHANGE-ME
+- Cloudflare Web Analytics: TBD
+- Application events: Phase 1では未導入
+- Error logs: Client-side最小限、方針は後続Issue
+- Deployment history: GitHub Actions / Cloudflare
+- Privacy boundary: 個人識別Analyticsは原則導入しない
 
 ## 11. Performance / Cost
 
-- Performance budget: CHANGE-ME
-- Cloudflare無料枠/費用上限: CHANGE-ME
-- API費用上限: CHANGE-ME
-- Asset/cache strategy: CHANGE-ME
+- SPAの初期表示を軽量に保つ
+- Static AssetsをCloudflare Edgeから配信する
+- GitHub Public Repositoryのstandard hosted runnerを利用する
+- Phase 1では有料APIを利用しない
 
 ## 12. Architecture Decisions
 
-重要な選択は `adr/` に残す。
-
-例:
-
-- Pages vs Workers
-- Runtime API vs static pre-generated data
-- Database採用/非採用
-- SPA/MPA
-- PWA採用
-- Analytics方式
-- Auth方式
+- Hosting: Cloudflare Workers + Static Assets
+- Deploy: GitHub Actions + Wrangler
+- Phase 1 persistence: localStorage
+- Phase 2 persistence: D1予定
+- SPA: React + Vite
+- Auth: Phase 1なし
 
 ## 13. 未決事項
 
-- TBD-ARCH-001: CHANGE-ME
+- TBD-ARCH-001: Preview環境のCloudflare公開方法
+- TBD-ARCH-002: PWA採用
+- TBD-ARCH-003: Analytics採用

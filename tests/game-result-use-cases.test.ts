@@ -55,7 +55,14 @@ class FakeGameRepository implements GameRepository {
     return Promise.resolve(ok(this.games.find((game) => game.id === id) ?? null));
   }
   save(game: Game): Promise<Result<void>> {
-    this.games.push(game);
+    const index = this.games.findIndex((item) => item.id === game.id);
+    if (index >= 0) this.games[index] = game;
+    else this.games.push(game);
+    return Promise.resolve(ok(undefined));
+  }
+  remove(id: GameId): Promise<Result<void>> {
+    const index = this.games.findIndex((item) => item.id === id);
+    if (index >= 0) this.games.splice(index, 1);
     return Promise.resolve(ok(undefined));
   }
 }

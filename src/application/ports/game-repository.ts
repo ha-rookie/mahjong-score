@@ -5,5 +5,4 @@ export interface GameRepository {
   listBySession(sessionId: SessionId): Promise<Result<readonly Game[]>>;
   findById(id: GameId): Promise<Result<Game | null>>;
   save(game: Game): Promise<Result<void>>;
-  remove(id: GameId): Promise<Result<void>>;
 }

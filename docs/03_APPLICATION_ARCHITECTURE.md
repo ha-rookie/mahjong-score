@@ -17,7 +17,7 @@ Application Ports
 Infrastructure
 
 Cross-cutting shared contracts:
-Error / Validation / Logging / Auth / Observability
+Error / Validation / Logging / Storage / Auth / Observability
 ```
 
 ## 3. Component Responsibilities
@@ -25,88 +25,73 @@ Error / Validation / Logging / Auth / Observability
 | ID | Component | Responsibility | Must Not Do |
 | --- | --- | --- | --- |
 | APP-001 | Presentation | UI state、入力、表示 | localStorage/D1へ直接access |
-| APP-002 | Application | Use case orchestration | React DOMへ依存 |
+| APP-002 | Application | Use Case orchestration | React DOMへ依存 |
 | APP-003 | Domain | Entity、Invariant、純粋なBusiness rule | React、Browser API、localStorage、Cloudflareへ依存 |
-| APP-004 | Ports | Repository等の抽象契約 | 具体Storageを知る |
-| APP-005 | Infrastructure | localStorage / future API/D1 adapter | UI stateを持つ |
-| APP-006 | Shared | Error/Validation/Logger等のDomain非依存共通契約 | Mahjong固有Modelへ依存 |
+| APP-004 | Ports | Repository / Clock / ID / AppDataStore等の抽象契約 | 具体Storageを知る |
+| APP-005 | Infrastructure | localStorage / runtime adapter / future API/D1 adapter | UI stateを持つ |
+| APP-006 | Shared | Error/Validation/Logger/KeyValueStore等のDomain非依存共通契約 | Mahjong固有Modelへ依存 |
 
 ## 4. Dependency Rules
 
 - Presentation → Application / sharedのみを基本とする
 - Application → Domain / Ports / shared
 - Domain → shared validation等の汎用契約のみ許可
-- Infrastructure → Ports / Domain
+- Infrastructure → Ports / Domain / shared
 - shared → Mahjong Domainへ依存しない
 - Module循環依存は禁止
 
-## 5. State / Persistence
+## 5. Phase 1 Persistence
 
-Phase 1: Repository interfaceの実装としてlocalStorageを利用する。UIから直接 `localStorage` を呼ばない。
-
-Phase 2: 同じUse CaseからWorker API Repositoryへ差し替えられる境界を維持する。
-
-## 6. Domain Model
-
-主要Model:
-- Group / Player / GroupMember
-- Session / SessionParticipantNote / ChipResult
-- ParticipantSegment
-- Game / GameResult / GameTag
-- AppDataSchema
-
-Stable IDはstringとして扱い、display nameやarray indexをidentityにしない。
-
-## 7. Repository Ports
-
-- GroupRepository
-- PlayerRepository
-- SessionRepository
-- GameRepository
-
-Repositoryは `Result<T, AppError>` を返し、Storage例外をUIへ直接漏らさない。
-
-## 8. Error / Validation / Logging
-
-Shared reusable contracts:
-- `AppError`
-- `Result<T>`
-- `ValidationResult` / `ValidationIssue`
-- `Logger`
-- `NoopLogger`
-
-Phase 1のNoopLoggerはAudit実装済みを意味しない。Server AuditはPhase 2以降。
-
-## 9. Runtime Sequence
+UIから `localStorage` を直接呼ばず、Use Case → Repository Port → localStorage Adapterで保存する。
 
 ```text
-User Action
- -> Presentation validation
- -> Application Use Case
- -> Domain validation/calculation
+Use Case
  -> Repository Port
- -> Infrastructure adapter
- -> Result
- -> UI render
+ -> LocalStorage Repository
+ -> LocalStorageAppDataStore
+ -> KeyValueStore
+ -> Web Storage
 ```
 
-## 10. Error Boundary
+localStorage keyは `mahjong-score:app-data:v1` に一元化し、AppDataSchemaの `schemaVersion=1` を保存する。
 
-- Domain validation: ValidationResult
-- Infrastructure failure: AppError
-- unexpected UI exception: future ErrorBoundary
-- Analytics failure: Core機能へ波及させない
+## 6. Atomic Operation Boundary
 
-## 11. Test Architecture
+Phase 1では複数collectionを同時更新する操作を1回のstore writeへまとめる。
 
-- shared/domain: Unit target
-- application: Unit/Integration
-- infrastructure: Integration
+- Player登録 + GroupMember追加 → `createForGroup`
+- Session作成 + initial ParticipantSegment作成 → `createWithInitialSegment`
+
+Delete/cascadeは未決のためRepository Portから削除操作を外し、AIが勝手に削除意味を確定しない。
+
+## 7. Use Cases
+
+Issue #8で追加する最小Use Case:
+- CreateGroupUseCase
+- AddPlayerToGroupUseCase
+- StartSessionUseCase
+- ExportBackupUseCase
+- ImportBackupUseCase
+
+Clock / ID Generatorをinjectし、時刻・採番をUse Case内部で固定実装しない。
+
+## 8. Error / Validation
+
+- localStorage read/write failure → AppError
+- JSON parse failure → AppError
+- schema mismatch → AppError
+- Domain invariant → ValidationResult
+- Backup importはschema validation成功後のみreplace
+
+## 9. Phase 2 Migration
+
+Application Portを維持し、localStorage RepositoryをWorker API/D1 Repositoryへ差し替える。D1ではtransaction / authorization / optimistic lockingを追加する。
+
+## 10. Test Architecture
+
+- shared/domain/application: Unit target
+- localStorage adapter: Integration target
 - UI: Component/E2E
 - security/NFR: `20_TEST_DESIGN.md`
 
-## 12. TBD
-
-- Test frameworkは別Issueで選定
-- Routing / state libraryは必要性が出た時点で判断
-- PWA採否はTBD
+Test frameworkは別Issueで導入する。

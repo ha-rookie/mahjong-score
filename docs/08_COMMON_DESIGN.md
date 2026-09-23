@@ -13,44 +13,41 @@
 | COM-004 | Logger | debug/info/warn/error contract | Yes |
 | COM-005 | NoopLogger | Logging未導入Phaseの安全な差替え | Yes |
 | COM-006 | Repository Ports | Persistence実装の差替え境界 | PatternとしてYes |
+| COM-007 | KeyValueStore | Web Storage等のkey/value storage抽象 | Yes |
+| COM-008 | Clock | 時刻取得の抽象 | Yes |
+| COM-009 | IdGenerator | stable ID採番の抽象 | Yes |
 
 shared packageは麻雀Domainに依存させない。
 
-## 3. React共通Component
+## 3. Storage Error Contract
 
-Template候補: Button / Field / Card / Dialog / Toast / EmptyState / Header / Navigation / Loading / Error / PermissionGate / ErrorBoundary。
+Storageの例外を直接UIへ投げない。以下をAppErrorへ正規化する。
 
-UI Componentは別IssueでShowcaseとともに実装する。
+- `storage_read_failed`
+- `storage_write_failed`
+- `storage_json_invalid`
+- `storage_schema_invalid`
+- `storage_schema_unsupported`
 
-## 4. Authentication / Authorization
+User向け文言と内部detailを分離する。
 
-Phase 1: Runtime authなし。
+## 4. Input / Import Validation
 
-Phase 2以降:
-- FrontendはRouteGuard / PermissionGateでUX制御
-- API側AuthorizationをSecurity上の正本
-- deny by default
-- resource scope確認
+- 外部File / localStorage内容をtrusted objectとみなさない
+- root objectの許可fieldを固定
+- schemaVersionを確認
+- collection/item shapeを検証
+- unknown root propertyを拒否
+- validation成功後のみreplace
 
-## 5. Validation
+## 5. React共通Component
 
-- UI validationとserver/domain validationを分離
-- 型、範囲、enum、必須、文字数を明示
-- import dataを信用しない
-- Domain invariantはpure validationとして再利用可能にする
+Template候補: Button / Field / Card / Dialog / Toast / EmptyState / Header / Navigation / Loading / Error / PermissionGate / ErrorBoundary。UI Componentは別IssueでShowcaseとともに実装する。
 
-## 6. Error
+## 6. Authentication / Authorization
 
-AppErrorはUser表示とOperation detailを分けられる契約とする。Secret/SQL/stack等をUserへ出さない。
+Phase 1: Runtime authなし。Phase 2以降はFrontend UX制御とAPI-side Authorizationを分離する。
 
 ## 7. Logging
 
-Logger contractはbusiness codeからconsole/platform APIを分離する。Phase 1はNoopLogger利用可能。Access/Application/Auditの本実装は `18_ANALYTICS_OBSERVABILITY.md` に従う。
-
-## 8. Duplicate / Concurrency
-
-二重tap防止UIだけに依存しない。Phase 2でidempotency / optimistic lock等を追加する。
-
-## 9. Showcase
-
-shared/UIをReact Templateへ昇格する際は正常・error・disabled・permission・mobile等の状態をShowcaseする。
+Logger contractはbusiness codeからconsole/platform APIを分離する。NoopLoggerはAudit実装済みを意味しない。

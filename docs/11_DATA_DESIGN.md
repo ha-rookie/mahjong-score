@@ -17,22 +17,32 @@ Group
      └─ ChipResult
 ```
 
-## 3. Model Contracts
+## 3. Phase 1 Persistence Schema
 
-| DATA ID | Model | Key fields |
-| --- | --- | --- |
-| DATA-001 | Group | id, name, createdAt, updatedAt |
-| DATA-002 | Player | id, displayName, createdAt, updatedAt |
-| DATA-003 | GroupMember | groupId, playerId, active |
-| DATA-004 | Session | id, groupId, sessionDate, startedAt, endedAt, status, memo, chipResults |
-| DATA-005 | ParticipantSegment | id, sessionId, sequence, participantPlayerIds |
-| DATA-006 | Game | id, sessionId, segmentId, sequence, playedAt, results, tags |
-| DATA-007 | GameResult | playerId, finalPoints, mahjongScore |
-| DATA-008 | GameTag | type, optional playerId |
-| DATA-009 | ChipResult | playerId, chipCount |
-| DATA-010 | AppDataSchema | schemaVersion + collections |
+- storage key: `mahjong-score:app-data:v1`
+- schemaVersion: `1`
+- 1 keyにAppDataSchema全体をJSON保存
+- write時は全root schemaをvalidationしてから保存
 
-## 4. Invariants
+Root fields:
+- schemaVersion
+- groups
+- players
+- groupMembers
+- sessions
+- participantSegments
+- games
+
+## 4. Atomic Operation
+
+Phase 1のcompound updateは、1回のAppDataSchema replaceで保存する。
+
+- Player + GroupMember
+- Session + initial ParticipantSegment
+
+これにより途中成功によるorphan dataを避ける。
+
+## 5. Invariants
 
 - ParticipantSegmentは3人または4人
 - 同一Segment内Player重複禁止
@@ -40,31 +50,24 @@ Group
 - GameResult内Player重複禁止
 - ChipResult内Player重複禁止
 - Chip合計は0
-- negative finalPointsは許可する
+- negative finalPointsは許可
 
-Score balance、100点端数、同点rank等の未決仕様はこのIssueで実装しない。
+Score balance、100点端数、同点rank等は未決のため未実装。
 
-## 5. Stable ID / Schema Version
+## 6. ID / Time
 
-- display name / array indexをidentityにしない
-- IDはstringのstable identifier
-- localStorage BackupはschemaVersionを持つ
-- D1移行時もIDを維持する
+- stable ID: `crypto.randomUUID()`をBrowser runtime adapterで生成
+- timestamp: SystemClockでISO 8601 UTC文字列を生成
+- sessionDate: `YYYY-MM-DD`
 
-## 6. Session State
+## 7. Delete Policy
 
-Phase 1 contract: `active | finalized`。cancel/reopen/correctionはTBD。
+未決。Cascade意味を決めるまでRepository Portへdeleteを提供しない。
 
-## 7. Table / View / ER
+## 8. Migration
 
-Phase 1: D1なしのため物理Table/ViewはN/A。Phase 2でLogical Modelから物理schemaとERを確定する。
+schema v1のみ対応。v2 migrationは別Issue。未知schemaVersionは自動変換せずerrorとする。
 
-## 8. Transaction / Concurrency
+## 9. Phase 2
 
-Phase 1: Repository write単位で整合性を守る。Backup importは全validation成功後に反映する。
-
-Phase 2: optimistic locking / version、transaction、stale update rejectionを設計する。
-
-## 9. Data Lifecycle
-
-create / update / finalize / correction / delete / retention / backup / restoreをEntityごとに後続Issueで具体化する。
+D1移行時は同じstable IDを維持し、物理Table/ER、transaction、optimistic lockingを追加する。

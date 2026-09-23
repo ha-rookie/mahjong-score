@@ -14,6 +14,7 @@ class Repo implements SessionRepository {
   listSegments():Promise<Result<readonly ParticipantSegment[]>>{return Promise.resolve(ok([segment]));}
   createWithInitialSegment():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   save(session:Session):Promise<Result<void>>{this.session=session;return Promise.resolve(ok(undefined));}
+  remove():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   saveSegment():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   findSegmentById(id:SegmentId):Promise<Result<ParticipantSegment|null>>{return Promise.resolve(ok(id===segment.id?segment:null));}
 }

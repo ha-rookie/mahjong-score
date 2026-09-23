@@ -106,6 +106,13 @@ export class LocalStorageGameRepository implements GameRepository {
     });
   }
 
+  async removeBySession(sessionId: SessionId): Promise<Result<void>> {
+    return this.store.update((current) => ok({
+      ...current,
+      games: current.games.filter((item) => item.sessionId !== sessionId),
+    }));
+  }
+
   async remove(id: GameId): Promise<Result<void>> {
     return this.store.update((current) => ok({
       ...current,

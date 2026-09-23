@@ -20,6 +20,15 @@ export class DeleteGameUseCase {
   constructor(private readonly games:GameRepository){}
   execute(gameId:GameId):Promise<Result<void>>{return this.games.remove(gameId);}
 }
+export class DeleteSessionUseCase {
+  constructor(private readonly sessions:SessionRepository,private readonly games:GameRepository){}
+  async execute(sessionId:SessionId):Promise<Result<void>>{
+    const found=await this.sessions.findById(sessionId);if(!found.ok)return found;
+    if(!found.value)return err(new AppError({code:"session_not_found",message:"Session not found.",userMessage:"Sessionが見つかりません。"}));
+    const removedGames=await this.games.removeBySession(sessionId);if(!removedGames.ok)return removedGames;
+    return this.sessions.remove(sessionId);
+  }
+}
 export class UpdateSessionDetailsUseCase {
   constructor(private readonly sessions:SessionRepository){}
   async execute(input:{sessionId:SessionId;note:string|null;participantNotes:readonly SessionParticipantNote[];chipResults:readonly ChipResult[]}){

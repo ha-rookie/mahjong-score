@@ -13,6 +13,7 @@ export interface SessionRepository {
   listSegments(sessionId: SessionId): Promise<Result<readonly ParticipantSegment[]>>;
   createWithInitialSegment(session: Session, segment: ParticipantSegment): Promise<Result<void>>;
   save(session: Session): Promise<Result<void>>;
+  remove(id: SessionId): Promise<Result<void>>;
   saveSegment(segment: ParticipantSegment): Promise<Result<void>>;
   findSegmentById(id: SegmentId): Promise<Result<ParticipantSegment | null>>;
 }

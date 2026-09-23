@@ -40,6 +40,7 @@ class FakeSessionRepository implements SessionRepository {
   listByGroup(): Promise<Result<readonly Session[]>> { return Promise.resolve(ok([session])); }
   createWithInitialSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   save(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
+  remove(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   saveSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   findSegmentById(id: SegmentId): Promise<Result<ParticipantSegment | null>> {
     return Promise.resolve(ok(id === segment.id ? segment : null));
@@ -58,6 +59,10 @@ class FakeGameRepository implements GameRepository {
     const index = this.games.findIndex((item) => item.id === game.id);
     if (index >= 0) this.games[index] = game;
     else this.games.push(game);
+    return Promise.resolve(ok(undefined));
+  }
+  removeBySession(sessionId: SessionId): Promise<Result<void>> {
+    for (let i=this.games.length-1;i>=0;i-=1) if(this.games[i]?.sessionId===sessionId)this.games.splice(i,1);
     return Promise.resolve(ok(undefined));
   }
   remove(id: GameId): Promise<Result<void>> {

@@ -7,18 +7,23 @@ Repository内の物理配置と責務を定義する。命名詳細は `21_NAMIN
 
 ```text
 src/
-├─ components/        # reusable React UI（追加時）
-├─ features/          # mahjong feature UI/use-case composition（追加時）
+├─ components/                 # reusable React UI（追加時）
+├─ features/                   # mahjong feature UI composition（追加時）
 ├─ domain/
 │  ├─ ids.ts
 │  ├─ models.ts
 │  └─ validation.ts
 ├─ application/
-│  └─ ports/          # repository abstractions
-├─ infrastructure/    # localStorage/API adapters（追加時）
+│  ├─ ports/                  # repository / clock / ID / app-data contracts
+│  └─ use-cases/              # application orchestration
+├─ infrastructure/
+│  ├─ repositories/           # localStorage repository adapters
+│  ├─ runtime/                # SystemClock / CryptoIdGenerator
+│  └─ storage/                # Web Storage / schema / AppDataStore
 ├─ shared/
 │  ├─ errors/
 │  ├─ logging/
+│  ├─ storage/                # generic KeyValueStore
 │  └─ validation/
 ├─ App.tsx
 ├─ main.tsx
@@ -42,10 +47,14 @@ Shared generic contracts may be used across layers.
 - DomainはReact/DOM/localStorage/Cloudflareへ依存しない
 - sharedはMahjong Domainへ依存しない
 - UIからlocalStorageを直接操作しない
+- Infrastructure固有のWeb Storage型をApplication/Domainへ漏らさない
 
-## 4. Docs / CI / Assets
+## 4. Phase 1 Storage
 
-業務システム設計体系は `docs/README.md`。CIは `.github/workflows/`。Assetは `ASSET_WORKFLOW.md` に従う。
+- storage key: `mahjong-score:app-data:v1`
+- root schema: `AppDataSchema`
+- schema version: `1`
+- Browser Web Storageは `KeyValueStore` wrapper越しに利用
 
 ## 5. Generated
 

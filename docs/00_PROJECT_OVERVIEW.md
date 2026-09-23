@@ -38,7 +38,7 @@ Phase 1:
 - 自動ポイント計算
 - チップ精算
 - 履歴 / 集計
-- Session Memo / Player別Memo
+- Session Memo
 - localStorage
 - JSONバックアップ / 復元
 
@@ -48,6 +48,7 @@ Phase 1では以下を実装しない。
 
 - 四人麻雀
 - GameTag UI（仕様再定義まで保留）
+- Player別Memo UI（本人識別・認可導入まで保留）
 - D1
 - Worker API
 - LINE Login

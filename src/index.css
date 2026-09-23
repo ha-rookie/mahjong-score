@@ -17,6 +17,7 @@
   --teal-dark: #0f625c;
   --teal-soft: #e7f2ef;
   --danger: #9c3f32;
+  --negative: #a24b42;
   --danger-soft: #f8eae6;
 }
 
@@ -655,3 +656,6 @@ h2 {
 
 .confirm-dialog__icon--danger { color: var(--danger); background: var(--danger-soft); }
 .button--danger { color: #fff; background: var(--danger); }
+
+.number--negative { color: var(--negative); }
+.diverging-chart__negative .diverging-chart__bar { background: var(--negative); opacity: .72; }

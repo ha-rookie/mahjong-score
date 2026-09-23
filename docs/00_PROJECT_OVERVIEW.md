@@ -74,6 +74,18 @@ Phase 1では以下を実装しない。
 
 Phase 2では個人端末内の記録アプリから、固定Groupの複数Memberが安全に利用できるWebアプリへ拡張する。
 
+実装順序は次を基本とする。
+
+1. Cloudflare側のアクセス制限・Phase 2環境準備
+2. D1 database作成・binding・migration基盤
+3. Worker API / D1 persistence
+4. LINE Login
+5. User / Player invitation・linking
+6. Admin / Member authorization enforcement
+7. multi-device sync / concurrency / audit log
+
+PWAは上記基盤と並行可能な独立Featureとして扱い、server dataのoffline write/syncは初期範囲に含めない。
+
 - PWA（Manifest / App Icon / Service Worker / installability / standalone / static asset cache）
 - Authentication
 - Group authorization / Admin・Member role

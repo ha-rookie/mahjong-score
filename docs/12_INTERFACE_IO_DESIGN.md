@@ -47,4 +47,4 @@ Export時はAppDataStoreの現在Dataを読み、metadata付きJSONへ変換す�
 
 Phase 2でWorker API / D1 / Authenticationを導入する。SQLはparameterized query / bindを必須とする。
 
-Authentication providerは未確定。第一候補Google Identity / OpenID Connectを含めてHuman decisionで確定する。認証用途だけの場合はprofile識別に必要な最小scopeとし、Drive / Calendar等のGoogle API scopeを要求しない。
+初期Authentication providerはLINE Login。認証に必要な最小scopeを使用し、LINE側の具体設定・callback・token validationは公式仕様確認後に実装設計へ反映する。

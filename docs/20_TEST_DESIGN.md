@@ -150,3 +150,9 @@ Requirement
 - active Sessionを終了するとstatus=`finalized`、endedAtが設定されること
 - finalized SessionがGetActiveSessionの対象外になること
 - 終了後に新しい3人/4人Sessionを開始できること
+
+
+### Score Sheet correction regression
+- 3人/4人とも訂正開始時にN-1セルが既存値、1セルが自動計算対象になること
+- 訂正保存後も合計0 invariantを維持すること
+- 実機で鉛筆・ゴミ箱の視認性とタップ領域を確認すること

@@ -127,3 +127,9 @@ Active Session
 ## 10. Screen / API / Domain / DB Mapping
 
 Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelとの対応を追跡する。Phase 2でAPI/DB Mappingを追加する。
+
+
+### Active Session終了操作
+- スコア表・精算欄の後に「Sessionを終了」を配置する
+- 誤操作防止の確認を行う
+- 成功後はHomeへ戻し、「今日の麻雀を始める」を再表示する

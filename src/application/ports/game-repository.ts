@@ -6,4 +6,5 @@ export interface GameRepository {
   findById(id: GameId): Promise<Result<Game | null>>;
   save(game: Game): Promise<Result<void>>;
   remove(id: GameId): Promise<Result<void>>;
+  removeBySession(sessionId: SessionId): Promise<Result<void>>;
 }

@@ -16,6 +16,7 @@ const numberClass = (value:number):string => value < 0 ? "number--negative" : ""
 function App() {
   const services=useMemo(()=>createBrowserServices(),[]);
   const [view,setView]=useState<View>("home");
+  const [resultsBackView,setResultsBackView]=useState<"home"|"history">("home");
   const [group,setGroup]=useState<Group|null>(null);
   const [players,setPlayers]=useState<readonly Player[]>([]);
   const [activeSession,setActiveSession]=useState<ActiveSessionSummary|null>(null);
@@ -72,7 +73,7 @@ function App() {
   const openPerformance=async()=>{setPerformancePeriod("all");await loadPerformance("all");};
   const openHistory=async()=>{if(!group)return;setIsBusy(true);setErrorMessage(null);const r=await services.listFinalizedSessions.execute(group.id);if(!r.ok)setErrorMessage(r.error.userMessage??"過去の麻雀を読み込めませんでした。");else{setHistory(r.value);setView("history");}setIsBusy(false);};
   const handleDeleteSession=async(session:Session)=>{if(!group)return;setSessionPendingDelete(null);setIsBusy(true);setErrorMessage(null);const r=await services.deleteSession.execute(session.id);if(!r.ok)setErrorMessage(r.error.userMessage??"Sessionを削除できませんでした。");else{const refreshed=await services.listFinalizedSessions.execute(group.id);if(refreshed.ok)setHistory(refreshed.value);setStatusMessage(`${session.sessionDate} のSessionを削除しました。`);}setIsBusy(false);};
-  const openHistoryResult=async(id:string)=>{setIsBusy(true);setErrorMessage(null);const r=await services.getSessionResults.execute(id);if(!r.ok||!r.value)setErrorMessage(r.ok?"結果を読み込めませんでした。":r.error.userMessage??"結果を読み込めませんでした。");else{setSessionResults(r.value);setView("results");}setIsBusy(false);};
+  const openHistoryResult=async(id:string)=>{setResultsBackView("history");setIsBusy(true);setErrorMessage(null);const r=await services.getSessionResults.execute(id);if(!r.ok||!r.value)setErrorMessage(r.ok?"結果を読み込めませんでした。":r.error.userMessage??"結果を読み込めませんでした。");else{setSessionResults(r.value);setView("results");}setIsBusy(false);};
   const handleCreateGroup=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();setIsBusy(true);setErrorMessage(null);
     const r=await services.createGroup.execute({name:groupName});
@@ -127,7 +128,7 @@ function App() {
   const chipValue=(id:string)=>id===chipMissingId&&calculatedChip!==null?calculatedChip:(chipParsed.find(x=>x.id===id)?.value??0);
   const toggleChipSign=(id:string)=>setChipInputs(current=>{const raw=current[id]??"";if(raw==="")return current;return {...current,[id]:raw.startsWith("-")?raw.slice(1):"-"+raw};});
   const saveSessionDetails=async()=>{if(!activeSession||!group||!canCalcChip)return;const chips=participantIds.map(id=>({playerId:id,chipCount:chipValue(id)}));setIsBusy(true);const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,note:sessionNote.trim()||null,participantNotes:activeSession.session.participantNotes,chipResults:chips});if(!r.ok)setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");else{await refresh(group.id);setStatusMessage("チップとメモを保存しました。");}setIsBusy(false);};
-  const handleFinalizeSession=async()=>{if(!activeSession||!group)return;setShowFinalizeConfirm(false);const sessionId=activeSession.session.id;setIsBusy(true);setErrorMessage(null);const r=await services.finalizeSession.execute(sessionId);if(!r.ok){setErrorMessage(r.error.userMessage??"Sessionを終了できませんでした。");setIsBusy(false);return;}const result=await services.getSessionResults.execute(sessionId);if(!result.ok||!result.value){setErrorMessage(result.ok?"結果を読み込めませんでした。":result.error.userMessage??"結果を読み込めませんでした。");await refresh(group.id);setIsBusy(false);return;}setSessionResults(result.value);setScoreInputs({});setEditingGameId(null);setChipInputs({});setSessionNote("");await refresh(group.id);setStatusMessage("Sessionを終了しました。");setView("results");setIsBusy(false);};
+  const handleFinalizeSession=async()=>{if(!activeSession||!group)return;setResultsBackView("home");setShowFinalizeConfirm(false);const sessionId=activeSession.session.id;setIsBusy(true);setErrorMessage(null);const r=await services.finalizeSession.execute(sessionId);if(!r.ok){setErrorMessage(r.error.userMessage??"Sessionを終了できませんでした。");setIsBusy(false);return;}const result=await services.getSessionResults.execute(sessionId);if(!result.ok||!result.value){setErrorMessage(result.ok?"結果を読み込めませんでした。":result.error.userMessage??"結果を読み込めませんでした。");await refresh(group.id);setIsBusy(false);return;}setSessionResults(result.value);setScoreInputs({});setEditingGameId(null);setChipInputs({});setSessionNote("");await refresh(group.id);setStatusMessage("Sessionを終了しました。");setView("results");setIsBusy(false);};
   const totals=useMemo(()=>{
     const m=new Map<string,number>();for(const g of games)for(const r of g.results)m.set(r.playerId,(m.get(r.playerId)??0)+r.scorePoint);return m;
   },[games]);
@@ -136,7 +137,7 @@ function App() {
   return <div className="app-shell">
     <header className="app-header"><div className="app-header__inner">
       <div className="brand-lockup"><div className="brand-mark" aria-hidden="true"><span className="brand-tile"/><span className="brand-score-line brand-score-line--one"/><span className="brand-score-line brand-score-line--two"/><span className="brand-score-line brand-score-line--three"/></div><div><p className="eyebrow">MAHJONG SCORE</p><p className="brand-name">三麻スコア</p></div></div>
-      {view!=="home"?<Button variant="quiet" onClick={()=>setView("home")}>戻る</Button>:null}
+      {view!=="home"?<Button variant="quiet" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}>戻る</Button>:null}
     </div></header>
     <main className="page">
       {errorMessage?<div className="notice notice--error" role="alert">{errorMessage}</div>:null}

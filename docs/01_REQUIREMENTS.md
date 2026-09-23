@@ -16,7 +16,7 @@ Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定
 | ID | シナリオ | 主体 | 成功条件 |
 | --- | --- | --- | --- |
 | REQ-001 | GroupとPlayerを管理する | User | 5人以上の候補Memberを登録しSessionで選択できる |
-| REQ-002 | Sessionを開始し参加者を選ぶ | User | 3人または4人で開始でき、Session途中で参加者構成を変更できる |
+| REQ-002 | Sessionを開始し参加者を選ぶ | User | 3人または4人で開始でき、Session中は参加者構成を固定する |
 | REQ-003 | 半荘結果を登録する | User | 3人三麻は3人分、4人回し三麻は4人分の半荘結果を順位順に保存できる |
 | REQ-004 | Session終了時にChipを精算する | User | Player別Chip数を入力し、合計0の場合のみ確定できる |
 | REQ-005 | 成績を集計する | User | 日次・月間・年間・通算を確認できる |
@@ -73,7 +73,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | --- | --- | --- | --- | --- |
 | REQ-001 | Groupは5人以上のPlayerを登録可能 | Must | 5人以上を保持できるData Model | Active |
 | REQ-002 | Sessionは日付と別Entityとし同日複数Sessionを許可 | Must | Session IDで個別管理できる | Active |
-| REQ-003 | Session内の参加者構成変更を履歴として保持 | Must | ParticipantSegmentでGameとの対応を保持 | Active |
+| REQ-003 | Session開始時の参加者構成を保持 | Must | ParticipantSegmentでGameとの対応を保持し、Phase 1ではSession中に変更しない | Active |
 | REQ-004 | Game結果はSessionの方式に応じ3人または4人分を扱う | Must | 3人三麻=3人、4人回し三麻=4人 | Active |
 | REQ-005 | 1point=1,000点の整数Score Pointを入力し、1Game合計0にする | Must | manual inputs + auto top = 0 | Active |
 | REQ-006 | 入力順を順位とし、1位Scoreは残りから自動計算する | Must | 同Scoreでも入力順で順位確定 | Active |
@@ -131,7 +131,7 @@ Phase 1:
 | TBD-001 | 100点単位の端数処理 | Human | Resolved: 符計算なし。100点単位は扱わず、1point=1,000点の整数入力 |
 | TBD-002 | 同点Top / rank処理 | Human | Resolved: 入力順を順位として保持 |
 | TBD-003 | 確定Sessionの再編集/訂正 | Human | Resolved: Phase 1は確定前ResultsからActiveへ戻して訂正可能。finalized後の訂正は将来検討 |
-| TBD-004 | 離脱PlayerのChip精算運用 | Human | Open |
+| TBD-004 | 離脱PlayerのChip精算運用 | Human | Resolved: Phase 1は同一Session内で離脱を扱わず、現Sessionを精算・終了後に残ったメンバーで新Sessionを開始 |
 | TBD-005 | Phase 1で複数Groupを扱うUI | Human | Open |
 
 未決事項をAIが推測で確定しない。

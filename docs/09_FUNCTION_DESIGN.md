@@ -10,7 +10,7 @@
 | FUNC-001 | Group / Player管理 | 1 | Active: UI connected |
 | FUNC-002 | Session開始・参加者選択 | 1 | Active: UI connected |
 | FUNC-003 | 半荘結果入力 | 1 | Active: UI connected |
-| FUNC-004 | 参加者変更 | 1 | Planned |
+| FUNC-004 | 同一Session内の参加者変更 | Future | Deferred |
 | FUNC-005 | Chip精算 | 1 | Active: UI connected |
 | FUNC-006 | 成績集計 | 1 | Planned |
 | FUNC-007 | Backup export/import | 1 | Application active / UI pending |
@@ -53,7 +53,7 @@ Issue #25でProduction実機レビューを反映する。
 - GameTag UIはPhase 1対象外とする。現行Domain contractの互換性は維持するが、新規/訂正では空配列を保存し、利用方法を再定義するまでUIへ再導入しない
 - SessionのChipは任意N-1人を整数入力し残り1人を合計0で自動計算、1枚=5ptで麻雀小計へ加算して合計を表示する
 - Session memoはPhase 1で保存できる。participant memoは本人識別・認可がないためPhase 1対象外とし、Domain互換のみ維持する。将来はログインUserに紐づく自分のmemoだけ表示・編集する
-- Session終了 / 参加者変更は別Feature
+- Phase 1ではSession途中の参加者変更を行わない。参加者が離脱する場合は現在のSessionをチップ精算して終了・確定し、残った3人または4人で新しいSessionを開始する
 
 ## 6. Implementation Acceptance Criteria
 

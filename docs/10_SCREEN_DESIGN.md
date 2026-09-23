@@ -85,7 +85,7 @@ Phase 1の複数Group切替UIは未決のため、このVertical Sliceでは既�
 Production実機レビューで紙の麻雀得点記録表を操作モデルとして採用する。
 
 - Active Session画面そのものをScore Sheetとする
-- 列 = 現在ParticipantSegmentのPlayer
+- 列 = Session開始時ParticipantSegmentのPlayer。Phase 1ではSession中に参加者を変更しない
 - 行 = 保存済みGame（半荘）
 - 最下部に新規入力行を常設
 - 3人なら任意2セル、4人なら任意3セルを入力
@@ -101,6 +101,12 @@ Production実機レビューで紙の麻雀得点記録表を操作モデルと�
 - ChipはPlayer固定列でN-1入力、残り1人を合計0で自動計算し、換算（1枚=5pt）と最終合計を表示する
 - Session memoはActive Session内で編集・保存する。Participant memo UIはPhase 1対象外とし、将来の本人識別・認可導入後に自分のmemoだけを表示・編集する
 - 4人回し三麻は4固定列で実装済み。Productionスマホ実機確認はMerge後Evidenceとして残す
+
+### Phase 1の参加者変更運用
+- Session開始後の参加者追加・離脱UIは設けない
+- 途中離脱が発生した場合は現在のSessionをチップ精算し、Results確認後に終了を確定する
+- その後、残ったメンバーで新しいSessionを開始する
+- 同一Session内で参加者構成を変更する機能は将来検討とする
 
 ## 8. UI Rules
 

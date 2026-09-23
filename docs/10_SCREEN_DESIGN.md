@@ -159,3 +159,10 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 行は半荘、小計、チップ、換算、合計、順位
 - Homeへ戻る操作を提供する
 - finalized Sessionの訂正は行わない
+
+
+### HISTORY / Results再表示
+- Homeに「過去の麻雀を見る」を配置
+- finalized Sessionを新しい順で表示
+- 選択するとResults画面を再利用する
+- Results表は上端と下端の両方にPlayer名を表示する

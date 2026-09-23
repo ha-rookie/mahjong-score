@@ -1,0 +1,84 @@
+name: Quick Change
+description: Low Riskの軽微変更を最小Change Contractで進める
+title: "chore: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: この変更で何を直す・整えるか
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In Scope / Out of Scope
+      placeholder: |
+        In Scope:
+        Out of Scope:
+    validations:
+      required: true
+  - type: textarea
+    id: planned_files
+    attributes:
+      label: Planned Files
+      description: 変更予定のfile / directory
+      placeholder: |
+        - path/to/file
+    validations:
+      required: true
+  - type: dropdown
+    id: risk_level
+    attributes:
+      label: Risk Level
+      description: Quick ChangeはLow Risk専用
+      options:
+        - Low
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact_flags
+    attributes:
+      label: Impact Flags
+      description: 該当する影響だけ選択する。未選択項目はNoとして扱う
+      options:
+        - label: Runtime
+        - label: UI
+        - label: Mobile / Sensor
+        - label: Asset
+        - label: Security / Secret / Infra
+        - label: Public Repository
+        - label: Design / Operation Meaning
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Impact Flagsに応じた必要最小限の確認
+    validations:
+      required: true
+  - type: textarea
+    id: stop_conditions
+    attributes:
+      label: Stop Conditions
+      description: Scope拡張、Risk上昇、Planned Files外変更、Human判断が必要になる条件
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      placeholder: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Human Gate
+      options:
+        - label: mainへはHuman承認後にMergeする
+          required: true
+        - label: Scope拡張またはRisk上昇時は停止してHumanへ戻す
+          required: true

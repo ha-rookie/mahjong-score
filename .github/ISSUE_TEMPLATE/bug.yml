@@ -1,0 +1,118 @@
+name: Bug
+description: 不具合の再現・原因・回復を管理する
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 事象
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影響
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Goal / 期待する動作
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In Scope / Out of Scope
+      placeholder: |
+        In Scope:
+        Out of Scope:
+    validations:
+      required: true
+  - type: textarea
+    id: planned_files
+    attributes:
+      label: Planned Files
+      description: 変更予定のfile / directory
+    validations:
+      required: true
+  - type: dropdown
+    id: risk_level
+    attributes:
+      label: Risk Level
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact_flags
+    attributes:
+      label: Impact Flags
+      description: 該当する影響だけ選択する。未選択項目はNoとして扱う
+      options:
+        - label: Runtime
+        - label: UI
+        - label: Mobile / Sensor
+        - label: Asset
+        - label: Security / Secret / Infra
+        - label: Public Repository
+        - label: Design / Operation Meaning
+  - type: textarea
+    id: validation_plan
+    attributes:
+      label: Validation
+      description: 修正後に必要なlint、test、build、Preview、実機、Production確認
+    validations:
+      required: true
+  - type: textarea
+    id: stop_conditions
+    attributes:
+      label: Stop Conditions
+      description: Scope拡張、Planned Files外変更、外部制約など、Human確認へ戻る条件
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 証跡
+      description: Screenshot、ログ、CI run、URL、Branch、commit SHA
+  - type: dropdown
+    id: category
+    attributes:
+      label: 原因分類
+      options:
+        - 未確認
+        - Code
+        - Test
+        - Build
+        - Git / PR
+        - Cloudflare設定
+        - Binding / Secret
+        - Asset
+        - 外部サービス
+        - GitHub Actions / Quota
+    validations:
+      required: true
+  - type: textarea
+    id: recovery
+    attributes:
+      label: 回避策・復旧手順
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 修正の受け入れ条件
+    validations:
+      required: true

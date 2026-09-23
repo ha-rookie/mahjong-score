@@ -104,3 +104,29 @@ Phase 2以降:
 - clientから指定されたuserId/playerIdだけで紐付けを許可せず、Group scopeと重複をserver側で検証する
 - 未ログインPlayerへの招待はsingle-use token等の本人確認可能な方式とし、tokenを監査Logや通常レスポンスへ露出しない
 - 招待tokenの有効期限・再送・取消・使用済み無効化はAuthentication方式決定時に確定する
+
+
+## 10. Phase 2 Authentication Design
+
+### Baseline
+- Authentication providerとApplication authorizationを分離する
+- 外部providerのsubjectをUserの内部stable IDとして直接利用しない
+- provider + subjectをExternalIdentityとしてUserへ紐付ける
+- OAuth client secret等はWorker Secretとして保持し、browser bundle / public repositoryへ出さない
+- callbackはWorker側で処理し、state / nonce等を検証する
+- Application sessionはHttpOnly / Secure / SameSite cookieを基本候補とする
+- API authorizationは認証済みUser IDを起点にGroupMembershipをserver側で検証する
+
+### Provider candidate
+初期providerの第一候補はGoogle Identity / OpenID Connectとする。Google accountはログイン本人確認のために利用し、Google Drive等の追加API scopeは要求しない方針とする。
+
+ただしproviderの最終採用はHuman decisionとし、Google / LINE / その他を比較後に確定する。
+
+### Invitation relation
+Player invitationはAuthentication providerとは独立したApplication invitationとして扱う。招待受領者が認証完了した後、server側で招待対象Group/Playerと認証Userを検証して紐付ける。
+
+### Human TBD
+- TBD-AUTH-001: 初期Authentication provider（Google / LINE / その他）
+- TBD-AUTH-002: 既存User検索・紐付け時にAdminへ見せる識別情報
+- TBD-AUTH-003: Invitation delivery方式（URL共有 / email等）
+- TBD-AUTH-004: Application session有効期限 / refresh policy

@@ -151,3 +151,11 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - フォント依存のUnicode鉛筆記号は使用しない
 - 19x19pxのinline SVGを44x44px以上のbutton内に中央配置する
 - SVGはcurrentColorを使い既存accentを継承し、外部icon dependencyは追加しない
+
+
+### SCR-006 Results 実装
+- Session終了直後に表示する
+- Score Sheetと同じPlayer固定列を使う
+- 行は半荘、小計、チップ、換算、合計、順位
+- Homeへ戻る操作を提供する
+- finalized Sessionの訂正は行わない

@@ -109,6 +109,14 @@ export class LocalStorageSessionRepository implements SessionRepository {
     });
   }
 
+  async remove(id: SessionId): Promise<Result<void>> {
+    return this.store.update((current) => ok({
+      ...current,
+      sessions: current.sessions.filter((item) => item.id !== id),
+      participantSegments: current.participantSegments.filter((item) => item.sessionId !== id),
+    }));
+  }
+
   async save(session: Session): Promise<Result<void>> {
     return this.store.update((current) => {
       const exists = current.sessions.some((item) => item.id === session.id);

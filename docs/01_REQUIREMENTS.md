@@ -21,7 +21,7 @@ Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定
 | REQ-004 | Session終了時にChipを精算する | User | Player別Chip数を入力し、合計0の場合のみ確定できる |
 | REQ-005 | 成績を集計する | User | 日次・月間・年間・通算を確認できる |
 | REQ-006 | 履歴へMemoを残す | User | Session Memoを保持できる |
-| REQ-007 | DataをBackup/Restoreする | User | JSON export/importで端末変更・復旧に備えられる |
+| REQ-007 | DataをBackup/Restoreする | Admin | JSON export/importで端末変更・復旧に備えられる |
 
 ## 5. 半荘と4人回し三麻の定義
 
@@ -82,7 +82,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | REQ-009 | 1 Chip = 5pointとしてOverall Scoreへ反映 | Must | calculation test | Planned |
 | REQ-010 | GameTag | Deferred | Phase 1 UIから除外。利用方法を再定義してから再検討 | Deferred |
 | REQ-011 | Session Memoを保持 | Should | Session単位のoptional memoを保存できる。Player別Memo UIは本人識別・認可導入まで延期 | Active |
-| REQ-012 | JSON Backup/Restore | Must | schema version付きexport/import。復元前に確認し、不正ファイルでは既存Dataを変更しない | Active |
+| REQ-012 | JSON Backup/Restore | Must | 管理者のみ利用可能。schema version付きexport/import。復元前に確認し、不正ファイルでは既存Dataを変更しない | Active |
 
 ## 8. 非機能要件
 
@@ -120,7 +120,7 @@ Phase 1:
 - Player別Memo UI（本人識別・認可導入まで保留）
 - D1 / Worker API
 - LINE / Google Login
-- Group authorization（管理者のみGroup作成可能。Phase 1では認証・認可を実装しないため、権限制御を要する追加Group作成UIは提供しない）
+- Group authorization（管理者のみGroup作成可能。Backup / Restoreも管理者のみ。Phase 1ではRepository owner本人を暫定Adminとして扱い、認証・認可導入後に実際の権限制御へ置き換える）
 - multi-device sync
 - server audit log
 

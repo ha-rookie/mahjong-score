@@ -90,3 +90,10 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - 確認後、statusを`finalized`、endedAtを終了時刻に更新する
 - 終了後はHomeへ戻り、次の3人/4人Sessionを開始できる
 - finalized Sessionの再開・再編集は本Issueの対象外
+
+
+### Session Results
+- Session終了成功後、そのSessionをread modelで再取得して結果画面を表示する
+- 半荘別Score Point、小計、chip枚数、chip換算（1枚=5pt）、最終合計、順位を表示する
+- 同点は同順位。Participant列順は変更しない
+- 過去Session一覧は別Issueとする

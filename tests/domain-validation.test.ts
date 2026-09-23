@@ -35,11 +35,11 @@ test("participant segment rejects duplicate players", () => {
   }
 });
 
-test("game results accept three unique players including negative final points", () => {
+test("game results accept three unique players including negative integer score", () => {
   const results: readonly GameResult[] = [
-    { playerId: "p1", finalPoints: 65000, mahjongScore: 25 },
-    { playerId: "p2", finalPoints: 41000, mahjongScore: 1 },
-    { playerId: "p3", finalPoints: -1000, mahjongScore: -26 },
+    { playerId: "p1", scorePoint: 25 },
+    { playerId: "p2", scorePoint: 1 },
+    { playerId: "p3", scorePoint: -26 },
   ];
 
   assert.equal(validateGameResults(results).valid, true);

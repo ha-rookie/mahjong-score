@@ -69,8 +69,7 @@ export interface GameTag {
 
 export interface GameResult {
   readonly playerId: PlayerId;
-  readonly finalPoints: number;
-  readonly mahjongScore: number;
+  readonly scorePoint: number;
 }
 
 export interface Game {

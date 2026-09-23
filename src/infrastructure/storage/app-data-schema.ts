@@ -118,10 +118,9 @@ const isParticipantSegment = (value: unknown): value is ParticipantSegment =>
 
 const isGameResult = (value: unknown): value is GameResult =>
   isRecord(value) &&
-  hasExactKeys(value, ["playerId", "finalPoints", "mahjongScore"]) &&
+  hasExactKeys(value, ["playerId", "scorePoint"]) &&
   isString(value.playerId) &&
-  isFiniteNumber(value.finalPoints) &&
-  isFiniteNumber(value.mahjongScore);
+  isInteger(value.scorePoint);
 
 const isGameTag = (value: unknown): value is GameTag =>
   isRecord(value) &&

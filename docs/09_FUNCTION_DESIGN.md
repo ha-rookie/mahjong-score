@@ -87,9 +87,11 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 
 ## Session終了
 - Active Sessionから「Sessionを終了」を実行できる
-- 確認後、statusを`finalized`、endedAtを終了時刻に更新する
+- 終了操作後はまずResultsを確認表示し、Sessionは`active`のまま維持する
+- Resultsの「修正する」でActive Sessionへ戻り、既存の半荘・チップ・メモ編集を利用する
+- Resultsの「終了を確定」でstatusを`finalized`、endedAtを終了時刻に更新する
 - 終了後はHomeへ戻り、次の3人/4人Sessionを開始できる
-- finalized Sessionの再開・再編集は本Issueの対象外
+- finalized Sessionの再開・再編集はPhase 1対象外とし、将来仕様として検討する
 
 
 ### Session Results

@@ -179,3 +179,10 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - Homeに「通算成績を見る」を配置する
 - Playerごとに最終pt、麻雀pt、1位回数、Session数、半荘数を表示する
 - 最終pt降順で表示する
+
+
+### Home member summary / Member management
+- Homeでは登録人数とメンバー名をコンパクト表示し、頭文字アイコンと常設追加フォームは表示しない
+- Homeから「メンバー管理」へ遷移する
+- メンバー管理では一覧を表示し、「＋ メンバーを追加」を押した時だけ追加フォームを開く
+- 名前変更・削除はデータ整合性設計を伴うため本変更では実装しない

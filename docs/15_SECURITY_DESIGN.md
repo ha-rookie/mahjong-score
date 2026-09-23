@@ -117,16 +117,16 @@ Phase 2以降:
 - Application sessionはHttpOnly / Secure / SameSite cookieを基本候補とする
 - API authorizationは認証済みUser IDを起点にGroupMembershipをserver側で検証する
 
-### Provider candidate
-初期providerの第一候補はGoogle Identity / OpenID Connectとする。Google accountはログイン本人確認のために利用し、Google Drive等の追加API scopeは要求しない方針とする。
+### Provider decision
+初期Authentication providerはLINE Loginを採用する。Google Identityを初期provider候補とはしない。
 
-ただしproviderの最終採用はHuman decisionとし、Google / LINE / その他を比較後に確定する。
+LINE側の具体的なOAuth / OpenID Connect設定、callback、scope、token validationはLINE公式仕様を確認した上で実装Issueで確定する。
 
 ### Invitation relation
 Player invitationはAuthentication providerとは独立したApplication invitationとして扱う。招待受領者が認証完了した後、server側で招待対象Group/Playerと認証Userを検証して紐付ける。
 
 ### Human TBD
-- TBD-AUTH-001: 初期Authentication provider（Google / LINE / その他）
+- TBD-AUTH-001: Resolved: 初期Authentication providerはLINE Login
 - TBD-AUTH-002: 既存User検索・紐付け時にAdminへ見せる識別情報
 - TBD-AUTH-003: Invitation delivery方式（URL共有 / email等）
 - TBD-AUTH-004: Application session有効期限 / refresh policy

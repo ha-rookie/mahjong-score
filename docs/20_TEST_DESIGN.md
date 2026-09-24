@@ -42,26 +42,36 @@ npm test
 
 `.test-dist` は一時生成物でありcommitしない。
 
-## 4. Current Automated Coverage
+## 4. Current Automated / CI Coverage
 
 Domain:
 - 3/4人Participant validation
 - duplicate participant
-- GameResult participant count / negative final points
+- GameResult participant count / negative Score Point
+- score total invariant
 - Chip balance
 
-Infrastructure:
+Infrastructure / persistence:
 - AppDataSchema exact root validation
 - schema v1 round trip
-- localStorage adapter
+- localStorage adapter regression
+- D1 migrations local validation
+- Pull RequestでPreview D1 migration適用
 
 Application:
 - Group作成
 - Player + GroupMember atomic save
 - Session + initial Segment atomic save
 - invalid Session開始時のpartial write防止
-- Backup export/import
+- Backup export/import legacy regression
 - invalid import時のexisting data保護
+
+Phase 2 evidence:
+- optimistic concurrency: Session/Game version + stale_update
+- structured audit logging / request correlation
+- Static Assets Security Headers artifact validation
+- Production Security Headers smoke
+- Preview D1 Time Travel recovery rehearsal
 
 ## 5. CI Gate
 
@@ -72,8 +82,13 @@ Install
  -> Lint
  -> Test
  -> Build
+ -> Static Security Headers artifact validation
+ -> Local D1 migration validation
+ -> Preview D1 migration (PR)
  -> Secret validation (main only)
- -> Deploy (main only)
+ -> Production D1 migration (main only)
+ -> Worker deploy (main only)
+ -> Production Security Headers smoke (main only)
 ```
 
 Test failure時はBuild/Deployへ進まない。
@@ -268,3 +283,21 @@ Requirement
 - rehearsal途中でfailureした場合もtrapでbaseline restoreを試行すること
 - Production DBにrehearsal probeを書き込まないこと
 - Production restore手順にpre-restore bookmark / target bookmark / smoke / undoを含むこと
+
+
+## 11. Phase 2 Completion Evidence
+
+| Area | Evidence |
+| --- | --- |
+| LINE Login / User session | Production flow + PR #105/#106/#117/#118/#123 |
+| System / Group authorization | PR #112/#120 + API-side checks |
+| Invitation / linking | PR #113/#116/#119/#120 |
+| D1 runtime | PR #94/#97/#98/#100/#114 |
+| Optimistic concurrency | #146 / PR #147 |
+| Multi-device active refresh | #148 / PR #149, #152 / PR #153 |
+| Audit / request correlation | #154 / PR #155 |
+| Security Headers | #156 / PR #157, main run #36071486621 |
+| D1 recovery | #158 / PR #159, run #36072191864 |
+| PWA | #160へDeferred |
+
+Phase 2最終smokeはIssue #145で管理する。

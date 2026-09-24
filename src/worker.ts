@@ -100,10 +100,7 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
  }
  const sessionGames=url.pathname.match(/^\/api\/sessions\/([^/]+)\/games$/);
  if(request.method==="DELETE"&&sessionGames){
-   const sessionId=decodeURIComponent(sessionGames[1]),sg=await sessionGroup(env,sessionId);
-   if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);
-   await env.DB.prepare("DELETE FROM games WHERE session_id=?").bind(sessionId).run();
-   return new Response(null,{status:204});
+   return bad("method_not_allowed","Delete the Session resource instead",405);
  }
  const segmentDetail=url.pathname.match(/^\/api\/segments\/([^/]+)$/);
  if(segmentDetail){
@@ -127,7 +124,10 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
  if(request.method==="DELETE"&&details){
    const id=decodeURIComponent(details[1]),sg=await sessionGroup(env,id);
    if(!sg||!await canInvite(env,authUserId,sg.groupId))return bad("forbidden","System Admin or Group Admin required",403);
-   await env.DB.prepare("DELETE FROM sessions WHERE id=?").bind(id).run();
+   const versionRaw=url.searchParams.get("version"),expectedVersion=versionRaw&&/^[0-9]+$/.test(versionRaw)?Number(versionRaw):null;
+   if(expectedVersion===null||expectedVersion<1)return bad("invalid_expected_version","version is required");
+   const deleted=await env.DB.prepare("DELETE FROM sessions WHERE id=? AND version=?").bind(id,expectedVersion).run();
+   if((deleted.meta.changes??0)!==1)return bad("stale_update","Session was updated by another client",409);
    return new Response(null,{status:204});
  }
  const unlinkPlayer=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)\/players\/([^/]+)\/link$/);

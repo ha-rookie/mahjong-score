@@ -3,6 +3,7 @@ import type { Game, Group, Player, PlayerId, Session } from "./domain";
 import type { ActiveSessionSummary, SessionResultsSummary, PlayerPerformanceAggregate } from "./application/use-cases";
 import { createBrowserServices } from "./infrastructure/composition";
 import { Button, Section, TextField } from "./components/ui";
+import { AuthStatus } from "./components/auth-status";
 
 type View = "home" | "session-setup" | "results" | "history" | "performance" | "members";
 const getLocalDateValue = (): string => {
@@ -145,7 +146,7 @@ function App() {
   return <div className="app-shell">
     <header className="app-header"><div className="app-header__inner">
       <div className="brand-lockup"><img className="brand-mark" src="/mahjong-score-icon.png" alt="" aria-hidden="true"/><div className="brand-copy"><p className="brand-name">三麻スコア</p><p className="brand-subtitle">SANMA SCORE</p></div></div>
-      {view!=="home"?<Button variant="quiet" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}>戻る</Button>:null}
+      <div className="header-actions">{view!=="home"?<Button variant="quiet" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}>戻る</Button>:null}<AuthStatus /></div>
     </div></header>
     <main className="page">
       {errorMessage?<div className="notice notice--error" role="alert">{errorMessage}</div>:null}

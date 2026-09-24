@@ -89,3 +89,8 @@ Worker-side validation protects basic invariants (3/4 unique participants, activ
 `PATCH /api/sessions/:sessionId` now replaces participant notes and chip results together with Session metadata. Chip counts must be integers totaling zero. The Worker uses a D1 batch so the aggregate update is submitted as one grouped operation.
 
 `WorkerApiClient` is the browser-side HTTP boundary. It maps non-2xx responses and network failures to the existing `Result<AppError>` convention. It is deliberately not composed into `createBrowserServices` yet; localStorage remains active until authentication and server-side authorization are available.
+
+
+## 11. API repository adapter baseline
+
+`ApiGroupRepository` and `ApiPlayerRepository` implement the existing application repository ports over `WorkerApiClient`. Supported operations map only to endpoints already implemented; unsupported Player lookup/update operations fail explicitly rather than silently falling back to localStorage. These adapters are not yet composed into the browser runtime.

@@ -793,3 +793,35 @@ h2 {
 
 .member-unlink-button{min-height:40px;padding:7px 11px;border:1px solid rgb(156 63 50 / 18%);border-radius:9px;background:rgb(255 255 255 / 72%);color:var(--danger);font:inherit;font-size:.76rem;font-weight:800;cursor:pointer}
 .member-unlink-button:disabled{opacity:.45;cursor:not-allowed}
+
+
+/* Unified member / LINE / role management */
+.member-access--unified{margin-top:24px;padding-top:0;border-top:0}
+.member-access-list--unified{border-top:1px solid var(--line)}
+.member-access-list--unified .member-access-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px 14px;
+  min-height:78px;
+  padding:12px 2px;
+}
+.member-access__states{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.member-linked-user{color:var(--muted);font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member-role-state{display:inline-grid;place-items:center;min-height:24px;padding:0 8px;border-radius:999px;background:rgb(23 107 87 / 10%);color:var(--teal-dark);font-size:.64rem;font-weight:800}
+.member-access-row__actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
+.member-link-button{min-height:40px;padding:7px 10px;border:1px solid rgb(40 42 40 / 12%);border-radius:9px;background:var(--surface);color:var(--text);font:inherit;font-size:.74rem;font-weight:800;cursor:pointer}
+.member-role-select{min-height:40px;max-width:128px;padding:6px 28px 6px 8px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--teal-dark);font:inherit;font-size:.72rem;font-weight:800}
+.member-link-panel{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px;border-radius:10px;background:rgb(255 255 252 / 66%);border:1px solid var(--line)}
+.member-link-panel select{min-width:0;min-height:42px;padding:6px 30px 6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface-strong);color:var(--text);font:inherit;font-size:.78rem}
+.member-link-panel button{min-height:42px;padding:7px 12px;border:0;border-radius:8px;background:var(--teal);color:#fff;font:inherit;font-size:.76rem;font-weight:800}
+.member-link-panel span{grid-column:1/-1;color:var(--muted);font-size:.7rem}
+.member-add-panel+.member-access,.member-access+ .member-add-panel{margin-top:18px}
+.session-setup>.member-access+ .button{margin-top:18px}
+@media(max-width:520px){
+  .member-access-list--unified .member-access-row{grid-template-columns:1fr;align-items:start}
+  .member-access-row__actions{justify-content:flex-start}
+  .member-role-select{max-width:none}
+  .member-link-panel{grid-template-columns:1fr}
+  .member-link-panel button{width:100%}
+}

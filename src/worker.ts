@@ -65,7 +65,7 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
    if(request.method==="GET"){
      const rr=await env.DB.prepare("SELECT player_id AS playerId,score_point AS scorePoint FROM game_results WHERE game_id=? ORDER BY rank").bind(gameId).all();
      const tt=await env.DB.prepare("SELECT type,player_id AS playerId FROM game_tags WHERE game_id=? ORDER BY tag_order").bind(gameId).all();
-     const {groupId:_,status:__,...game}=base;
+      const game={id:base.id,sessionId:base.sessionId,segmentId:base.segmentId,sequence:base.sequence,playedAt:base.playedAt};
      return json({game:{...game,results:rr.results,tags:tt.results}});
    }
    if(request.method==="PUT"){

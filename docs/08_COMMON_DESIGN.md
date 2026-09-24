@@ -46,8 +46,43 @@ Template候補: Button / Field / Card / Dialog / Toast / EmptyState / Header / N
 
 ## 6. Authentication / Authorization
 
-Phase 1: Runtime authなし。Phase 2以降はFrontend UX制御とAPI-side Authorizationを分離する。
+Phase 2ではFrontend UX制御とAPI-side Authorizationを分離する。
+
+- Authentication: LINE Login
+- Application session: signed HttpOnly / Secure / SameSite=Lax cookie
+- Authorization source: authenticated internal User ID
+- System Admin: system-wide administration
+- Group Admin: Group-scoped administration allowed by API
+- Member: normal gameplay/read operations
+- Frontendのbutton非表示はUX制御でありSecurity境界ではない
+- Worker APIがresourceのGroup ownership / Membership / roleを毎回検証する
 
 ## 7. Logging
 
-Logger contractはbusiness codeからconsole/platform APIを分離する。NoopLoggerはAudit実装済みを意味しない。
+Client/Application側のLogger contractとserver Audit Logを分離する。
+
+- Client共通Logger: business codeからconsole/platform APIを分離
+- Worker Audit Log: auth/authz failureと重要操作をJSON構造化Logで記録
+- requestId: CF-Ray優先、fallbackはUUID
+- Secret / token / Cookie / request body / Memo本文 /不要なPIIは記録しない
+
+NoopLoggerはAudit実装の代替ではない。
+
+## 8. API Error Contract
+
+Phase 2でUIが扱う代表的なAPI error:
+- `unauthorized`: 401。application sessionなし/無効
+- `forbidden`: 403。Group Membership / role不足
+- `stale_update`: 409。Session/Gameのversion競合
+- validation error: 400
+- resource conflict: 409
+
+UIはHTTP statusだけでなくerror codeを利用し、User向けMessageと内部detailを分離する。
+
+## 9. Shared Refresh / Toast Behavior
+
+- Active Sessionのmanual refreshはD1の最新状態を再取得する
+- 未保存入力がある場合のみ破棄確認する
+- refresh失敗時は未保存入力を保持する
+- refresh後はscroll positionを維持する
+- success/error通知はfixed toastとしmain layoutを押し下げない

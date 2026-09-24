@@ -189,7 +189,7 @@ Routes:
 
 D1 migration 0002 introduces `users`, `external_identities`, and `group_memberships`. Player remains independently creatable and `players.user_id` remains nullable.
 
-Secrets/config required later: `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.
+Required configuration: `LINE_CHANNEL_ID`. Required Worker Secrets: `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.
 
 
 ## 15. Initial administrator and authorization

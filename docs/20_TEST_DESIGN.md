@@ -228,3 +228,10 @@ Requirement
 - error messageは自動消去せず閉じる操作ができること
 - smartphone幅でheaderとtoastが重ならないこと
 - role=status / role=alertが維持されること
+
+
+### Active Session refresh visibility
+- SCORE SHEETをチップ・メモ付近までスクロールしても更新操作がsticky headerに見えていること
+- active Session以外ではheaderに更新操作が表示されないこと
+- 320px程度の狭い画面でもbrand/account/updateが横崩れしないこと
+- 手動更新の前後でwindow scroll positionが維持され、画面上部へジャンプしないこと

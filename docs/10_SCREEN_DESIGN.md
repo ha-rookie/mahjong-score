@@ -237,3 +237,9 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 成功通知は約3秒で自動消去する
 - エラー通知は利用者が閉じるまで保持する
 - 通知はheader直下の画面上部に重ねて表示し、SCORE SHEET等の位置を変えない
+
+
+## Active Session refresh visibility
+- active Session中の更新操作はsticky app headerに配置し、SCORE SHEETをスクロールしても常時操作可能にする
+- 見出し内には更新ボタンを重複表示しない
+- 画面幅が極端に狭い場合は「更新」文字を隠し、更新アイコンのみ残す

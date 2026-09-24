@@ -587,19 +587,11 @@ h2 {
 }
 
 .score-session { padding: 8px 0 30px; }
-.score-session__heading { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:22px; }
-.score-session__heading > div { min-width:0; }
+.score-session__heading { margin-bottom:22px; }
 .score-session__meta { margin: 8px 0 0; color: var(--muted); font-size: .88rem; }
-.session-refresh-button { display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; min-height:40px; margin-top:4px; padding:8px 10px; border:1px solid var(--line); border-radius:11px; background:rgb(255 253 248 / 76%); color:var(--teal-dark); font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
-.session-refresh-button:hover { background:var(--teal-soft); }
-.session-refresh-button:disabled { opacity:.48; cursor:not-allowed; }
 .session-refresh-icon { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .session-refresh-icon--spinning { animation:session-refresh-spin .85s linear infinite; }
 @keyframes session-refresh-spin { to { transform:rotate(360deg); } }
-@media (max-width:380px) {
-  .session-refresh-button { min-height:38px; padding:7px 9px; font-size:.72rem; }
-  .session-refresh-icon { width:17px; height:17px; }
-}
 .score-sheet {
   display: grid;
   grid-template-columns: 48px repeat(3,minmax(0,1fr));
@@ -787,6 +779,9 @@ h2 {
 .header-actions{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-width:0}
 .header-back-button{display:inline-grid;place-items:center;width:38px;height:38px;min-width:38px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--teal-dark);font-size:1.3rem;font-weight:700;cursor:pointer}
 .header-back-button:hover{background:rgb(23 107 87 / 8%)}
+.header-session-refresh{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:6px 9px;border:1px solid rgb(23 107 87 / 16%);border-radius:10px;background:rgb(255 255 255 / 66%);color:var(--teal-dark);font:inherit;font-size:.74rem;font-weight:800;cursor:pointer}
+.header-session-refresh:hover{background:var(--teal-soft)}
+.header-session-refresh:disabled{opacity:.48;cursor:not-allowed}
 .auth-status{display:flex;align-items:center;flex-wrap:nowrap;gap:0;min-width:0}
 .account-menu{position:relative}
 .account-menu__summary{display:flex;align-items:center;gap:5px;min-height:38px;max-width:132px;padding:6px 8px;border-radius:10px;color:var(--text);cursor:pointer;list-style:none}
@@ -810,6 +805,8 @@ h2 {
   .brand-subtitle{font-size:.5rem;letter-spacing:.1em}
   .header-actions{gap:2px}
   .header-back-button{width:34px;height:34px;min-width:34px}
+  .header-session-refresh{min-height:34px;padding:5px 7px;font-size:.7rem;gap:4px}
+  .header-session-refresh .session-refresh-icon{width:17px;height:17px}
   .account-menu__summary{max-width:84px;min-height:34px;padding-inline:6px}
   .account-menu__name{font-size:.72rem}
   .account-menu__panel{right:-2px;width:180px}
@@ -819,6 +816,8 @@ h2 {
   .brand-name{font-size:.86rem}
   .brand-subtitle{display:none}
   .account-menu__summary{max-width:70px}
+  .header-session-refresh{padding-inline:6px}
+  .header-session-refresh span{display:none}
 }
 
 /* Member access and invitation management belongs on the member screen */

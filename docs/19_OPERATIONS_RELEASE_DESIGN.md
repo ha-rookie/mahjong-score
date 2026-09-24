@@ -41,7 +41,9 @@ Phase 1:
 Phase 2+:
 - API error rate
 - latency
-- auth/authz failure
+- auth/authz failure（Worker structured audit log）
+- important administrative operation（Worker structured audit log）
+- request correlation（CF-Ray / UUID fallback）
 - D1 failure
 - backup/recovery status
 - custom alert threshold

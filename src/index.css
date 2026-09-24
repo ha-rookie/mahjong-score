@@ -531,8 +531,19 @@ h2 {
 }
 
 .score-session { padding: 8px 0 30px; }
-.score-session__heading { margin-bottom: 22px; }
+.score-session__heading { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:22px; }
+.score-session__heading > div { min-width:0; }
 .score-session__meta { margin: 8px 0 0; color: var(--muted); font-size: .88rem; }
+.session-refresh-button { display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; min-height:40px; margin-top:4px; padding:8px 10px; border:1px solid var(--line); border-radius:11px; background:rgb(255 253 248 / 76%); color:var(--teal-dark); font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
+.session-refresh-button:hover { background:var(--teal-soft); }
+.session-refresh-button:disabled { opacity:.48; cursor:not-allowed; }
+.session-refresh-icon { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.session-refresh-icon--spinning { animation:session-refresh-spin .85s linear infinite; }
+@keyframes session-refresh-spin { to { transform:rotate(360deg); } }
+@media (max-width:380px) {
+  .session-refresh-button { min-height:38px; padding:7px 9px; font-size:.72rem; }
+  .session-refresh-icon { width:17px; height:17px; }
+}
 .score-sheet {
   display: grid;
   grid-template-columns: 48px repeat(3,minmax(0,1fr));

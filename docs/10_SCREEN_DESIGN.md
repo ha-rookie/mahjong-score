@@ -221,3 +221,12 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 復元はJSONファイルを選択し、現在Dataを置換する前に確認を表示する
 - 不正JSON / 不正schemaは拒否し、既存Dataを保持する
 - 復元成功後はHomeを再読込する
+
+
+## Active Session manual refresh
+- SCORE SHEET見出し右側に円形矢印アイコン付き「更新」操作を配置する
+- 更新は自動PollingではなくUser操作で実行する
+- Session / Game / Chip / Session Memoをserverの最新状態へ差し替える
+- 未保存入力がある場合のみ確認Dialogを表示し、明示確認後に破棄する
+- 更新失敗時は現在の未保存入力を保持する
+- 他端末でSession終了済みの場合は対局中画面を閉じる

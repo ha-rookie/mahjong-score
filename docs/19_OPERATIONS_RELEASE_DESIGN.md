@@ -65,10 +65,17 @@ Phase 1:
 - user-triggered JSON export/import
 
 Phase 2:
-- D1 backup
-- restore rehearsal
-- RTO/RPO
-- migration recovery
+- Primary recovery mechanismはCloudflare D1 Time Travel
+- Time Travel retentionはplan依存（Workers Free: 7 days / Paid: 30 days）
+- RPO target: retention内で1 minute
+- RTO target: Humanのrestore判断後60 minutes以内にdata integrity / application smoke完了
+- Production restoreはdestructive operationのため自動化しない
+- restore前にcurrent bookmarkをundo pointとして記録する
+- Preview DBでrecovery rehearsalを実施し、bookmark restoreが機能することを確認する
+- Production SQL exportをGitHub Actions artifactへ自動保存しない
+- migration成功後のlogical defectはTime Travelでrollbackする
+
+詳細手順は `21_D1_RECOVERY_RUNBOOK.md` を正本とする。
 
 ## 7. Post-release
 

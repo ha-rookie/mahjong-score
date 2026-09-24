@@ -26,10 +26,10 @@ export function AuthStatus() {
     setLoading(true);setError(null);
     try{
       const response=await fetch("/api/auth/me",{credentials:"same-origin"});
-      if(response.status===401){setAuth(null);setLoading(false);return;}
+      if(response.status===401){setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:false}));setLoading(false);return;}
       if(!response.ok)throw new Error("auth status");
-      setAuth(await response.json() as AuthPayload);
-    }catch{setError("認証状態を確認できませんでした。");}
+      setAuth(await response.json() as AuthPayload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:true}));
+    }catch{setError("認証状態を確認できませんでした。");window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:false}));}
     setLoading(false);
   };
 
@@ -55,8 +55,8 @@ export function AuthStatus() {
   },[]);
 
   const login=()=>{window.location.assign("/api/auth/line/start");};
-  const logout=async()=>{setBusy(true);setError(null);try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"});setAuth(null);}catch{setError("ログアウトできませんでした。");}setBusy(false);};
-  const bootstrap=async()=>{setBusy(true);setError(null);try{const response=await fetch("/api/auth/bootstrap-admin",{method:"POST",credentials:"same-origin"});if(!response.ok){const payload=await response.json() as {error?:{message?:string}};throw new Error(payload.error?.message??"bootstrap");}setAuth(await response.json() as AuthPayload);}catch{setError("管理者の初期設定に失敗しました。");}setBusy(false);};
+  const logout=async()=>{setBusy(true);setError(null);try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"});setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:false}));}catch{setError("ログアウトできませんでした。");}setBusy(false);};
+  const bootstrap=async()=>{setBusy(true);setError(null);try{const response=await fetch("/api/auth/bootstrap-admin",{method:"POST",credentials:"same-origin"});if(!response.ok){const payload=await response.json() as {error?:{message?:string}};throw new Error(payload.error?.message??"bootstrap");}setAuth(await response.json() as AuthPayload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:true}));}catch{setError("管理者の初期設定に失敗しました。");}setBusy(false);};
   const migrateToD1=async()=>{
     const raw=window.localStorage.getItem("mahjong-score:app-data:v1");
     if(!raw)return;

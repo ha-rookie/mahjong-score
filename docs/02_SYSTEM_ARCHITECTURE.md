@@ -138,6 +138,20 @@ Issue branch
 - SPA: React + Vite
 - Auth: Phase 1なし
 
+## 12.5 Phase 2 Cloudflare Environment Gate
+
+D1を作成する前にCloudflare側の環境境界を確立する。
+
+- Production Workerは現行 `mahjong-score` を継続する
+- Phase 2のbranch検証はCloudflare Worker Previewsを利用する方針とする
+- Preview URLはCloudflare Accessで保護し、未許可利用者へ公開しない
+- ProductionはLINE Login実装前の開発期間に全面Access保護するか、現行公開を維持するかHuman確認後に設定する
+- PreviewとProductionのD1は同一databaseを共有しない
+- Preview用D1を明示的にbindingし、Production D1への誤書込み経路を作らない
+- D1作成前にCloudflare API Tokenへ必要最小限のD1権限を追加できることを確認する
+
+Cloudflare Accessはアプリ本体のAdmin/Member認証を代替しない。Phase 2開発中の環境保護用Gateとして扱う。
+
 ## 13. 未決事項
 
 - TBD-ARCH-001: Preview環境のCloudflare公開方法

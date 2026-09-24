@@ -2,6 +2,8 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "mahjong-score",
   "compatibility_date": "2026-09-23",
+  "preview_urls": true,
+  "previews": {},
   "assets": {
     "not_found_handling": "single-page-application"
   }

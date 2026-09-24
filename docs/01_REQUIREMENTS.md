@@ -126,9 +126,6 @@ Phase 1:
 
 ## 11.5 Phase 2 Requirements
 
-- PWAとしてホーム画面へ追加でき、standaloneで起動できる
-- Manifest / App Icon / Service Workerを提供する
-- 初期PWAのoffline対象は静的Assetを基本とし、D1/APIへのoffline write/syncは行わない
 - AuthenticationでUserを識別する
 - Group単位でAdmin / Memberを認可する
 - User（認証主体）とPlayer（成績対象）を分離し、ログインしていないPlayerも保持可能とする
@@ -140,6 +137,11 @@ Phase 1:
 - Worker API / D1で複数端末からGroup dataを共有する
 - stale updateを検知し、競合を黙って上書きしない
 - 認証失敗・認可失敗・重要操作をserver側で監査可能にする
+
+### Phase 2 Deferred
+- PWA（Manifest / App Icon / Service Worker / installability / standalone / static asset cache）はPhase 3以降へDeferred
+- backlog: Issue #160
+- D1/APIへのoffline write/syncはPWAとは別設計で扱う
 
 ## 12. 未決事項
 

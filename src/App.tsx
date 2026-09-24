@@ -201,6 +201,7 @@ function App() {
             <div className="score-sheet__label">{editingGameId?"訂正":games.length+1}</div>{participantIds.map(id=><div className="score-sheet__input-cell" key={id}>{missingId===id&&calculatedScore!==null?<output className={numberClass(calculatedScore)}>{formatScore(calculatedScore)}</output>:<><input aria-label={playerNameById(id)+"のポイント"} inputMode="numeric" pattern="[0-9]*" placeholder="入力" value={scoreInputs[id]??""} onChange={e=>setScoreInputs(current=>({...current,[id]:e.target.value.replace(/[^0-9-]/g,"")}))}/><button className="sign-toggle" type="button" onClick={()=>toggleScoreSign(id)} disabled={!scoreInputs[id]}>±</button></>}</div>)}
           </div>
           <div className="score-sheet__row score-sheet__row--subtotal"><div className="score-sheet__label">小計</div>{participantIds.map(id=><div className={`score-sheet__value ${numberClass(totals.get(id)??0)}`} key={id}>{formatScore(totals.get(id)??0)}</div>)}</div>
+          <div className="score-sheet__corner">半荘</div>{participantIds.map(id=><div className="score-sheet__player" key={"f"+id}>{playerNameById(id)}</div>)}
         </div>
         <p className="score-sheet__hint">1人分だけ空欄にして、残りを入力してください。負数は数字を入力してから ± を押します。</p>
         <Button block disabled={!canCalculate||isBusy} onClick={()=>void handleSaveGame()}>{isBusy?"保存しています…":editingGameId?"訂正を保存":"この半荘を保存"}</Button>

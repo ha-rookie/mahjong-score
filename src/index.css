@@ -779,3 +779,13 @@ h2 {
   .member-access-list__identity{align-items:flex-start;flex-direction:column;gap:4px}
   .member-invite-button{white-space:nowrap}
 }
+
+
+.login-gate{max-width:560px;margin:8vh auto 0;padding:34px 0 48px}
+.login-gate h1{margin-top:8px}
+.login-gate>p:not(.screen-eyebrow){margin:14px 0 0;color:var(--muted);line-height:1.75}
+.login-gate__button{width:100%;min-height:54px;margin-top:24px;border:0;border-radius:10px;background:#06c755;color:#fff;font:inherit;font-weight:850;cursor:pointer}
+.login-gate__note{font-size:.78rem}
+@media(max-width:520px){
+  .login-gate{margin-top:5vh;padding-bottom:36px}
+}

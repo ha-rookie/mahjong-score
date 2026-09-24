@@ -2,18 +2,22 @@
 
 仲間内の三人麻雀・4人回し三麻のスコア、チップ、月間・年間・通算成績を管理するWebアプリです。
 
-現在は Phase 1 の機能PoCを構築しています。
+Phase 1の端末内PoCを経て、現在はPhase 2の複数ユーザー対応をProductionへ実装済みです。
 
 ## Current Phase
 
 - Frontend: React + TypeScript + Vite
-- Hosting: Cloudflare Workers + Static Assets
-- Persistence: localStorage
-- Authentication: なし
-- Database: なし
+- Hosting / API: Cloudflare Workers + Static Assets
+- Persistence: Cloudflare D1
+- Authentication: LINE Login
+- Authorization: System Admin / Group Admin / Member
+- Multi-device: D1をsource of truthとして共有
+- Concurrency: Session / Game versionによるoptimistic concurrency
+- Audit: Worker structured audit log + request correlation
+- Recovery: D1 Time Travel
 - Deploy: GitHub Actions + Wrangler
 
-Phase 2以降で Worker API / D1、Cloudflare Access、LINE Loginを段階導入する予定です。
+Phase 2完了監査はIssue #145で管理する。PWAはPhase 3以降へDeferredし、Issue #160で再検討する。
 
 ## Development
 

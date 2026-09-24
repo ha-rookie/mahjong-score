@@ -235,3 +235,12 @@ Requirement
 - active Session以外ではheaderに更新操作が表示されないこと
 - 320px程度の狭い画面でもbrand/account/updateが横崩れしないこと
 - 手動更新の前後でwindow scroll positionが維持され、画面上部へジャンプしないこと
+
+
+### Phase 2 audit / request correlation
+- protected APIへ未認証でアクセスした場合、authentication_failureを構造化Logへ出すこと
+- Membership/role不足で403となる場合、authorization_failureを構造化Logへ出すこと
+- LINE Loginの主要failure/successがrequestId付きで記録されること
+- Session削除、Invitation発行/取消、Player/User unlink、Membership変更、Admin bootstrap、migration等の重要操作成功が記録されること
+- Audit LogにOAuth/LINE token、Invitation token、Cookie、request body、Memo本文、displayNameを含めないこと
+- requestIdはCF-Rayを優先し、存在しない場合はUUIDへfallbackすること

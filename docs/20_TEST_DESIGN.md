@@ -257,3 +257,14 @@ Requirement
 - Permissions-Policyが返ること
 - X-Permitted-Cross-Domain-Policiesがnoneであること
 - Headerが欠落したProduction deployはpost-deploy smokeで失敗すること
+
+
+### Phase 2 D1 backup / recovery
+- Preview / Production D1 database IDが異なることをrehearsal前にassertすること
+- Previewでbaseline bookmarkを取得できること
+- rehearsal probe table / markerをPreviewへ作成し存在確認できること
+- baseline bookmarkへのTime Travel restoreが成功すること
+- restore後にprobe tableが消えていること
+- rehearsal途中でfailureした場合もtrapでbaseline restoreを試行すること
+- Production DBにrehearsal probeを書き込まないこと
+- Production restore手順にpre-restore bookmark / target bookmark / smoke / undoを含むこと

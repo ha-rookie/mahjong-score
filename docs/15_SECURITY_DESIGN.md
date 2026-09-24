@@ -83,14 +83,43 @@ Repository上の設定値だけで完了扱いにしない。
 
 ## 7. Security Logging
 
-Phase 2以降:
-- auth failure
-- authorization failure
-- validation failure
-- dangerous operation
-- suspicious rate/abuse
+Phase 2ではCloudflare WorkersのApplication LogへJSON構造化Audit Logを出力する。D1へ専用Audit Tableは追加しない。
 
-を記録するが、Secret / password / unnecessary PIIを出さない。
+記録対象:
+- protected APIのauthentication failure
+- authorization failure
+- LINE Loginの主要failure / success
+- system admin bootstrap
+- Session削除
+- Player/User unlink
+- Invitation発行 / 取消
+- Membership / Player link変更
+- localStorage -> D1 migration等の管理操作
+
+各Logは最低限:
+- timestamp
+- event
+- requestId
+- method
+- path
+- outcome
+- internal userId（認証後のみ）
+- 必要時のgroupId / resourceType / resourceId
+
+を持つ。
+
+requestIdはCloudflareの `CF-Ray` がrequestに存在する場合はそれを利用し、local/preview等ではUUIDへfallbackする。
+
+Logへ出さない:
+- LINE/OAuth token
+- Invitation token
+- Cookie
+- Secret
+- request body
+- Session Memo等の自由記述
+- displayName等の不要なPII
+
+validation failureやrate/abuseの集約監視は、利用量と必要性を見ながら後続Phaseで拡張する。
 
 ## 8. Security Test Traceability
 

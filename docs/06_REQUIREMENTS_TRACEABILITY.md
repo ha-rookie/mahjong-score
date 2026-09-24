@@ -38,3 +38,25 @@ Issue #20で`GameResult.finalPoints/mahjongScore`を`scorePoint`へ置換し、s
 ## 5. Rule
 
 Requirement -> Design ID -> Issue/PR -> Implementation -> Test -> Evidence -> Status の順で追跡する。
+
+
+## 6. Phase 2 Traceability
+
+| Requirement / NFR | Summary | Design | Issue/PR | Implementation | Test/Evidence | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Phase 2 Persistence | Worker API / D1 source of truth | ARCH-002, DATA Phase 2 | PR #94/#97/#98/#100/#114 | Worker API + API Repository + D1 normalized schema | PR CI / Preview migration / Production deploy | ACTIVE |
+| Phase 2 AuthN | LINE Login / application session | ARCH-005, AUTH design | PR #105/#106/#111/#117/#118/#123 | OAuth2/OIDC callback, D1 login state, signed session cookie | Production LINE Login + CI | ACTIVE |
+| Phase 2 AuthZ | System Admin / Group Admin / Member | NFR-010, Security Design | PR #87/#112/#120 | Worker API membership/role enforcement | forbidden/IDOR paths + Production use | ACTIVE |
+| Phase 2 Invitation | Player invitation / User linking / unlink | Data / Security invitation design | PR #88/#113/#116/#119/#120 | one-time token hash, invitation redemption, manual linking/unlink | Production flow + CI | ACTIVE |
+| NFR-008 | optimistic concurrency | Data Concurrency | #146 / PR #147 | Session/Game version + expectedVersion + 409 stale_update | concurrency cases in Test Design / CI | ACTIVE |
+| Multi-device | Active Session refresh / shared D1 | Screen / API | #148 / PR #149, #152 / PR #153 | D1 shared state + manual refresh preserving scroll | smartphone review + CI | ACTIVE |
+| Audit / Correlation | auth/authz failure + important operation logging | Security / Observability | #154 / PR #155 | Worker structured JSON audit + CF-Ray/UUID | CI + code review | ACTIVE |
+| Security Headers | Production browser response hardening | SEC-001..007 | #156 / PR #157 | public/_headers + post-deploy assertions | main run #36071486621 | ACTIVE |
+| Recoverability | D1 point-in-time recovery | Operations / Runbook | #158 / PR #159 | D1 Time Travel + Preview rehearsal script | run #36072191864 | ACTIVE |
+| NFR-009 | PWA | NFR Design | #160 / PR #161 | no Phase 2 implementation | Human decision: Phase 3+ | DEFERRED |
+
+## 7. Phase 2 Evidence Rule
+
+Phase 2は、単にcodeがmainへ存在することではなく、PR CI / Preview D1 / Production deploy / smartphone review / recovery rehearsal等のEvidenceと接続して完了判定する。
+
+Phase 2 completion audit: Issue #145。

@@ -18,14 +18,14 @@ GitHub Repository: `ha-rookie/mahjong-score`
 
 Phase 1はRepository owner本人。
 
-Phase 2以降で、普段一緒に麻雀をする固定グループのメンバーへ拡張する。
+Phase 2では、普段一緒に麻雀をする固定GroupのMemberへ拡張済み。
 
 ## Success Condition
 
 - 実際の麻雀中にスマートフォンから迷わず結果を入力できる
 - 三麻のポイント計算を正しく行える
 - Session、月間、年間、通算の成績を確認できる
-- localStorageからD1へ段階移行できるデータ構造になっている
+- LINE Loginした固定GroupのMemberが複数端末から同じD1 dataを安全に利用できる
 
 ## In Scope
 
@@ -100,9 +100,12 @@ PWA backlog: Issue #160。Manifest / App Icon / Service Worker / installability 
 ## Technology
 
 - Frontend: React + TypeScript + Vite
-- Runtime: Browser
+- Runtime: Browser + Cloudflare Worker API
 - Hosting: Cloudflare Workers + Static Assets
-- Persistence: localStorage
+- Persistence: Cloudflare D1
+- Authentication: LINE Login
+- Authorization: System Admin / Group Admin / Member
+- Recovery: D1 Time Travel
 - CI / Deploy: GitHub Actions + Wrangler
 - Repository: `ha-rookie/mahjong-score`
 
@@ -118,3 +121,21 @@ PWA backlog: Issue #160。Manifest / App Icon / Service Worker / installability 
 ## Release Definition of Done
 
 Use [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
+
+## Phase 2 Completion Status
+
+2026-09-25時点でPhase 2の主要実装はProductionへ反映済み。
+
+- Worker API / D1 persistence
+- LINE Login
+- User / Player invitation and linking
+- System Admin / Group Admin / Member authorization
+- multi-device data sharing
+- Session / Game optimistic concurrency
+- structured audit log / request correlation
+- Production Security Headers
+- D1 Time Travel recovery runbook / Preview recovery rehearsal
+- PWA: Phase 3以降へDeferred（Issue #160）
+
+最終完了判定はIssue #145のRepository hygiene / documentation sync / smartphone smokeを満たした時点とする。

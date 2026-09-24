@@ -26,16 +26,26 @@ Browser
 
 Frontend表示制御をSecurity上の認可とみなさない。
 
-Phase 2のAuthorization単位はGroup Membershipとする。Worker APIは対象resourceのgroupIdに対して、認証済みUserが有効なMembershipを持つことを毎回確認する。Admin専用操作はさらにrole=`admin`を要求する。
+Phase 2のAuthorization単位はSystem roleとGroup Membershipの組合せとする。Worker APIは対象resourceのgroupIdに対して、認証済みUserの権限をserver-sideで毎回確認する。
 
-Admin専用操作:
-- Group管理・Group作成に関する管理操作
-- Group Membership管理
-- Backup / Restore
+- System Admin: `users.system_role='admin'`
+- Group Admin: `group_memberships.role='group_admin'`
+- Member: `group_memberships.role='member'`
+
+System Admin専用操作:
+- Group作成
+- User / Membership / Player link管理
+- localStorage -> D1 migration等のsystem-wide管理操作
+
+System Adminまたは対象GroupのGroup Adminに許可する操作:
+- Player invitation発行/取消
+- APIで明示的に許可したGroup管理操作（Session削除等）
 
 Member許可操作:
 - Session / Game / Chip / Session Memoの通常操作
 - History / Performance参照
+
+D1 Production recoveryはApplication UIのRoleではなく運用手順上のHuman承認を必要とする。
 
 URLやrequest bodyのgroupId/userIdを信用せず、server側でresource ownership / membershipを解決する。
 
@@ -144,11 +154,15 @@ validation failureやrate/abuseの集約監視は、利用量と必要性を見�
 
 ## 9. Player Invitation / Account Linking Security
 
-- PlayerへのUser紐付け・招待発行はAdminのみ許可する
-- 既存User紐付け時も対象GroupへのAdmin権限をAPI側で検証する
+- Invitation発行/取消はSystem Adminまたは対象GroupのGroup Adminのみ許可する
+- 既存UserのMembership/Player link管理はSystem Adminのみ許可する
 - clientから指定されたuserId/playerIdだけで紐付けを許可せず、Group scopeと重複をserver側で検証する
-- 未ログインPlayerへの招待はsingle-use token等の本人確認可能な方式とし、tokenを監査Logや通常レスポンスへ露出しない
-- 招待tokenの有効期限・再送・取消・使用済み無効化はAuthentication方式決定時に確定する
+- 未ログインPlayerへの招待はsingle-use random tokenを使用する
+- raw invitation tokenは発行Response/共有URL以外へ保存せず、D1にはSHA-256 hashのみ保存する
+- invitation有効期限は7日
+- 同一Playerへの再発行時は既存の未使用Invitationをrevokeする
+- used_at / revoked_atで使用済み/取消を管理する
+- Audit Logへraw invitation tokenを出さない
 
 
 ## 10. Phase 2 Authentication Design
@@ -159,19 +173,30 @@ validation failureやrate/abuseの集約監視は、利用量と必要性を見�
 - provider + subjectをExternalIdentityとしてUserへ紐付ける
 - OAuth client secret等はWorker Secretとして保持し、browser bundle / public repositoryへ出さない
 - callbackはWorker側で処理し、state / nonce等を検証する
-- Application sessionはHttpOnly / Secure / SameSite cookieを基本候補とする
+- OAuth state / nonceはD1 `line_login_states` でserver-side管理し、stateはsingle-use / 10分でexpireする
+- Application sessionはsigned HttpOnly / Secure / SameSite=Lax cookieを使用し、有効期限は24時間
 - API authorizationは認証済みUser IDを起点にGroupMembershipをserver側で検証する
 
 ### Provider decision
 初期Authentication providerはLINE Loginを採用する。Google Identityを初期provider候補とはしない。
 
-LINE側の具体的なOAuth / OpenID Connect設定、callback、scope、token validationはLINE公式仕様を確認した上で実装Issueで確定する。
+LINE Login v2.1のauthorization code + OpenID Connectを使用する。scopeは `profile openid`。Worker callbackでtoken exchangeとID token verification（nonce含む）を行う。
 
 ### Invitation relation
 Player invitationはAuthentication providerとは独立したApplication invitationとして扱う。招待受領者が認証完了した後、server側で招待対象Group/Playerと認証Userを検証して紐付ける。
 
-### Human TBD
+### Authentication decisions
 - TBD-AUTH-001: Resolved: 初期Authentication providerはLINE Login
-- TBD-AUTH-002: 既存User検索・紐付け時にAdminへ見せる識別情報
-- TBD-AUTH-003: Invitation delivery方式（URL共有 / email等）
-- TBD-AUTH-004: Application session有効期限 / refresh policy
+- TBD-AUTH-002: Resolved: System AdminのMember管理画面でdisplayName / role / linked Playerを表示して紐付け管理する
+- TBD-AUTH-003: Resolved: Invitation deliveryはURL共有
+- TBD-AUTH-004: Resolved: Application sessionは24時間。refresh tokenによる自動延長はPhase 2で実装しない
+
+
+## 11. Phase 2 Security Evidence
+
+- Authentication / authorization / invitation: Production実装済み
+- optimistic concurrency: #146 / PR #147
+- structured audit log / request correlation: #154 / PR #155
+- Security Headers: #156 / PR #157、main run #36071486621
+- D1 recovery guardrails: #158 / PR #159、Preview rehearsal run #36072191864
+- PWA: Phase 3以降へDeferred（#160）

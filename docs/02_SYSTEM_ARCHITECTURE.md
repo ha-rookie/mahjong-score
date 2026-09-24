@@ -6,11 +6,13 @@
 
 ## 2. Architecture Goals
 
-- ARCH-001: Phase 1ではサーバー側データストアを持たず、麻雀アプリ本体のUX検証を優先する
-- ARCH-002: Phase 2でWorker API / D1へ移行できるよう、UIと永続化処理を分離する
+- ARCH-001: React UI / Application / Repository / Worker API / D1の責務を分離する
+- ARCH-002: Phase 2 runtimeはCloudflare Worker API + D1をsource of truthとする
 - ARCH-003: Public RepositoryへSecret値を保存しない
-- ARCH-004: GitHub Actionsで品質確認後、WranglerからCloudflare WorkersへDeployする
-- ARCH-005: Phase 2でPWAを採用し、ホーム画面追加・standalone起動・静的AssetのService Worker cacheを提供する。D1/APIデータのoffline同期は初期PWA範囲に含めない
+- ARCH-004: GitHub Actionsでlint/test/build/D1 migration検証後、WranglerからCloudflare WorkersへDeployする
+- ARCH-005: AuthenticationはLINE Login、AuthorizationはApplication側のSystem Admin / Group Admin / Memberで強制する
+- ARCH-006: Preview D1とProduction D1を分離し、migration/recovery rehearsalでProductionを触らない
+- ARCH-007: PWAはPhase 3以降へDeferredし、offline write/syncは独立設計とする
 
 ## 3. System Context
 
@@ -20,43 +22,53 @@ User / Smartphone Browser
       v
 React SPA
       |
-      v
-Repository abstraction
+      +---- LINE Login ----> LINE OAuth / OpenID Connect
       |
       v
-localStorage
+Application / Repository abstraction
+      |
+      v
+Cloudflare Worker API
+      |
+      +---- Authorization (System Admin / Group Admin / Member)
+      |
+      v
+Cloudflare D1
 
 GitHub
   |
   v
 GitHub Actions
-  |- lint
-  |- build
-  `- wrangler deploy
+  |- lint / test / build
+  |- D1 migration validation
+  |- Production deploy
+  `- Production Security Headers smoke
       |
       v
 Cloudflare Workers + Static Assets
 ```
 
-Phase 1のRuntimeでは外部APIへ依存しない。
+Phase 2の麻雀DataはD1がsource of truth。legacy localStorageは移行前data / rollback evidenceとして残る場合があるが、D1 modeでは通常runtime persistenceとして使用しない。
 
 ## 4. Deployment Architecture
 
-| ID | Component | Platform | Responsibility | Production | Preview |
+| ID | Component | Platform | Responsibility | Production | Preview / CI |
 | --- | --- | --- | --- | --- | --- |
-| ARCH-010 | Frontend | React + Vite | UI / client-side logic | Yes | PR CIのみ。Cloudflare Previewは後続判断 |
-| ARCH-011 | Static delivery | Cloudflare Workers Static Assets | SPA配信 | Yes | TBD |
-| ARCH-012 | Server/API | 該当なし（Phase 1） | 該当なし | No | No |
-| ARCH-013 | Data Store | Browser localStorage | Phase 1データ永続化 | Client only | Client only |
+| ARCH-010 | Frontend | React + Vite | UI / client-side state | Yes | Build / test |
+| ARCH-011 | Static delivery | Cloudflare Workers Static Assets | SPA配信 / Security Headers | Yes | Build artifact validation |
+| ARCH-012 | Server/API | Cloudflare Worker | Auth callback / API / authorization / audit | Yes | TypeScript build |
+| ARCH-013 | Data Store | Cloudflare D1 | Group/User/Player/Session/Game data | Production D1 | Separate Preview D1 |
+| ARCH-014 | Identity Provider | LINE Login | OAuth 2.0 / OIDC identity | Yes | Provider integration |
+| ARCH-015 | Recovery | D1 Time Travel | point-in-time recovery | Human-controlled | Preview rehearsal |
 
 ### Environment Separation
 
-Phase 1ではサーバー側データを持たない。
-
-- Production deploy用SecretはGitHub Actions Secretsで管理
-- Secret値をRepositoryへcommitしない
-- PreviewからProductionデータへ書き込むサーバー経路はPhase 1には存在しない
-- Phase 2でD1導入時にProduction / Preview Bindingsを分離する
+- Production D1とPreview D1は別database ID
+- Pull Request CIはPreview D1 migrationを適用してschema compatibilityを確認
+- main merge後のみProduction migration / Worker deployを実行
+- D1 recovery rehearsalはPreview専用で、Production IDと一致した場合scriptが停止する
+- Production SecretはCloudflare Worker Secret / GitHub Actions Secretsで管理
+- Public RepositoryへSecret値をcommitしない
 
 ## 5. Runtime Data Flow
 
@@ -64,12 +76,15 @@ Phase 1ではサーバー側データを持たない。
 User operation
   -> React UI
   -> Application / domain logic
-  -> Repository interface
-  -> LocalStorageRepository
-  -> localStorage
+  -> API Repository
+  -> Worker API
+  -> Authentication / Authorization
+  -> D1 transaction / query
+  -> API response
+  -> UI state refresh
 ```
 
-Browser外へ麻雀データを送信しない。
+Active Sessionは複数端末利用を前提とし、手動refreshでSession / Game / Chip / Memoの最新状態を再取得できる。Session / Game update/deleteはversionを送信し、stale updateは409で拒否する。
 
 ## 6. Build / Deploy Data Flow
 
@@ -93,18 +108,24 @@ Issue branch
 
 | ID | Service | Purpose | Runtime Dependency | Auth | Failure Behavior |
 | --- | --- | --- | --- | --- | --- |
-| IF-001 | Cloudflare Workers | SPA hosting | Yes | Deploy時のみAPI Token | 配信不可 |
-| IF-002 | GitHub Actions | CI / Deploy | No | Repository Secrets | Deploy不可。ローカル利用には影響なし |
+| IF-001 | Cloudflare Workers | SPA hosting / Worker API | Yes | Runtimeはapplication session | 配信/API利用不可 |
+| IF-002 | Cloudflare D1 | application data | Yes | Worker binding | read/write不可 |
+| IF-003 | LINE Login | User authentication | Login時 | OAuth/OIDC | 新規login不可。既存session有効中はAPI利用可能 |
+| IF-004 | GitHub Actions | CI / Deploy | No | Repository Secrets | Deploy/CI不可。稼働中Productionには直ちに影響しない |
 
 ## 8. Trust Boundaries / Security
 
-- Browserで保持してよい情報: Phase 1の麻雀スコア、グループ、メンバー名、任意メモ
-- Browserへ出してはいけない情報: Cloudflare API Token等のSecrets
-- Server側検証: Phase 1はServerなし
-- CORS: Phase 1の独自APIなし
-- 認証・認可: Phase 1はなし
-- 個人情報: 公開Repositoryへ実在メンバーのデータをcommitしない
-- Secret管理: GitHub Actions Secrets
+- Browserへ出してよい情報: API応答として許可されたGroup / Player / Session / Game等
+- Browserへ出してはいけない情報: LINE Channel Secret、application session signing secret、Cloudflare API Token
+- Authentication: LINE Login + HttpOnly / Secure / SameSite=Lax application session cookie
+- Authorization: Worker APIがresourceのGroup ownership / Membership / roleをserver-sideで検証
+- System Admin: 全Groupの管理操作
+- Group Admin: 対象Groupの招待管理と管理者許可操作
+- Member: 通常の記録・参照操作
+- Invitation token: D1にはSHA-256 hashのみ保存。raw tokenは発行時のみ返却
+- SQL: D1 parameterized query / bind
+- Security Headers: Static AssetsへCSP/HSTS等を付与しProduction smokeで検証
+- Audit: auth/authz failureと重要操作をstructured logへ記録
 
 ## 9. Availability / Failure Strategy
 
@@ -116,11 +137,12 @@ Issue branch
 
 ## 10. Observability
 
-- Cloudflare Web Analytics: TBD
-- Application events: Phase 1では未導入
-- Error logs: Client-side最小限、方針は後続Issue
 - Deployment history: GitHub Actions / Cloudflare
-- Privacy boundary: 個人識別Analyticsは原則導入しない
+- Worker Audit Log: JSON structured log
+- request correlation: CF-Ray優先、ない場合UUID
+- auth failure / authorization failure / important administrative operationを記録
+- Secret / token / Cookie / request body / Memo本文 /不要なPIIをLogへ出さない
+- Cloudflare Web Analytics / Custom Analyticsは別途TBD
 
 ## 11. Performance / Cost
 
@@ -132,30 +154,26 @@ Issue branch
 ## 12. Architecture Decisions
 
 - Hosting: Cloudflare Workers + Static Assets
-- Deploy: GitHub Actions + Wrangler
-- Phase 1 persistence: localStorage
-- Phase 2 persistence: D1予定
-- SPA: React + Vite
-- Auth: Phase 1なし
+- API: Cloudflare Worker
+- Persistence: Cloudflare D1
+- Authentication: LINE Login
+- Authorization: System Admin / Group Admin / Member
+- A## 12.5 Phase 2 Cloudflare Environment Gate
 
-## 12.5 Phase 2 Cloudflare Environment Gate
+Phase 2の環境分離は実装済み。
 
-D1を作成する前にCloudflare側の環境境界を確立する。
-
-- Production Workerは現行 `mahjong-score` を継続する
-- Phase 2のbranch検証はCloudflare Worker Previewsを利用する方針とする
-- Preview URLはCloudflare Accessで保護し、未許可利用者へ公開しない
-- ProductionはLINE Login実装前の開発期間に全面Access保護するか、現行公開を維持するかHuman確認後に設定する
-- PreviewとProductionのD1は同一databaseを共有しない
-- Preview用D1を明示的にbindingし、Production D1への誤書込み経路を作らない
-- D1作成前にCloudflare API Tokenへ必要最小限のD1権限を追加できることを確認する
-
-Cloudflare Accessはアプリ本体のAdmin/Member認証を代替しない。Phase 2開発中の環境保護用Gateとして扱う。
+- Production Workerは `mahjong-score`
+- Production D1 / Preview D1は別database
+- PR CIではPreview D1 migrationを検証
+- main merge後のみProduction D1 migrationとWorker deployを実行
+- Security Headersはmain deploy後にProduction responseを自動検証
+- Preview recovery rehearsalはProduction DB IDと同一なら停止
+- Cloudflare AccessはApplicationのSystem Admin / Group Admin / Member認証を代替しない
 
 ## 13. 未決事項
 
-- TBD-ARCH-001: Preview環境のCloudflare公開方法
-- TBD-ARCH-002: Resolved: Phase 2でPWA採用。初期範囲はManifest / App Icon / Service Worker / installability / standalone / static asset cache。業務データのoffline write/syncは排他・競合解決と合わせて将来判断
+- TBD-ARCH-001: Preview Workerを常時公開する運用が必要か
+- TBD-ARCH-002: Resolved: PWAはPhase 3以降へDeferred（Issue #160）
 - TBD-ARCH-003: Analytics採用
 
 
@@ -164,12 +182,14 @@ Cloudflare Accessはアプリ本体のAdmin/Member認証を代替しない。Pha
 Authentication uses LINE Login v2.1 web login (OAuth 2.0 authorization code + OpenID Connect). The Worker owns the callback and all secrets. Browser code never receives the LINE Channel Secret. Initial scopes are `profile openid`; email is not requested.
 
 Routes:
-- `GET /api/auth/line/start`: creates random state/nonce, stores them in a short-lived HttpOnly Secure SameSite=Lax cookie, redirects to LINE authorization
-- `GET /api/auth/line/callback`: currently validates callback state only. Token exchange, ID-token validation, User upsert and application session issuance are the next slice
+- `GET /api/auth/line/start`: creates random state/nonce, stores state server-side in D1, redirects to LINE authorization
+- `GET /api/auth/line/callback`: validates state/nonce, exchanges code, verifies ID token, upserts User/ExternalIdentity and issues application session
+- `GET /api/auth/me`: returns authenticated User and Memberships
+- `POST /api/auth/logout`: clears application session
 
 D1 migration 0002 introduces `users`, `external_identities`, and `group_memberships`. Player remains independently creatable and `players.user_id` remains nullable.
 
-Secrets/config required later: `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.
+Required configuration: `LINE_CHANNEL_ID`. Required Worker Secrets: `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.
 
 
 ## 15. Initial administrator and authorization
@@ -181,7 +201,7 @@ Authorization is split into two scopes.
 
 System Admin is independent from Player linkage and Group membership. A System Admin can log in without being a Player, can operate every Group, create/manage Groups and Players, link Users to Players, and assign Group Admin/Member roles.
 
-Group Admin is scoped to one Group. Its elevated responsibility is intentionally limited to invitation management; it does not gain System Admin powers. Until invitation APIs are implemented, Group Admin has the same gameplay access as Member and is retained as the future invitation-authority flag.
+Group Admin is scoped to one Group. It can manage invitations and execute the Group-level administrative operations explicitly allowed by Worker API, including finalized/active Session deletion where implemented. It does not gain System Admin powers.
 
 Member is a normal Group user. A User may be linked to at most one Player per Group through `group_players.user_id`, while remaining linkable to a different Player in another Group.
 
@@ -190,7 +210,7 @@ The first authenticated LINE User may claim System Admin only while no System Ad
 System Admin management API foundation:
 - `PATCH /api/admin/groups/:groupId/users/:userId`: create/update Group role and optionally link/unlink the User to a Player in that Group
 
-Invitation URL issuance and invite-token consumption are a later slice. Once an initial System Admin exists, an unrelated LINE-authenticated User with no valid invitation remains authenticated at the LINE layer but has no Group access.
+Invitation URL issuance and invite-token consumption are implemented. Once an initial System Admin exists, an unrelated LINE-authenticated User with no valid invitation remains authenticated at the LINE layer but has no Group access.
 
 
 ## 16. Player invitation flow
@@ -213,7 +233,7 @@ Invitation management endpoints:
 - `GET /api/groups/:groupId/invitations`: list invitation history without raw tokens
 - `DELETE /api/invitations/:invitationId`: revoke an unused invitation
 
-The application header exposes invitation management to System Admin and Group Admin. Existing Phase 1 localStorage Groups/Players are not automatically copied to D1; invitation issuance for those existing Players depends on the upcoming persistence migration/sync step.
+The application header exposes invitation management to System Admin and Group Admin. Existing Phase 1 localStorage Groups/Players are copied only through the explicit System Admin migration endpoint; automatic background migrationは行わない。
 
 
 ## 17. LocalStorage to D1 migration and runtime switch

@@ -84,3 +84,13 @@ Phase 2:
 - quota/cost確認
 - known issue更新
 - reusable lessonをTemplateへ昇格
+
+
+## 8. Phase 2 Release / Recovery Evidence
+
+- Production Security Headers: main run #36071486621
+- D1 Preview recovery rehearsal: run #36072191864
+- D1 recovery implementation merge: PR #159
+- latest Phase 2 Production deployはmain workflowでD1 migration -> Worker deploy -> Security Headers smokeの順に実行する
+
+Phase 2のProduction restoreは通常Release手順では実行しない。Incident時のみ `21_D1_RECOVERY_RUNBOOK.md` に従い、Humanがrestore targetとundo bookmarkを確認して実施する。

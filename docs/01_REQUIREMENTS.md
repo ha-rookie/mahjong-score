@@ -4,7 +4,7 @@
 この文書は「何を満たすべきか」の正本とする。実装方法はArchitecture / Design文書へ分離する。
 
 ## 2. 対象ユーザー
-Phase 1はRepository owner本人。将来は普段一緒に三麻をする固定GroupのMemberへ拡張する。
+Phase 1はRepository owner本人。Phase 2では普段一緒に三麻をする固定GroupのMemberへ拡張済み。
 
 ## 3. 解決する課題
 仲間内の三麻について、卓上で入力負荷を増やしすぎず、半荘結果・Chip・Session・月間・年間・通算成績と印象的な出来事を継続して記録・振り返れるようにする。
@@ -79,7 +79,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | REQ-006 | 入力順を順位とし、1位Scoreは残りから自動計算する | Must | 同Scoreでも入力順で順位確定 | Active |
 | REQ-007 | 負Score Pointを許可する | Must | negative score pointを拒否しない | Active |
 | REQ-008 | ChipはSession終了時にPlayer別net枚数を入力し合計0を必須とする | Must | balance validation | Active |
-| REQ-009 | 1 Chip = 5pointとしてOverall Scoreへ反映 | Must | calculation test | Planned |
+| REQ-009 | 1 Chip = 5pointとしてOverall Scoreへ反映 | Must | calculation test | Active |
 | REQ-010 | GameTag | Deferred | Phase 1 UIから除外。利用方法を再定義してから再検討 | Deferred |
 | REQ-011 | Session Memoを保持 | Should | Session単位のoptional memoを保存できる。Player別Memo UIは本人識別・認可導入まで延期 | Active |
 | REQ-012 | JSON Backup/Restore | Must | 管理者のみ利用可能。schema version付きexport/import。復元前に確認し、不正ファイルでは既存Dataを変更しない | Active |
@@ -99,16 +99,20 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 
 ## 9. Data / External Information
 
-- Phase 1の麻雀DataはBrowser localStorageへ保存する
+- Phase 1 legacy dataはBrowser localStorageに残る場合がある
+- Phase 2 runtimeのsource of truthはCloudflare D1
+- localStorage -> D1 migrationはSystem Adminが明示的に実行する
 - 実在MemberのSample DataをPublic Repositoryへcommitしない
-- Phase 1 Runtimeは外部APIへ麻雀Dataを送信しない
-- Phase 2でD1へ移行可能なstable ID / schema versionを持つ
+- LINE LoginのChannel Secret / application session secretをPublic Repositoryへ保存しない
+- D1のGroup / Player / Session / Game等はstable IDを維持する
 
 ## 10. 制約
 
 - Frontend: React + TypeScript + Vite
-- Hosting: Cloudflare Workers + Static Assets
-- Phase 1: no auth / no D1 / no Worker API
+- Hosting / API: Cloudflare Workers + Static Assets
+- Database: Cloudflare D1
+- Authentication: LINE Login
+- Authorization: Worker API側でSystem Admin / Group Admin / Memberを強制
 - Deploy: GitHub Actions + Wrangler
 - Public RepositoryへSecretを保存しない
 
@@ -154,3 +158,18 @@ Phase 1:
 | TBD-005 | Phase 1で複数Groupを扱うUI | Human | Resolved: 複数Group所属時のみHomeに切替UIを表示。Group作成は管理者のみ（Phase 1の認証・認可未実装のため初回セットアップ以外の作成UIは提供しない） |
 
 未決事項をAIが推測で確定しない。
+
+
+## 13. Phase 2 Completion Mapping
+
+Phase 2 requirementの実装状態:
+- Authentication: LINE Login実装済み
+- Group authorization: API-side enforcement実装済み
+- User / Player separation: D1 modelで実装済み
+- Invitation / linking: one-time invitation + existing User management API実装済み
+- Multi-device: D1共有 + active Session manual refresh実装済み
+- Concurrency: Session / Game versionによる409 stale_update実装済み
+- Audit: Worker structured audit log + request correlation実装済み
+- Security Headers: Production smokeで検証済み
+- Recoverability: D1 Time Travel runbook + Preview recovery rehearsal実施済み
+- PWA: Phase 3以降へDeferred（Issue #160）

@@ -84,9 +84,8 @@ Phase 2では個人端末内の記録アプリから、固定Groupの複数Membe
 6. Admin / Member authorization enforcement
 7. multi-device sync / concurrency / audit log
 
-PWAは上記基盤と並行可能な独立Featureとして扱い、server dataのoffline write/syncは初期範囲に含めない。
+PWAはPhase 2完了条件から外し、Phase 3以降の独立FeatureとしてDeferredする。server dataのoffline write/syncはPWA再開時にも初期範囲へ含めない。
 
-- PWA（Manifest / App Icon / Service Worker / installability / standalone / static asset cache）
 - Authentication
 - Group authorization / Admin・Member role
 - Worker API
@@ -96,7 +95,7 @@ PWAは上記基盤と並行可能な独立Featureとして扱い、server data�
 - server audit log
 - Group作成とBackup / RestoreのAdmin限定化
 
-初期PWAではD1/APIデータのoffline write/syncを行わない。offline data synchronizationは競合解決設計と合わせて別途判断する。
+PWA backlog: Issue #160。Manifest / App Icon / Service Worker / installability / standalone / static asset cacheをPhase 3以降で再検討する。D1/API dataのoffline write/syncは別設計とする。
 
 ## Technology
 

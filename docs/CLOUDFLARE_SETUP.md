@@ -177,3 +177,26 @@ Production用Functions/Workers/BindingsをDesign Previewへ混入させない。
 - `SECURITY_BASELINE.md`: Recommended Security Headers / Production実測
 - `PUBLIC_WEB_QUALITY.md`: SEO / Search Console / Public Trust / index判断
 - `RELEASE_CHECKLIST.md`: Production verification / Release完了条件
+
+
+## 15. Mahjong Score Phase 2 Gate
+
+Phase 2ではD1導入前に次を完了する。
+
+1. Worker Previewsをbranch検証面として構成する
+2. PreviewをCloudflare Accessで保護する
+3. Production / PreviewのBindingsを分離する
+4. Preview D1とProduction D1を別databaseとして作成する前提を確認する
+5. GitHub ActionsのCloudflare tokenにD1操作の必要最小権限を追加する場合は、既存Workers deploy権限を壊さないことを確認する
+
+### Access scope
+
+初期GateではPreview保護を必須とする。Production全面保護はLINE Login導入前の利用継続性に影響するためHuman decisionとし、無断で切り替えない。
+
+### D1 isolation
+
+Worker PreviewはD1を自動分離しない。同じdatabase_idを指定したPreview同士は同じrowを共有するため、PreviewはProductionとは別のD1 resourceへbindingする。
+
+### Current repository gap
+
+現行 `wrangler.jsonc` はProduction static assetsのみで、`previews` / D1 bindingは未設定。D1 resource IDが存在しない段階では架空IDをRepositoryへ追加しない。

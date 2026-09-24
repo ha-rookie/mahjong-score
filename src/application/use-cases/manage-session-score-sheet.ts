@@ -18,7 +18,11 @@ export class UpdateGameUseCase {
 }
 export class DeleteGameUseCase {
   constructor(private readonly games:GameRepository){}
-  execute(gameId:GameId):Promise<Result<void>>{return this.games.remove(gameId);}
+  async execute(gameId:GameId):Promise<Result<void>>{
+    const found=await this.games.findById(gameId);if(!found.ok)return found;
+    if(!found.value)return err(new AppError({code:"game_not_found",message:"Game not found.",userMessage:"半荘が見つかりません。"}));
+    return this.games.remove(gameId,found.value.version);
+  }
 }
 export class DeleteSessionUseCase {
   constructor(private readonly sessions:SessionRepository,private readonly games:GameRepository){}
@@ -26,7 +30,7 @@ export class DeleteSessionUseCase {
     const found=await this.sessions.findById(sessionId);if(!found.ok)return found;
     if(!found.value)return err(new AppError({code:"session_not_found",message:"Session not found.",userMessage:"Sessionが見つかりません。"}));
     const removedGames=await this.games.removeBySession(sessionId);if(!removedGames.ok)return removedGames;
-    return this.sessions.remove(sessionId);
+    return this.sessions.remove(sessionId,found.value.version);
   }
 }
 export class UpdateSessionDetailsUseCase {

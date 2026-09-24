@@ -152,7 +152,19 @@ UserとPlayerは別Entityのまま、Group内Playerを必要に応じてUserへ�
 招待先の本人確認方法、招待tokenの有効期限・再送・取消はAuthentication方式決定時に具体化する。
 
 ### Concurrency
-D1移行時は更新対象にversionまたはupdatedAt等の競合検知情報を持たせ、古い状態からの更新を黙って上書きしない。
+D1のSession / Gameは既存のinteger `version` を楽観ロックに使用する。
+
+- read APIは `version` を返す
+- Session更新・Game更新はclientが `expectedVersion` を送る
+- UPDATEは `WHERE id=? AND version=?` を必須とし、成功時に `version=version+1`
+- Game/Session削除も同じversion条件を要求する
+- version不一致はHTTP 409 / `stale_update` とし、後勝ち上書きを行わない
+- Gameのresults/tags置換は同じversion条件下でD1 batch内にまとめる
+- finalized Session配下のGameは更新・削除不可
+- Session削除はD1 FK cascadeを正規経路とし、Game一括DELETE APIは使用しない
+- 新規Game同時追加は `UNIQUE(session_id,sequence)` でも競合を検出する
+
+Group/Player等、現時点で通常UIから更新しないEntityのversion利用は将来の更新機能追加時に同じ方式へ揃える。
 
 
 ## 9. Phase 2 D1 Physical Schema

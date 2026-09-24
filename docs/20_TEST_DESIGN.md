@@ -199,3 +199,14 @@ Requirement
 - 0ptで表示崩れしないこと
 - 期間切替後の集計値とグラフ値が一致すること
 - 3〜5人程度のスマホ幅でPlayer名と数値が判読できること
+
+
+### Phase 2 optimistic concurrency
+- Session readでversionを取得し、更新時にexpectedVersionを送ること
+- 同じSession versionで2回更新した場合、先行更新のみ成功し後続は409 stale_updateになること
+- stale Session更新時にmemo/chip child rowsを変更しないこと
+- Game readでversionを取得し、訂正時にexpectedVersionを送ること
+- stale Game訂正時にGameResult/GameTagを変更しないこと
+- stale Game/Session削除は409となり対象Dataを削除しないこと
+- 正常なSession/Game更新時にversionが1増えること
+- finalized Session配下のGame訂正/削除を拒否すること

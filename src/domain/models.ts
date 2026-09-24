@@ -43,6 +43,7 @@ export interface ChipResult {
 
 export interface Session {
   readonly id: SessionId;
+  readonly version?: number;
   readonly groupId: GroupId;
   readonly sessionDate: IsoDate;
   readonly startedAt: IsoDateTime;
@@ -74,6 +75,7 @@ export interface GameResult {
 
 export interface Game {
   readonly id: GameId;
+  readonly version?: number;
   readonly sessionId: SessionId;
   readonly segmentId: SegmentId;
   readonly sequence: number;

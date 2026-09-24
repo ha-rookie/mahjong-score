@@ -61,3 +61,13 @@ Phase 2 API is same-origin under `/api`. Static SPA requests continue through th
 | GET | /api/groups/:groupId/players | Active players in a Group |
 
 This first slice is intentionally read-only. Browser persistence remains localStorage until write API, migration/import, authentication, and server-side authorization are ready. SQL values use bind parameters.
+
+
+## 8. Worker API write baseline
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | /api/groups | Create Group in D1 |
+| POST | /api/groups/:groupId/players | Create Player and Group link atomically |
+
+The write baseline exists for repository/API integration work but is **not yet wired to the browser UI**. Until LINE Login and server-side Group authorization are implemented, Production UI remains on localStorage and does not call these write endpoints. IDs/timestamps are supplied by the application layer to preserve the existing domain contract. Duplicate/constraint failures return HTTP 409.

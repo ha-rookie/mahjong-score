@@ -191,3 +191,26 @@ System Admin management API foundation:
 - `PATCH /api/admin/groups/:groupId/users/:userId`: create/update Group role and optionally link/unlink the User to a Player in that Group
 
 Invitation URL issuance and invite-token consumption are a later slice. Once an initial System Admin exists, an unrelated LINE-authenticated User with no valid invitation remains authenticated at the LINE layer but has no Group access.
+
+
+## 16. Player invitation flow
+
+Player invitation is a one-time, Group-scoped flow.
+
+- System Admin and Group Admin can issue invitations
+- An invitation targets one active Player in one Group
+- The invite URL is valid for 7 days and can be used once
+- Issuing a new invite for the same Player revokes the previous active invite
+- The raw invite token is returned only at issuance time; D1 stores only a SHA-256 token hash
+- LINE Login carries the invite token through the short-lived authentication cookie
+- After LINE identity verification, the User is linked to the target Player and receives a `member` Group membership
+- If the User is already a `group_admin`, accepting an invite does not downgrade that role
+- A User already linked to another Player in the same Group cannot consume a conflicting invite
+- A Player already linked to another User cannot be invited
+
+Invitation management endpoints:
+- `POST /api/groups/:groupId/players/:playerId/invitations`: issue a new one-time invite
+- `GET /api/groups/:groupId/invitations`: list invitation history without raw tokens
+- `DELETE /api/invitations/:invitationId`: revoke an unused invitation
+
+The application header exposes invitation management to System Admin and Group Admin. Existing Phase 1 localStorage Groups/Players are not automatically copied to D1; invitation issuance for those existing Players depends on the upcoming persistence migration/sync step.

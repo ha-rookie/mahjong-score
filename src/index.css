@@ -693,3 +693,20 @@ h2 {
   .auth-bootstrap-button{order:3}
   .auth-status__error{display:none}
 }
+
+
+.auth-status__notice{flex-basis:100%;color:var(--teal-dark);font-size:.65rem;text-align:right}
+.invite-dialog{text-align:left}
+.invite-dialog>p{margin-top:8px}
+.invite-field{display:grid;gap:6px;margin:14px 0;color:var(--muted);font-size:.78rem;font-weight:800}
+.invite-field select{min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface-strong);color:var(--text)}
+.invite-player-list{display:grid;gap:8px;margin-top:12px}
+.invite-player-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.invite-player-row>span:first-child{font-weight:800}
+.invite-player-row button,.invite-result button{min-height:38px;padding:7px 10px;border:1px solid rgb(23 107 87 / 18%);border-radius:9px;background:var(--surface-strong);color:var(--teal-dark);font-weight:800}
+.invite-linked{color:var(--muted);font-size:.72rem;font-weight:700}
+.invite-result{display:grid;gap:8px;margin-top:18px;padding:14px;border:1px solid rgb(23 107 87 / 14%);border-radius:10px;background:var(--teal-soft)}
+.invite-result strong{color:var(--teal-dark)}
+.invite-result textarea{min-height:88px;resize:none;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--surface-strong);color:var(--text);font-size:.72rem;line-height:1.45}
+.invite-empty{margin:12px 0;padding:12px;border-radius:9px;background:rgb(40 42 40 / 5%);color:var(--muted);font-size:.82rem;line-height:1.6}
+.invite-dialog__actions{grid-template-columns:1fr;margin-top:18px}

@@ -220,3 +220,11 @@ Requirement
 - 更新API失敗時は未保存入力を保持すること
 - 他端末でSessionがfinalized済みの場合、active Session表示を終了すること
 - smartphone幅で日付と更新ボタンが重ならないこと
+
+
+### Toast notifications
+- success/status message表示でmainコンテンツのY座標が変化しないこと
+- status messageは約3秒で自動消去すること
+- error messageは自動消去せず閉じる操作ができること
+- smartphone幅でheaderとtoastが重ならないこと
+- role=status / role=alertが維持されること

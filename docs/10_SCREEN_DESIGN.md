@@ -230,3 +230,10 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 未保存入力がある場合のみ確認Dialogを表示し、明示確認後に破棄する
 - 更新失敗時は現在の未保存入力を保持する
 - 他端末でSession終了済みの場合は対局中画面を閉じる
+
+
+## Toast notifications
+- 成功/状態通知とエラー通知は本文レイアウトを押し下げないfixed toastとして表示する
+- 成功通知は約3秒で自動消去する
+- エラー通知は利用者が閉じるまで保持する
+- 通知はheader直下の画面上部に重ねて表示し、SCORE SHEET等の位置を変えない

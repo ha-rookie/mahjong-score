@@ -233,3 +233,19 @@ Existing Phase 1 data is migrated explicitly by the System Admin from the browse
 D1 runtime repositories now support the operations required by the current UI: Session read/update/delete, Segment lookup/update, and Game read/create/update/delete.
 
 While D1 is active, the Phase 1 JSON backup/restore buttons are hidden because they operate on the legacy localStorage snapshot. A dedicated D1 backup/restore flow is a separate follow-up.
+
+
+## 18. iOS Home Screen web app and LINE Login state
+
+iOS Home Screen web apps can open out-of-scope authentication URLs in a Safari view. The web app and that browser context must not depend on sharing a transient OAuth cookie.
+
+For LINE Login, the application therefore stores the one-time OAuth state server-side in D1:
+
+- the browser receives only a random `state` value
+- D1 stores only a SHA-256 hash of that state, the OIDC nonce, optional invitation ID, expiry, and consumed timestamp
+- the callback validates the returned `state` against D1 and atomically marks it consumed
+- the state expires after 10 minutes and is single-use
+- invitation context is carried by invitation ID in the server-side state record, not a browser cookie
+- ID token nonce verification remains mandatory
+
+This specifically avoids the previous `Invalid LINE Login state` failure observed when iOS `Open as Web App` caused the callback to execute in a browser context that did not share the transient `mahjong_line_auth` cookie.

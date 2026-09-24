@@ -670,3 +670,26 @@ h2 {
 .home-hero__group-line{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 28px}.home-hero__group-line .home-hero__meta{margin:0;min-width:0}.group-switcher{display:flex;align-items:center;gap:6px;flex:0 0 auto}.group-switcher span{font-size:.7rem;color:var(--muted);font-weight:700}.group-switcher select{max-width:150px;min-height:38px;padding:5px 26px 5px 8px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--teal-dark);font:inherit;font-size:.8rem;font-weight:750}@media(max-width:380px){.home-hero__group-line{align-items:flex-start;flex-direction:column}.group-switcher{width:100%}.group-switcher select{max-width:none;flex:1}}
 
 .backup-description{margin:0 0 12px;color:var(--muted);font-size:.84rem;line-height:1.6}.backup-actions{display:flex;gap:8px;flex-wrap:wrap}.backup-file-input{display:none}
+
+
+.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.auth-status{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.auth-status--loading{color:var(--muted);font-size:.72rem;font-weight:700}
+.auth-status__identity{display:flex;align-items:center;gap:6px;min-width:0}
+.auth-status__name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem;font-weight:800;color:var(--text)}
+.auth-status__role{display:inline-grid;place-items:center;min-height:24px;padding:0 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-dark);font-size:.64rem;font-weight:850}
+.auth-status__role--pending{background:rgb(40 42 40 / 7%);color:var(--muted)}
+.auth-login-button,.auth-bootstrap-button,.auth-logout-button{min-height:34px;padding:6px 10px;border-radius:9px;font:inherit;font-size:.7rem;font-weight:800;cursor:pointer}
+.auth-login-button{border:0;background:#06c755;color:#fff}
+.auth-bootstrap-button{border:1px solid rgb(23 107 87 / 20%);background:var(--surface);color:var(--teal-dark)}
+.auth-logout-button{border:0;background:transparent;color:var(--muted)}
+.auth-login-button:disabled,.auth-bootstrap-button:disabled,.auth-logout-button:disabled{opacity:.45;cursor:not-allowed}
+.auth-status__error{flex-basis:100%;color:var(--danger);font-size:.65rem;text-align:right}
+@media(max-width:520px){
+  .app-header__inner{align-items:flex-start}
+  .header-actions{gap:4px}
+  .auth-status{max-width:210px;gap:4px}
+  .auth-status__name{max-width:88px}
+  .auth-bootstrap-button{order:3}
+  .auth-status__error{display:none}
+}

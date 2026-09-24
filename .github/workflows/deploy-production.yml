@@ -43,11 +43,11 @@ jobs:
       - name: Validate static security headers artifact
         run: |
           set -eu
-          test -f dist/_headers
-          grep -q "Content-Security-Policy:" dist/_headers
-          grep -q "Strict-Transport-Security:" dist/_headers
-          grep -q "X-Frame-Options: DENY" dist/_headers
-          grep -q "X-Content-Type-Options: nosniff" dist/_headers
+          test -f dist/client/_headers
+          grep -q "Content-Security-Policy:" dist/client/_headers
+          grep -q "Strict-Transport-Security:" dist/client/_headers
+          grep -q "X-Frame-Options: DENY" dist/client/_headers
+          grep -q "X-Content-Type-Options: nosniff" dist/client/_headers
 
       - name: Validate D1 migrations locally
         run: npm run db:migrate:local

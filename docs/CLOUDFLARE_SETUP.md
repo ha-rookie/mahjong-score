@@ -199,4 +199,4 @@ Worker PreviewはD1を自動分離しない。同じdatabase_idを指定したPr
 
 ### Current repository gap
 
-現行 `wrangler.jsonc` はProduction static assetsのみで、`previews` / D1 bindingは未設定。D1 resource IDが存在しない段階では架空IDをRepositoryへ追加しない。
+`wrangler.jsonc` で `preview_urls: true` と空の `previews` blockを明示し、Worker Previewsの基盤を有効化する。D1 resource IDが存在しない段階では架空IDをRepositoryへ追加しない。WranglerはWorker Previews対応の4.135.0を使用する。

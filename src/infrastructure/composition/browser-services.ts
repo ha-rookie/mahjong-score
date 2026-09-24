@@ -42,7 +42,7 @@ export type PersistenceMode = "local" | "d1";
 export const getBrowserPersistenceMode = ():PersistenceMode => {
   const explicit=window.localStorage.getItem(PERSISTENCE_MODE_KEY);
   if(explicit==="d1")return "d1";
-  return window.localStorage.getItem(APP_DATA_STORAGE_KEY)===null?"d1":"local";
+  return "local";
 };
 
 export const createBrowserServices = () => {

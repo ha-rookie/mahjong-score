@@ -118,16 +118,21 @@ User
 - displayName: UI表示用
 - createdAt / updatedAt
 
+### System role
+- `users.system_role`: `admin | user`
+- System Adminは全Groupを管理できる
+
 ### GroupMembership
 - groupId
 - userId
-- role: admin | member
+- role: `group_admin | member`
 - createdAt / updatedAt
 - 同一Group/Userの重複Membershipは禁止
 
 ### Role semantics
-- admin: Group設定、Member管理、Group作成に関する管理操作、Backup / Restore、通常の麻雀操作
-- member: Session / Game / Chip / Memo / History / Performance等の通常操作
+- System Admin: Group作成、Membership/User/Player管理等のsystem-wide管理操作
+- Group Admin: 対象Groupの招待管理およびAPIで明示的に許可されたGroup管理操作
+- Member: Session / Game / Chip / Memo / History / Performance等の通常操作
 
 Group resourceへのread/writeは、Frontend表示状態ではなくWorker API側でMembershipを確認して許可する。
 
@@ -149,7 +154,13 @@ UserとPlayerは別Entityのまま、Group内Playerを必要に応じてUserへ�
 4. 既存Userを紐付ける場合も対象GroupのMembershipを作成または確認する
 5. Admin自身を含め、同一Group内のPlayer/User重複紐付けは禁止する
 
-招待先の本人確認方法、招待tokenの有効期限・再送・取消はAuthentication方式決定時に具体化する。
+Invitationは実装済み。
+- raw tokenは43文字base64url相当のrandom値
+- D1にはSHA-256 hashのみ保存
+- 有効期限は7日
+- 同一Playerへ新規発行すると既存の未使用Invitationをrevoke
+- used_at / revoked_atでsingle-useと取消を管理
+- LINE Login stateへinvitation IDをserver-sideで紐付ける
 
 ### Concurrency
 D1のSession / Gameは既存のinteger `version` を楽観ロックに使用する。
@@ -169,14 +180,39 @@ Group/Player等、現時点で通常UIから更新しないEntityのversion利�
 
 ## 9. Phase 2 D1 Physical Schema
 
-Initial migration: `migrations/0001_initial.sql`.
+Migrations:
+- `0001_initial.sql`: gameplay core tables
+- `0002_auth_foundation.sql`: User / ExternalIdentity / GroupMembership
+- `0003_group_player_user_link.sql`: Group-Player-User linking
+- `0004_system_group_roles.sql`: system / group roles
+- `0005_player_invitations.sql`: one-time invitation data
+- `0006_line_login_states.sql`: server-side LINE OAuth state / nonce
 
-Phase 1 aggregate JSON is normalized into core D1 tables for Group, Player, Session, Segment, Game and child results.
+Phase 1 aggregate JSON is normalized into D1 tables for Group, Player, Session, Segment, Game and child results, plus authentication/authorization entities.
 
-- Existing domain IDs remain primary keys so historical references can be migrated unchanged.
-- Game result rank and segment player order are persisted explicitly.
-- Mutable roots use integer `version` as the optimistic-concurrency foundation.
-- Player `user_id` is nullable: Player may exist without login linkage.
-- User/ExternalIdentity FK is intentionally deferred until LINE Login.
-- GameTag compatibility is retained although its UI remains deferred.
-- Apply migrations to Preview first; apply the same migration to Production only after verification.
+- Existing domain IDs remain primary keys so historical references can be migrated unchanged
+- Game result rank and segment player order are persisted explicitly
+- Mutable Session / Game roots use integer `version` for optimistic concurrency
+- `group_players.user_id` is nullable: Player may exist without login linkage
+- User and LINE provider subject are separated by `external_identities`
+- Invitation raw token is not stored; only token hash is persisted
+- LINE state is short-lived, single-use, and stored server-side
+- GameTag compatibility is retained although its UI remains deferred
+- Preview migration is applied/validated before Production migration
+
+## 10. Phase 2 Runtime Source of Truth / Legacy Data
+
+- D1 modeのsource of truthはCloudflare D1
+- Phase 1 localStorageはlegacy migration source / rollback evidenceとして残る場合がある
+- System Adminのみ `POST /api/admin/migrate-local-v1` で明示移行する
+- D1 gameplay tablesが空でない場合はmigrationを拒否する
+- migration成功後はD1 modeへ切り替える
+- D1 modeではlegacy JSON backup/restore UIをruntime recoveryとして使用しない
+
+## 11. Recovery
+
+- Primary point-in-time recoveryはD1 Time Travel
+- Production restoreはHuman承認を必要とする
+- Preview DBでrecovery rehearsalを実施済み
+- 詳細は `21_D1_RECOVERY_RUNBOOK.md`
+

@@ -244,3 +244,16 @@ Requirement
 - Session削除、Invitation発行/取消、Player/User unlink、Membership変更、Admin bootstrap、migration等の重要操作成功が記録されること
 - Audit LogにOAuth/LINE token、Invitation token、Cookie、request body、Memo本文、displayNameを含めないこと
 - requestIdはCF-Rayを優先し、存在しない場合はUUIDへfallbackすること
+
+
+### Phase 2 Production Security Headers
+- Vite build後に `dist/_headers` が存在すること
+- Production rootでContent-Security-Policyが返ること
+- CSPに `frame-ancestors 'none'` が含まれること
+- Strict-Transport-Securityが `max-age=31536000` で返ること
+- X-Frame-OptionsがDENYであること
+- X-Content-Type-Optionsがnosniffであること
+- Referrer-Policyがstrict-origin-when-cross-originであること
+- Permissions-Policyが返ること
+- X-Permitted-Cross-Domain-Policiesがnoneであること
+- Headerが欠落したProduction deployはpost-deploy smokeで失敗すること

@@ -121,7 +121,7 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
  }
  if(request.method==="DELETE"&&details){
    const id=decodeURIComponent(details[1]),sg=await sessionGroup(env,id);
-   if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);
+   if(!sg||!await canInvite(env,authUserId,sg.groupId))return bad("forbidden","System Admin or Group Admin required",403);
    await env.DB.prepare("DELETE FROM sessions WHERE id=?").bind(id).run();
    return new Response(null,{status:204});
  }

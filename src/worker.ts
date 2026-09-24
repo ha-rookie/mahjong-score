@@ -72,24 +72,29 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
    }
    if(request.method==="PUT"){
      if(base.status!=="active")return bad("session_not_active","Finalized Session is read-only",409);
-     const b=await body(request),segmentId=textValue(b?.segmentId),playedAt=textValue(b?.playedAt),sequence=typeof b?.sequence==="number"?b.sequence:null,results=Array.isArray(b?.results)?b.results:[],tags=Array.isArray(b?.tags)?b.tags:[];
+     const b=await body(request),segmentId=textValue(b?.segmentId),playedAt=textValue(b?.playedAt),sequence=typeof b?.sequence==="number"?b.sequence:null,expectedVersion=typeof b?.expectedVersion==="number"&&Number.isInteger(b.expectedVersion)&&b.expectedVersion>0?b.expectedVersion:null,results=Array.isArray(b?.results)?b.results:[],tags=Array.isArray(b?.tags)?b.tags:[];
      const parsed=results.map((v,i)=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {playerId:textValue(o.playerId),scorePoint:typeof o.scorePoint==="number"&&Number.isInteger(o.scorePoint)?o.scorePoint:null,rank:i+1}});
      const parsedTags=tags.map((v,i)=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {type:o.type==="yakuman"||o.type==="double-yakuman"?o.type:null,playerId:o.playerId===null?null:textValue(o.playerId),order:i+1}});
-     if(!segmentId||!playedAt||!Number.isInteger(sequence)||!parsed.length||parsed.some(v=>!v.playerId||v.scorePoint===null)||parsed.reduce((n,v)=>n+(v.scorePoint??0),0)!==0||parsedTags.some(v=>!v.type))return bad("invalid_game","Game payload is invalid");
+     if(!segmentId||!playedAt||!Number.isInteger(sequence)||expectedVersion===null||!parsed.length||parsed.some(v=>!v.playerId||v.scorePoint===null)||parsed.reduce((n,v)=>n+(v.scorePoint??0),0)!==0||parsedTags.some(v=>!v.type))return bad("invalid_game","Game payload is invalid");
      try{
-       await env.DB.batch([
-         env.DB.prepare("UPDATE games SET segment_id=?,sequence=?,played_at=? WHERE id=?").bind(segmentId,sequence,playedAt,gameId),
-         env.DB.prepare("DELETE FROM game_results WHERE game_id=?").bind(gameId),
-         ...parsed.map(v=>env.DB.prepare("INSERT INTO game_results(game_id,player_id,rank,score_point) VALUES(?,?,?,?)").bind(gameId,v.playerId,v.rank,v.scorePoint)),
-         env.DB.prepare("DELETE FROM game_tags WHERE game_id=?").bind(gameId),
-         ...parsedTags.map(v=>env.DB.prepare("INSERT INTO game_tags(game_id,tag_order,type,player_id) VALUES(?,?,?,?)").bind(gameId,v.order,v.type,v.playerId)),
+       const activeVersionSql="EXISTS(SELECT 1 FROM games gx JOIN sessions sx ON sx.id=gx.session_id WHERE gx.id=? AND gx.version=? AND sx.status='active')";
+       const rs=await env.DB.batch([
+         env.DB.prepare(`DELETE FROM game_results WHERE game_id=? AND ${activeVersionSql}`).bind(gameId,gameId,expectedVersion),
+         ...parsed.map(v=>env.DB.prepare(`INSERT INTO game_results(game_id,player_id,rank,score_point) SELECT ?,?,?,? WHERE ${activeVersionSql}`).bind(gameId,v.playerId,v.rank,v.scorePoint,gameId,expectedVersion)),
+         env.DB.prepare(`DELETE FROM game_tags WHERE game_id=? AND ${activeVersionSql}`).bind(gameId,gameId,expectedVersion),
+         ...parsedTags.map(v=>env.DB.prepare(`INSERT INTO game_tags(game_id,tag_order,type,player_id) SELECT ?,?,?,? WHERE ${activeVersionSql}`).bind(gameId,v.order,v.type,v.playerId,gameId,expectedVersion)),
+         env.DB.prepare("UPDATE games SET segment_id=?,sequence=?,played_at=?,version=version+1 WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM sessions WHERE id=games.session_id AND status='active')").bind(segmentId,sequence,playedAt,gameId,expectedVersion),
        ]);
-       return json({ok:true});
+       const updated=rs[rs.length-1]?.meta.changes??0;if(updated!==1)return bad("stale_update","Game was updated by another client",409);
+       return json({ok:true,version:expectedVersion+1});
      }catch{return bad("game_update_failed","Game could not be updated",409);}
    }
    if(request.method==="DELETE"){
      if(base.status!=="active")return bad("session_not_active","Finalized Session is read-only",409);
-     await env.DB.prepare("DELETE FROM games WHERE id=?").bind(gameId).run();
+     const versionRaw=url.searchParams.get("version"),expectedVersion=versionRaw&&/^[0-9]+$/.test(versionRaw)?Number(versionRaw):null;
+     if(expectedVersion===null||expectedVersion<1)return bad("invalid_expected_version","version is required");
+     const deleted=await env.DB.prepare("DELETE FROM games WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM sessions WHERE id=games.session_id AND status='active')").bind(gameId,expectedVersion).run();
+     if((deleted.meta.changes??0)!==1)return bad("stale_update","Game was updated by another client",409);
      return new Response(null,{status:204});
    }
  }

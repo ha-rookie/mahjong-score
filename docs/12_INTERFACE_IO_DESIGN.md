@@ -71,3 +71,14 @@ This first slice is intentionally read-only. Browser persistence remains localSt
 | POST | /api/groups/:groupId/players | Create Player and Group link atomically |
 
 The write baseline exists for repository/API integration work but is **not yet wired to the browser UI**. Until LINE Login and server-side Group authorization are implemented, Production UI remains on localStorage and does not call these write endpoints. IDs/timestamps are supplied by the application layer to preserve the existing domain contract. Duplicate/constraint failures return HTTP 409.
+
+
+## 9. Session and Game write baseline
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | /api/groups/:groupId/sessions | Create active Session + initial participant segment |
+| POST | /api/sessions/:sessionId/games | Add a game result to an active Session |
+| PATCH | /api/sessions/:sessionId | Update memo/status/end time |
+
+Worker-side validation protects basic invariants (3/4 unique participants, active group membership, integer game points totaling zero, active Session on game creation). The browser UI remains localStorage-backed until authentication/authorization is enforced.

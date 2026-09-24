@@ -31,7 +31,6 @@ import {
 import { WorkerApiClient } from "../api";
 import { CryptoIdGenerator, SystemClock } from "../runtime";
 import {
-  APP_DATA_STORAGE_KEY,
   LocalStorageAppDataStore,
   WebStorageKeyValueStore,
 } from "../storage";

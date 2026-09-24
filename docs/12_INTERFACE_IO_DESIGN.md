@@ -94,3 +94,17 @@ Worker-side validation protects basic invariants (3/4 unique participants, activ
 ## 11. API repository adapter baseline
 
 `ApiGroupRepository` and `ApiPlayerRepository` implement the existing application repository ports over `WorkerApiClient`. Supported operations map only to endpoints already implemented; unsupported Player lookup/update operations fail explicitly rather than silently falling back to localStorage. These adapters are not yet composed into the browser runtime.
+
+
+## 12. LINE Login token/session flow
+
+The Worker completes the LINE Login v2.1 authorization-code flow server-side. The callback exchanges the authorization code for an ID token, verifies the ID token with LINE using the original nonce and Channel ID, upserts the LINE external identity/User in D1, and issues a 24-hour HttpOnly/Secure/SameSite=Lax application session cookie.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | /api/auth/line/start | Start LINE authorization with state + nonce |
+| GET | /api/auth/line/callback | Exchange code, verify ID token, upsert User, issue app session |
+| GET | /api/auth/me | Return current authenticated User |
+| POST | /api/auth/logout | Clear application session |
+
+All mutation APIs now require a valid application session. Group-level Admin/Member authorization remains the next enforcement layer. `LINE_CHANNEL_ID` is non-secret configuration. `LINE_CHANNEL_SECRET` and `AUTH_SESSION_SECRET` must be Cloudflare Worker secrets and must never be committed or captured in screenshots.

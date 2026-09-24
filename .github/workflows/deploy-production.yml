@@ -40,6 +40,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Validate static security headers artifact
+        run: |
+          set -eu
+          test -f dist/client/_headers
+          grep -q "Content-Security-Policy:" dist/client/_headers
+          grep -q "Strict-Transport-Security:" dist/client/_headers
+          grep -q "X-Frame-Options: DENY" dist/client/_headers
+          grep -q "X-Content-Type-Options: nosniff" dist/client/_headers
+
       - name: Validate D1 migrations locally
         run: npm run db:migrate:local
 
@@ -74,3 +83,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy
+
+      - name: Verify Production security headers
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://mahjong-score.ha-rookie.workers.dev/"
+          headers="$(curl -fsSI --retry 5 --retry-delay 2 --retry-all-errors "$url" | tr -d '\r')"
+          printf '%s\n' "$headers"
+          grep -Eqi "^content-security-policy: .*frame-ancestors 'none'" <<<"$headers"
+          grep -Eqi "^strict-transport-security: *max-age=31536000" <<<"$headers"
+          grep -Eqi "^x-frame-options: *DENY" <<<"$headers"
+          grep -Eqi "^x-content-type-options: *nosniff" <<<"$headers"
+          grep -Eqi "^referrer-policy: *strict-origin-when-cross-origin" <<<"$headers"
+          grep -Eqi "^permissions-policy:" <<<"$headers"
+          grep -Eqi "^x-permitted-cross-domain-policies: *none" <<<"$headers"

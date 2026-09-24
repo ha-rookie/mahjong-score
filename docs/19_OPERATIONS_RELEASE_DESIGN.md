@@ -27,6 +27,7 @@ CI
 - major assets
 - major flow
 - Security Headers
+  - main deploy後、GitHub ActionsがProduction rootをHEADし必須Headerを自動assert
 - API response（導入時）
 - intended index/noindex
 - analytics receive/exclude（採用時）

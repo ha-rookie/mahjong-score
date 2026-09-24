@@ -825,3 +825,46 @@ h2 {
   .member-link-panel{grid-template-columns:1fr}
   .member-link-panel button{width:100%}
 }
+
+
+/* Keep mobile app header on one line while making Back explicit. */
+.app-header__inner{flex-wrap:nowrap}
+.brand-lockup,.header-actions,.auth-status,.account-menu__summary,.header-back-button{white-space:nowrap}
+.brand-lockup{min-width:0;flex:1 1 auto}
+.header-actions{flex:0 0 auto;min-width:0}
+.header-back-button{
+  width:auto;
+  min-width:auto;
+  height:38px;
+  padding:0 7px;
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  border-radius:9px;
+  font-size:.76rem;
+  line-height:1;
+}
+.header-back-button__arrow{font-size:1.05rem;line-height:1}
+.header-back-button__label{font-size:.7rem;font-weight:800}
+.account-menu__summary{min-width:0}
+@media(max-width:520px){
+  .app-header__inner{gap:5px}
+  .brand-lockup{gap:6px}
+  .brand-mark{width:30px;height:30px}
+  .brand-name{font-size:.86rem}
+  .brand-subtitle{font-size:.46rem;letter-spacing:.08em}
+  .header-actions{gap:1px}
+  .header-back-button{height:34px;padding:0 4px;gap:2px}
+  .header-back-button__label{font-size:.66rem}
+  .account-menu__summary{max-width:74px;padding-inline:4px}
+  .account-menu__name{max-width:54px;font-size:.69rem}
+}
+@media(max-width:360px){
+  .brand-subtitle{display:none}
+  .brand-mark{width:28px;height:28px}
+  .brand-name{font-size:.82rem}
+  .header-back-button{padding-inline:3px}
+  .header-back-button__label{font-size:.62rem}
+  .account-menu__summary{max-width:62px}
+  .account-menu__name{max-width:44px}
+}

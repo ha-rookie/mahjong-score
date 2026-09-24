@@ -160,7 +160,7 @@ function App() {
   return <div className="app-shell">
     <header className="app-header"><div className="app-header__inner">
       <div className="brand-lockup"><img className="brand-mark" src="/mahjong-score-icon.png" alt="" aria-hidden="true"/><div className="brand-copy"><p className="brand-name">三麻スコア</p><p className="brand-subtitle">SANMA SCORE</p></div></div>
-      <div className="header-actions">{view!=="home"?<button className="header-back-button" type="button" aria-label="戻る" title="戻る" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}><span aria-hidden="true">←</span></button>:null}<AuthStatus /></div>
+      <div className="header-actions">{view!=="home"?<button className="header-back-button" type="button" aria-label="戻る" title="戻る" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}><span className="header-back-button__arrow" aria-hidden="true">←</span><span className="header-back-button__label">戻る</span></button>:null}<AuthStatus /></div>
     </div></header>
     <main className="page">
       {authState==="checking"?<section className="login-gate"><p className="screen-eyebrow">AUTHENTICATION</p><h1>ログイン状態を確認しています</h1><p>少し待ってください。</p></section>:

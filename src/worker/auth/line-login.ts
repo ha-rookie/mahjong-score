@@ -3,6 +3,7 @@ type LineToken={id_token?:string};
 type LineIdentity={sub?:string;name?:string};
 type LineError={error?:string;error_description?:string};
 type InviteRow={id:string;groupId:string;playerId:string;expiresAt:string};
+type LoginStateRow={nonce:string;invitationId:string|null};
 const enc=new TextEncoder();
 
 const base64url=(bytes:Uint8Array)=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
@@ -20,8 +21,8 @@ const activeInvitation=async(env:AuthEnv,token:string)=>{
   return env.DB.prepare("SELECT id,group_id AS groupId,player_id AS playerId,expires_at AS expiresAt FROM invitations WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?").bind(tokenHash,new Date().toISOString()).first<InviteRow>();
 };
 
-const redeemInvitation=async(env:AuthEnv,token:string,userId:string):Promise<"accepted"|"invalid"|"conflict">=>{
-  const invite=await activeInvitation(env,token);
+const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:string):Promise<"accepted"|"invalid"|"conflict">=>{
+  const invite=await env.DB.prepare("SELECT id,group_id AS groupId,player_id AS playerId,expires_at AS expiresAt FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?").bind(invitationId,new Date().toISOString()).first<InviteRow>();
   if(!invite)return "invalid";
   const existingLink=await env.DB.prepare("SELECT player_id AS playerId FROM group_players WHERE group_id=? AND user_id=?").bind(invite.groupId,userId).first<{playerId:string}>();
   if(existingLink&&existingLink.playerId!==invite.playerId)return "conflict";
@@ -54,36 +55,48 @@ export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID)return new Response("LINE Login is not configured",{status:503});
   const url=new URL(request.url),inviteToken=url.searchParams.get("invite");
   if(inviteToken&&!validInviteToken(inviteToken))return new Response("Invalid invitation",{status:400});
-  if(inviteToken&&!await activeInvitation(env,inviteToken))return new Response("Invitation is invalid or expired",{status:410});
-  const state=random(),nonce=random(),callback=new URL("/api/auth/line/callback",url.origin).toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
+  const invitation=inviteToken?await activeInvitation(env,inviteToken):null;
+  if(inviteToken&&!invitation)return new Response("Invitation is invalid or expired",{status:410});
+  const state=random(),nonce=random(),now=new Date(),expires=new Date(now.getTime()+10*60*1000),stateHash=await hashToken(state);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM line_login_states WHERE expires_at<? OR used_at IS NOT NULL").bind(now.toISOString()),
+    env.DB.prepare("INSERT INTO line_login_states(state_hash,nonce,invitation_id,expires_at,created_at) VALUES(?,?,?,?,?)").bind(stateHash,nonce,invitation?.id??null,expires.toISOString(),now.toISOString()),
+  ]);
+  const callback=new URL("/api/auth/line/callback",url.origin).toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
   to.search=new URLSearchParams({response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callback,state,scope:"profile openid",nonce}).toString();
-  const transient=[state,nonce,inviteToken??""].join(".");
-  return new Response(null,{status:302,headers:{location:to.toString(),"set-cookie":`mahjong_line_auth=${transient}; Path=/api/auth/line/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=600`}});
+  return new Response(null,{status:302,headers:{location:to.toString()}});
 };
 
 export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID||!env.LINE_CHANNEL_SECRET||!env.AUTH_SESSION_SECRET)return new Response("LINE Login is not configured",{status:503});
   const url=new URL(request.url);
   if(url.searchParams.get("error"))return new Response("LINE Login was cancelled",{status:401});
-  const code=url.searchParams.get("code"),state=url.searchParams.get("state"),auth=cookie(request,"mahjong_line_auth"),[expected,nonce,inviteToken]=auth?.split(".")??[];
-  if(!code||!state||!expected||!nonce||state!==expected)return new Response("Invalid LINE Login state",{status:400});
+  const code=url.searchParams.get("code"),state=url.searchParams.get("state");
+  if(!code||!state)return new Response("Invalid LINE Login state",{status:400});
+  const stateHash=await hashToken(state),now=new Date().toISOString();
+  const loginState=await env.DB.prepare("SELECT nonce,invitation_id AS invitationId FROM line_login_states WHERE state_hash=? AND used_at IS NULL AND expires_at>?").bind(stateHash,now).first<LoginStateRow>();
+  if(!loginState)return new Response("Invalid LINE Login state",{status:400});
+  const consumed=await env.DB.prepare("UPDATE line_login_states SET used_at=? WHERE state_hash=? AND used_at IS NULL").bind(now,stateHash).run();
+  if(consumed.meta.changes!==1)return new Response("Invalid LINE Login state",{status:400});
+
   const redirectUri=new URL("/api/auth/line/callback",url.origin).toString();
   const tokenResponse=await fetch("https://api.line.me/oauth2/v2.1/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:redirectUri,client_id:env.LINE_CHANNEL_ID,client_secret:env.LINE_CHANNEL_SECRET})});
   if(!tokenResponse.ok)return lineFailure(tokenResponse,"token_exchange");
   const token=await tokenResponse.json() as LineToken;
   if(!token.id_token)return new Response("LINE ID token missing",{status:401});
-  const verifyResponse=await fetch("https://api.line.me/oauth2/v2.1/verify",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({id_token:token.id_token,client_id:env.LINE_CHANNEL_ID,nonce})});
+  const verifyResponse=await fetch("https://api.line.me/oauth2/v2.1/verify",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({id_token:token.id_token,client_id:env.LINE_CHANNEL_ID,nonce:loginState.nonce})});
   if(!verifyResponse.ok)return lineFailure(verifyResponse,"id_token_verification");
   const identity=await verifyResponse.json() as LineIdentity;
   if(!identity.sub)return new Response("LINE subject missing",{status:401});
+
   let row=await env.DB.prepare("SELECT user_id AS userId FROM external_identities WHERE provider='line' AND provider_subject=?").bind(identity.sub).first<{userId:string}>();
-  const now=new Date().toISOString();
+  const updatedAt=new Date().toISOString();
   if(!row){
     const userId=crypto.randomUUID();
     try{
       await env.DB.batch([
-        env.DB.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(userId,identity.name??null,now,now),
-        env.DB.prepare("INSERT INTO external_identities(provider,provider_subject,user_id,created_at) VALUES('line',?,?,?)").bind(identity.sub,userId,now),
+        env.DB.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(userId,identity.name??null,updatedAt,updatedAt),
+        env.DB.prepare("INSERT INTO external_identities(provider,provider_subject,user_id,created_at) VALUES('line',?,?,?)").bind(identity.sub,userId,updatedAt),
       ]);
       row={userId};
     }catch{
@@ -91,17 +104,15 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
       if(!row)return new Response("User registration failed",{status:500});
     }
   }else if(identity.name){
-    await env.DB.prepare("UPDATE users SET display_name=?,updated_at=? WHERE id=?").bind(identity.name,now,row.userId).run();
+    await env.DB.prepare("UPDATE users SET display_name=?,updated_at=? WHERE id=?").bind(identity.name,updatedAt,row.userId).run();
   }
-  const inviteResult=inviteToken&&validInviteToken(inviteToken)?await redeemInvitation(env,inviteToken,row.userId):null;
+
+  const inviteResult=loginState.invitationId?await redeemInvitationById(env,loginState.invitationId,row.userId):null;
   const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET);
   const destination=new URL("/",url.origin);
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
-  const headers=new Headers({location:destination.toString()});
-  headers.append("set-cookie",`mahjong_session=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`);
-  headers.append("set-cookie","mahjong_line_auth=; Path=/api/auth/line/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=0");
-  return new Response(null,{status:302,headers});
+  return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"}});
 };
 
 export const authMe=async(request:Request,env:AuthEnv)=>{

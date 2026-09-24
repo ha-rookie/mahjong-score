@@ -170,3 +170,12 @@ Routes:
 D1 migration 0002 introduces `users`, `external_identities`, and `group_memberships`. Player remains independently creatable and `players.user_id` remains nullable.
 
 Secrets/config required later: `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.
+
+
+## 15. Initial administrator and authorization
+
+The first authenticated LINE User can claim the initial administrator role only while `group_memberships` is empty. The bootstrap creates or selects the single initial Group, links the User to a Player in that Group, and inserts an `admin` membership. After the first membership exists, bootstrap is closed to other Users.
+
+`group_players.user_id` is the per-Group User↔Player link. A User can therefore have at most one linked Player in each Group while still allowing different Player identities across different Groups.
+
+D1 API access now requires an application session. Group reads/writes are limited by Group membership, and Group/Player administration requires the `admin` role. The browser UI exposes LINE login/logout and the one-time initial administrator setup; Phase 1 localStorage data remains the active gameplay store until the dedicated migration/sync step.

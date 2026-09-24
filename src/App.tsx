@@ -149,6 +149,7 @@ function App() {
   ));
   const refreshActiveSession=async()=>{
     if(!group)return;
+    const scrollY=window.scrollY;
     setShowRefreshConfirm(false);setIsSessionRefreshing(true);setErrorMessage(null);setStatusMessage(null);
     const activeResult=await services.getActiveSession.execute(group.id);
     if(!activeResult.ok){setErrorMessage(activeResult.error.userMessage??"最新のSessionを読み込めませんでした。");setIsSessionRefreshing(false);return;}
@@ -162,6 +163,7 @@ function App() {
     setSessionNote(activeResult.value.session.note??"");
     setChipInputs(Object.fromEntries(activeResult.value.session.chipResults.map(x=>[x.playerId,String(x.chipCount)])));
     setStatusMessage("最新の状態に更新しました。");setIsSessionRefreshing(false);
+    window.requestAnimationFrame(()=>window.requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:"auto"})));
   };
   const requestSessionRefresh=()=>{if(hasUnsavedSessionInput)setShowRefreshConfirm(true);else void refreshActiveSession();};
   const parsedEntries=participantIds.map(id=>{

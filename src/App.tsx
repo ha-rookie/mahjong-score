@@ -32,8 +32,6 @@ function App() {
   const [historyGameCounts,setHistoryGameCounts]=useState<Record<string,number>>({});
   const [historyYear,setHistoryYear]=useState(new Date().getFullYear());
   const [historyMonth,setHistoryMonth]=useState(new Date().getMonth()+1);
-  const [historyYear,setHistoryYear]=useState(new Date().getFullYear());
-  const [historyMonth,setHistoryMonth]=useState(new Date().getMonth()+1);
   const [sessionPendingDelete,setSessionPendingDelete]=useState<Session|null>(null);
   const [performance,setPerformance]=useState<readonly PlayerPerformanceAggregate[]>([]);
   const [performancePeriod,setPerformancePeriod]=useState<"all"|"year"|"month">("all");
@@ -164,10 +162,6 @@ function App() {
     const m=new Map<string,number>();for(const g of games)for(const r of g.results)m.set(r.playerId,(m.get(r.playerId)??0)+r.scorePoint);return m;
   },[games]);
   const resultFor=(game:Game,id:string)=>game.results.find(r=>r.playerId===id)?.scorePoint;
-  const historySessionDates=new Set(history.map(s=>s.sessionDate));
-  const historyFirstWeekday=new Date(historyYear,historyMonth-1,1).getDay();
-  const historyDaysInMonth=new Date(historyYear,historyMonth,0).getDate();
-  const historyCalendarCells=Array.from({length:historyFirstWeekday+historyDaysInMonth},(_,i)=>i<historyFirstWeekday?null:i-historyFirstWeekday+1);
   const historySessionDates=new Set(history.map(s=>s.sessionDate));
   const historyFirstWeekday=new Date(historyYear,historyMonth-1,1).getDay();
   const historyDaysInMonth=new Date(historyYear,historyMonth,0).getDate();

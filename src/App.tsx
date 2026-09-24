@@ -92,6 +92,11 @@ function App() {
       setAppAuth(null);setIsLoading(false);setGroup(null);setGroups([]);setPlayers([]);setActiveSession(null);setGames([]);setHistory([]);setPerformance([]);
     }
   },[authState,refresh]);
+  useEffect(()=>{
+    if(!statusMessage)return;
+    const timer=window.setTimeout(()=>setStatusMessage(null),3000);
+    return()=>window.clearTimeout(timer);
+  },[statusMessage]);
 
   const playerNameById=(id:string)=>players.find(p=>p.id===id)?.displayName??"不明";
   const switchGroup=async(groupId:string)=>{if(groupId===group?.id)return;setSessionResults(null);setHistory([]);setHistoryGameCounts({});setPerformance([]);setStatusMessage(null);setErrorMessage(null);setView("home");await refresh(groupId);};
@@ -201,12 +206,14 @@ function App() {
       <div className="brand-lockup"><img className="brand-mark" src="/mahjong-score-icon.png" alt="" aria-hidden="true"/><div className="brand-copy"><p className="brand-name">三麻スコア</p><p className="brand-subtitle">SANMA SCORE</p></div></div>
       <div className="header-actions">{view!=="home"?<button className="header-back-button" type="button" aria-label="戻る" title="戻る" onClick={()=>{if(view==="results"){setSessionResults(null);setStatusMessage(null);setView(resultsBackView);}else setView("home");}}><span className="header-back-button__arrow" aria-hidden="true">←</span><span className="header-back-button__label">戻る</span></button>:null}<AuthStatus /></div>
     </div></header>
+    {(errorMessage||statusMessage)?<div className="toast-stack" aria-live="polite">
+      {errorMessage?<div className="toast toast--error" role="alert"><span>{errorMessage}</span><button type="button" aria-label="エラー通知を閉じる" onClick={()=>setErrorMessage(null)}>×</button></div>:null}
+      {statusMessage?<div className="toast" role="status"><span>{statusMessage}</span></div>:null}
+    </div>:null}
     <main className="page">
       {authState==="checking"?<section className="login-gate"><p className="screen-eyebrow">AUTHENTICATION</p><h1>ログイン状態を確認しています</h1><p>少し待ってください。</p></section>:
       authState==="unauthenticated"?<section className="login-gate"><p className="screen-eyebrow">WELCOME</p><h1>三麻スコアへログイン</h1><p>このアプリはLINEアカウントで利用者を確認します。招待を受けた方は、届いた招待URLからログインしてください。</p><button className="login-gate__button" type="button" onClick={()=>window.location.assign("/api/auth/line/start")}>LINEでログイン</button><p className="login-gate__note">ログイン前は、端末に残っている過去データやグループ情報を表示しません。</p></section>:
       <>
-      {errorMessage?<div className="notice notice--error" role="alert">{errorMessage}</div>:null}
-      {statusMessage?<div className="notice" role="status">{statusMessage}</div>:null}
       {isLoading?<div className="loading">記録を読み込んでいます…</div>:
       view==="results"&&sessionResults?<section className="score-session">
         <p className="screen-eyebrow">SESSION RESULTS</p><h1>{sessionResults.session.sessionDate}</h1>

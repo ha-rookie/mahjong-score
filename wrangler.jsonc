@@ -3,7 +3,22 @@
   "name": "mahjong-score",
   "compatibility_date": "2026-09-23",
   "preview_urls": true,
-  "previews": {},
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mahjong-score-prod",
+      "database_id": "95a84e69-692e-45f1-9762-0b71b298199b"
+    }
+  ],
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "mahjong-score-preview",
+        "database_id": "2494979f-57d5-4ba5-bde7-bc5ec674b8eb"
+      }
+    ]
+  },
   "assets": {
     "not_found_handling": "single-page-application"
   }

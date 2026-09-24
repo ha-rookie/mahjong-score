@@ -125,3 +125,18 @@ Production restoreを実施した場合は最低限:
 - follow-up Issue
 
 を残す。
+
+
+## 10. Phase 2 recovery rehearsal evidence
+
+2026-09-24 / GitHub Actions run #36072191864:
+
+- Preview D1 migrations: success
+- baseline bookmark capture: success
+- rehearsal probe creation / verification: success
+- Time Travel restore to baseline bookmark: success
+- post-restore probe absence verification: success
+- Production D1: not modified
+
+Evidence:
+https://github.com/ha-rookie/mahjong-score/actions/runs/36072191864

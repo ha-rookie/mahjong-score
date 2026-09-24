@@ -157,3 +157,16 @@ Cloudflare Accessはアプリ本体のAdmin/Member認証を代替しない。Pha
 - TBD-ARCH-001: Preview環境のCloudflare公開方法
 - TBD-ARCH-002: Resolved: Phase 2でPWA採用。初期範囲はManifest / App Icon / Service Worker / installability / standalone / static asset cache。業務データのoffline write/syncは排他・競合解決と合わせて将来判断
 - TBD-ARCH-003: Analytics採用
+
+
+## 14. Phase 2 LINE Login foundation
+
+Authentication uses LINE Login v2.1 web login (OAuth 2.0 authorization code + OpenID Connect). The Worker owns the callback and all secrets. Browser code never receives the LINE Channel Secret. Initial scopes are `profile openid`; email is not requested.
+
+Routes:
+- `GET /api/auth/line/start`: creates random state/nonce, stores them in a short-lived HttpOnly Secure SameSite=Lax cookie, redirects to LINE authorization
+- `GET /api/auth/line/callback`: currently validates callback state only. Token exchange, ID-token validation, User upsert and application session issuance are the next slice
+
+D1 migration 0002 introduces `users`, `external_identities`, and `group_memberships`. Player remains independently creatable and `players.user_id` remains nullable.
+
+Secrets/config required later: `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.

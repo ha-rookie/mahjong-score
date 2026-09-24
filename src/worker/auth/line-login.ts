@@ -114,7 +114,7 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   const destination=new URL("/",url.origin);
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
-  auditAuth(request,"line_login_success","success",{userId:row.userId,resourceType:loginState.invitationId?"invitation":undefined,resourceId:loginState.invitationId});
+  auditAuth(request,"line_login_success","success",{userId:row.userId,resourceType:"authentication",resourceId:loginState.invitationId});
   return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"}});
 };
 

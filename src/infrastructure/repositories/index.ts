@@ -4,3 +4,5 @@ export * from "./local-storage-player-repository";
 export * from "./local-storage-session-repository";
 export * from "./api-group-repository";
 export * from "./api-player-repository";
+export * from "./api-session-repository";
+export * from "./api-game-repository";

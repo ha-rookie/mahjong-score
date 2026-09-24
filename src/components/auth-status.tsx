@@ -54,7 +54,6 @@ export function AuthStatus() {
     }
   },[]);
 
-  const login=()=>{window.location.assign("/api/auth/line/start");};
   const logout=async()=>{setBusy(true);setError(null);try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"});setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:null}));}catch{setError("ログアウトできませんでした。");}setBusy(false);};
   const bootstrap=async()=>{setBusy(true);setError(null);try{const response=await fetch("/api/auth/bootstrap-admin",{method:"POST",credentials:"same-origin"});if(!response.ok){const payload=await response.json() as {error?:{message?:string}};throw new Error(payload.error?.message??"bootstrap");}const payload=await response.json() as AuthPayload;setAuth(payload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:payload}));}catch{setError("管理者の初期設定に失敗しました。");}setBusy(false);};
   const migrateToD1=async()=>{
@@ -74,7 +73,7 @@ export function AuthStatus() {
   };
 
   if(loading)return <div className="auth-status auth-status--loading">認証確認中</div>;
-  if(!auth)return <div className="auth-status">{error?<span className="auth-status__error">{error}</span>:null}<button className="auth-login-button" type="button" onClick={login}>LINEでログイン</button></div>;
+  if(!auth)return error?<div className="auth-status"><span className="auth-status__error">{error}</span></div>:null;
 
   const membership=auth.memberships[0]??null;
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";

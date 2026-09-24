@@ -36,6 +36,7 @@ export function AuthStatus() {
   const [selectedGroupId,setSelectedGroupId]=useState("");
   const [players,setPlayers]=useState<CloudPlayer[]>([]);
   const [invite,setInvite]=useState<InvitationResult|null>(null);
+  const [hasLegacyData,setHasLegacyData]=useState(false);
 
   const load=async()=>{
     setLoading(true);setError(null);
@@ -50,6 +51,7 @@ export function AuthStatus() {
 
   useEffect(()=>{
     void load();
+    setHasLegacyData(window.localStorage.getItem("mahjong-score:app-data:v1")!==null&&window.localStorage.getItem("mahjong-score:persistence-mode")!=="d1");
     const url=new URL(window.location.href);
     const inviteResult=url.searchParams.get("invite");
     if(inviteResult==="accepted")setNotice("招待を受け付け、Playerと紐付けました。");
@@ -105,6 +107,23 @@ export function AuthStatus() {
     setBusy(false);
   };
 
+  const migrateToD1=async()=>{
+    const raw=window.localStorage.getItem("mahjong-score:app-data:v1");
+    if(!raw)return;
+    if(!window.confirm("この端末の麻雀データをクラウドへ移行します。端末側の元データは削除せず残します。実行しますか？"))return;
+    setBusy(true);setError(null);setNotice(null);
+    try{
+      const data=JSON.parse(raw) as unknown;
+      const response=await fetch("/api/admin/migrate-local-v1",{method:"POST",headers:{"content-type":"application/json"},credentials:"same-origin",body:JSON.stringify({data})});
+      const payload=await response.json() as {ok?:boolean;counts?:Record<string,number>;error?:{message?:string}};
+      if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"migration");
+      window.localStorage.setItem("mahjong-score:persistence-mode","d1");
+      setNotice("クラウド移行が完了しました。D1へ切り替えます。");
+      setTimeout(()=>window.location.reload(),700);
+    }catch{setError("クラウド移行に失敗しました。端末データは変更していません。");}
+    setBusy(false);
+  };
+
   const copyInvite=async()=>{
     if(!invite)return;
     try{await navigator.clipboard.writeText(invite.inviteUrl);setNotice("招待URLをコピーしました。");}
@@ -125,6 +144,7 @@ export function AuthStatus() {
         <span className={`auth-status__role ${!membership&&auth.user.systemRole!=="admin"?"auth-status__role--pending":""}`}>{roleLabel}</span>
       </div>
       {auth.canBootstrapAdmin?<button className="auth-bootstrap-button" type="button" disabled={busy} onClick={()=>void bootstrap()}>{busy?"設定中…":"初期管理者に設定"}</button>:null}
+      {auth.user.systemRole==="admin"&&hasLegacyData?<button className="auth-bootstrap-button" type="button" disabled={busy} onClick={()=>void migrateToD1()}>D1へ移行</button>:null}
       {canInvite?<button className="auth-bootstrap-button" type="button" disabled={busy} onClick={()=>void openInvites()}>招待</button>:null}
       <button className="auth-logout-button" type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
       {notice?<span className="auth-status__notice">{notice}</span>:null}

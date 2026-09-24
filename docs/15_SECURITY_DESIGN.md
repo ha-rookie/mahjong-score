@@ -57,29 +57,45 @@ URLやrequest bodyのgroupId/userIdを信用せず、server側でresource owners
 
 ## 5. Security Headers Contract
 
-Project固有値は実装Issueで確定する。
+Phase 2ではCloudflare Workers Static Assets公式の `public/_headers` を利用し、browserへ配信するDocument/Static AssetへSecurity Headerを付与する。
 
-| SEC ID | Header | Policy |
+| SEC ID | Header | Phase 2 Policy |
 | --- | --- | --- |
-| SEC-001 | Content-Security-Policy | selfを基本。必要な外部originのみ許可 |
-| SEC-002 | Strict-Transport-Security | HTTPS恒久運用を確認後設定 |
-| SEC-003 | X-Frame-Options / frame-ancestors | 原則DENY |
-| SEC-004 | X-Content-Type-Options | nosniff |
-| SEC-005 | Referrer-Policy | 必要最小限 |
-| SEC-006 | Permissions-Policy | 未使用sensor/camera/mic等を拒否 |
-| SEC-007 | X-Permitted-Cross-Domain-Policies | none |
+| SEC-001 | Content-Security-Policy | `default-src 'self'` を基準。scriptはselfのみ、inline styleは現行React UIのstyle属性に限り許可、`frame-ancestors 'none'`、`object-src 'none'` |
+| SEC-002 | Strict-Transport-Security | `max-age=31536000` |
+| SEC-003 | X-Frame-Options / frame-ancestors | `DENY` / `frame-ancestors 'none'` |
+| SEC-004 | X-Content-Type-Options | `nosniff` |
+| SEC-005 | Referrer-Policy | `strict-origin-when-cross-origin` |
+| SEC-006 | Permissions-Policy | camera / microphone / geolocation / payment / usb / accelerometer / gyroscope / magnetometer を拒否 |
+| SEC-007 | X-Permitted-Cross-Domain-Policies | `none` |
+
+現行CSP:
+- script-src: self
+- style-src: self + unsafe-inline（Reactのinline style使用のため）
+- img-src: self + data
+- font-src/connect-src/form-action/manifest-src/worker-src: self
+- base-uri: self
+- object-src/frame-ancestors: none
+- upgrade-insecure-requests
+
+`_headers` はWorker codeが直接生成するAPI responseには適用されない。Phase 2のSecurity Headers完了条件はbrowser Document/Static Asset境界とし、API側の共通Header middleware化は必要性に応じ後続Phaseで拡張する。
 
 ## 6. Verification
 
 ```text
 Design
- -> config/static test
+ -> public/_headers
+ -> Vite buildでdist/_headers存在確認
  -> deploy
- -> Production response smoke
+ -> GitHub ActionsからProduction rootへHEAD
+ -> 必須Header assert
  -> external header diagnostic when required
 ```
 
-Repository上の設定値だけで完了扱いにしない。
+Production:
+`https://mahjong-score.ha-rookie.workers.dev/`
+
+Repository上の設定値だけで完了扱いにせず、main deploy後のProduction response smokeをRelease Gateに含める。
 
 ## 7. Security Logging
 

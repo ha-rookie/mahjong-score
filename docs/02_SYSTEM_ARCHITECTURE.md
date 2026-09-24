@@ -214,3 +214,22 @@ Invitation management endpoints:
 - `DELETE /api/invitations/:invitationId`: revoke an unused invitation
 
 The application header exposes invitation management to System Admin and Group Admin. Existing Phase 1 localStorage Groups/Players are not automatically copied to D1; invitation issuance for those existing Players depends on the upcoming persistence migration/sync step.
+
+
+## 17. LocalStorage to D1 migration and runtime switch
+
+Existing Phase 1 data is migrated explicitly by the System Admin from the browser that still holds the localStorage dataset.
+
+- The migration endpoint is `POST /api/admin/migrate-local-v1`
+- Only System Admin may execute it
+- The payload is validated against AppDataSchema v1 before D1 writes
+- Migration is accepted only while D1 gameplay tables are empty
+- Existing IDs are preserved for Groups, Players, Sessions, Segments and Games
+- The localStorage source is not deleted after migration; it remains as a rollback/evidence copy
+- After successful migration the browser sets `mahjong-score:persistence-mode=d1` and reloads
+- Fresh authenticated devices without legacy local data activate D1 after successful LINE Login
+- Before migration, the existing device remains on localStorage so the user never loses access to the Phase 1 dataset
+
+D1 runtime repositories now support the operations required by the current UI: Session read/update/delete, Segment lookup/update, and Game read/create/update/delete.
+
+While D1 is active, the Phase 1 JSON backup/restore buttons are hidden because they operate on the legacy localStorage snapshot. A dedicated D1 backup/restore flow is a separate follow-up.

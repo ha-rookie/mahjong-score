@@ -48,3 +48,16 @@ Export時はAppDataStoreの現在Dataを読み、metadata付きJSONへ変換す�
 Phase 2でWorker API / D1 / Authenticationを導入する。SQLはparameterized query / bindを必須とする。
 
 初期Authentication providerはLINE Login。認証に必要な最小scopeを使用し、LINE側の具体設定・callback・token validationは公式仕様確認後に実装設計へ反映する。
+
+
+## 7. Worker API baseline
+
+Phase 2 API is same-origin under `/api`. Static SPA requests continue through the Workers Static Assets binding.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | /api/health | Worker-to-D1 connectivity check |
+| GET | /api/groups | Group read baseline |
+| GET | /api/groups/:groupId/players | Active players in a Group |
+
+This first slice is intentionally read-only. Browser persistence remains localStorage until write API, migration/import, authentication, and server-side authorization are ready. SQL values use bind parameters.

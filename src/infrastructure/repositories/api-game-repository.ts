@@ -1,1 +1,13 @@
-import type { Game,GameId,SessionId } from "../../domain";import type { GameRepository } from "../../application/ports";import { AppError,err,ok,type Result } from "../../shared/errors";import { WorkerApiClient } from "../api";export class ApiGameRepository implements GameRepository{constructor(private readonly api:WorkerApiClient){}async listBySession(id:SessionId){const r=await this.api.request<{games:Game[]}>(`/api/sessions/${encodeURIComponent(id)}/games`);return r.ok?ok(r.value.games):r;}async findById(id:GameId){return err(new AppError({code:"api_game_lookup_not_supported",message:`Game lookup API not implemented: ${id}`,userMessage:"半荘を取得できません。"}));}async save(g:Game){const r=await this.api.request<unknown>(`/api/sessions/${encodeURIComponent(g.sessionId)}/games`,{method:"POST",body:JSON.stringify(g)});return r.ok?ok(undefined):r;}async remove(id:GameId):Promise<Result<void>>{return err(new AppError({code:"api_game_delete_not_supported",message:`Game delete API not implemented: ${id}`,userMessage:"半荘を削除できません。"}));}async removeBySession(id:SessionId):Promise<Result<void>>{return err(new AppError({code:"api_games_delete_not_supported",message:`Game delete API not implemented: ${id}`,userMessage:"半荘を削除できません。"}));}}
+import type { Game,GameId,SessionId } from "../../domain";
+import type { GameRepository } from "../../application/ports";
+import { ok,type Result } from "../../shared/errors";
+import { WorkerApiClient } from "../api";
+
+export class ApiGameRepository implements GameRepository{
+  constructor(private readonly api:WorkerApiClient){}
+  async listBySession(id:SessionId){const r=await this.api.request<{games:Game[]}>(`/api/sessions/${encodeURIComponent(id)}/games`);return r.ok?ok(r.value.games):r;}
+  async findById(id:GameId){const r=await this.api.request<{game:Game}>(`/api/games/${encodeURIComponent(id)}`);if(!r.ok&&r.error.code==="game_not_found")return ok(null);return r.ok?ok(r.value.game):r;}
+  async save(g:Game){const found=await this.findById(g.id);if(!found.ok)return found;const path=found.value?`/api/games/${encodeURIComponent(g.id)}`:`/api/sessions/${encodeURIComponent(g.sessionId)}/games`;const r=await this.api.request<unknown>(path,{method:found.value?"PUT":"POST",body:JSON.stringify(g)});return r.ok?ok(undefined):r;}
+  async remove(id:GameId):Promise<Result<void>>{const r=await this.api.request<unknown>(`/api/games/${encodeURIComponent(id)}`,{method:"DELETE"});return r.ok?ok(undefined):r;}
+  async removeBySession(id:SessionId):Promise<Result<void>>{const r=await this.api.request<unknown>(`/api/sessions/${encodeURIComponent(id)}/games`,{method:"DELETE"});return r.ok?ok(undefined):r;}
+}

@@ -54,6 +54,13 @@ export function AuthStatus() {
     setHasLegacyData(window.localStorage.getItem("mahjong-score:app-data:v1")!==null&&window.localStorage.getItem("mahjong-score:persistence-mode")!=="d1");
     const url=new URL(window.location.href);
     const inviteResult=url.searchParams.get("invite");
+    const loginSucceeded=url.searchParams.get("login")==="success";
+    if(loginSucceeded&&window.localStorage.getItem("mahjong-score:app-data:v1")===null&&window.localStorage.getItem("mahjong-score:persistence-mode")!=="d1"){
+      window.localStorage.setItem("mahjong-score:persistence-mode","d1");
+      url.searchParams.delete("login");url.searchParams.delete("invite");
+      window.history.replaceState({}, "", url.pathname+url.search+url.hash);
+      window.location.reload();return;
+    }
     if(inviteResult==="accepted")setNotice("招待を受け付け、Playerと紐付けました。");
     if(inviteResult==="invalid")setError("招待URLは無効または期限切れです。");
     if(inviteResult==="conflict")setError("このLINEアカウントは別のPlayerに紐付いています。");

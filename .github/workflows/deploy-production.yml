@@ -59,13 +59,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run db:migrate:preview
 
-      - name: One-time Phase 2 Preview D1 recovery rehearsal
-        if: github.event_name == 'pull_request' && github.head_ref == 'feat/d1-recovery-rehearsal-158'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run db:recovery:preview
-
       - name: Validate deploy secrets
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: bash

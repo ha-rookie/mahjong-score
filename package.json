@@ -10,10 +10,11 @@
     "test": "tsc -p tsconfig.test.json && node scripts/run-compiled-tests.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "db:migrations:list:preview": "wrangler d1 migrations list mahjong-score-preview --remote",
-    "db:migrate:preview": "wrangler d1 migrations apply mahjong-score-preview --remote",
-    "db:migrations:list:prod": "wrangler d1 migrations list mahjong-score-prod --remote",
-    "db:migrate:prod": "wrangler d1 migrations apply mahjong-score-prod --remote"
+    "db:migrations:list:preview": "wrangler d1 migrations list DB --remote --preview",
+    "db:migrate:preview": "wrangler d1 migrations apply DB --remote --preview",
+    "db:migrations:list:prod": "wrangler d1 migrations list DB --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local"
   },
   "dependencies": {
     "react": "19.3.0",

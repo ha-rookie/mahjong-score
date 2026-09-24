@@ -1,10 +1,11 @@
-interface Env { DB: D1Database; ASSETS: Fetcher; }
+import { lineCallbackPending, startLineLogin } from "./worker/auth/line-login";
+interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
 const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data),{...init,headers:{"content-type":"application/json; charset=utf-8",...init.headers}});
 const bad=(code:string,message:string,status=400)=>json({error:{code,message}},{status});
 const body=async(request:Request)=>{try{return await request.json() as Record<string,unknown>}catch{return null}};
 const textValue=(v:unknown)=>typeof v==="string"&&v.trim()?v.trim():null;
 export default { async fetch(request:Request,env:Env):Promise<Response>{
- const url=new URL(request.url); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+ const url=new URL(request.url); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return lineCallbackPending(request);
  if(request.method==="GET"&&url.pathname==="/api/health"){const row=await env.DB.prepare("SELECT 1 AS ok").first<{ok:number}>();return json({ok:row?.ok===1});}
  if(request.method==="GET"&&url.pathname==="/api/groups"){const r=await env.DB.prepare("SELECT id,name,created_at AS createdAt,updated_at AS updatedAt FROM groups ORDER BY created_at,id").all();return json({groups:r.results});}
  if(request.method==="POST"&&url.pathname==="/api/groups"){const b=await body(request),id=textValue(b?.id),name=textValue(b?.name),createdAt=textValue(b?.createdAt),updatedAt=textValue(b?.updatedAt);if(!id||!name||!createdAt||!updatedAt)return bad("invalid_group","id, name, createdAt and updatedAt are required");try{await env.DB.prepare("INSERT INTO groups(id,name,created_at,updated_at) VALUES(?,?,?,?)").bind(id,name,createdAt,updatedAt).run();return json({group:{id,name,createdAt,updatedAt}},{status:201});}catch{return bad("group_write_failed","Group could not be created",409);}}

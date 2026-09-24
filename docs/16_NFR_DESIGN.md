@@ -46,7 +46,7 @@ RASISは漏れ確認のreview lensとして使う。
 | NFR-006 | Availability | Production delivery | SLI定義後にSLO候補設定 | Cloudflare / smoke | 1 | TBD |
 | NFR-007 | Accessibility | mobile UI | keyboard/focus/touchを満たす | manual + automated | 1 | ACTIVE |
 | NFR-008 | Concurrency | multi-user update | stale updateを検知 | concurrency test | 2 | ACTIVE |
-| NFR-009 | PWA | home screen / standalone | install可能でstandalone起動し主要静的Assetをcacheできる | manifest / service worker / smartphone verification | 2 | ACTIVE |
+| NFR-009 | PWA | home screen / standalone | install可能でstandalone起動し主要静的Assetをcacheできる | manifest / service worker / smartphone verification | 3+ | DEFERRED |
 | NFR-010 | Authorization | Group resource access | Admin / Member権限をAPI側で強制する | authorization / IDOR test | 2 | ACTIVE |
 
 ## 5. SLI / SLO / SLA
@@ -60,3 +60,16 @@ RASISは漏れ確認のreview lensとして使う。
 ## 6. Test Link
 
 NFRは `20_TEST_DESIGN.md` と `06_REQUIREMENTS_TRACEABILITY.md` でEvidenceへ接続する。
+
+
+## 7. Deferred NFR
+
+NFR-009 PWAは2026-09-25のPhase 2完了監査でPhase 3以降へDeferredした。
+
+理由:
+- 現時点のコア価値はD1 / LINE Login / Group authorization / multi-device利用
+- installability / standaloneは上記の成立条件ではない
+- Service Worker導入はcache invalidation等の運用責任を増やす
+- offline write/syncは別途競合解決設計が必要
+
+Backlog: Issue #160

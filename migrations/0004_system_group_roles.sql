@@ -1,6 +1,5 @@
 ALTER TABLE users ADD COLUMN system_role TEXT NOT NULL DEFAULT 'user' CHECK(system_role IN('admin','user'));
 
-PRAGMA foreign_keys = OFF;
 CREATE TABLE group_memberships_new (
   group_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
@@ -17,4 +16,3 @@ FROM group_memberships;
 DROP TABLE group_memberships;
 ALTER TABLE group_memberships_new RENAME TO group_memberships;
 CREATE INDEX idx_group_memberships_user ON group_memberships(user_id);
-PRAGMA foreign_keys = ON;

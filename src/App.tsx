@@ -52,8 +52,8 @@ function App() {
   const [showFinalizeConfirm,setShowFinalizeConfirm]=useState(false);
   const [gamePendingDelete,setGamePendingDelete]=useState<Game|null>(null);
 
-  const refresh=useCallback(async(preferredGroupId?:string)=>{
-    setIsLoading(true);setErrorMessage(null);
+  const refresh=useCallback(async(preferredGroupId?:string,showLoading=true)=>{
+    if(showLoading)setIsLoading(true);setErrorMessage(null);
     const groupsResult=await services.listGroups.execute();
     if(!groupsResult.ok){setErrorMessage(groupsResult.error.userMessage??"グループを読み込めませんでした。");setIsLoading(false);return;}
     setGroups(groupsResult.value);
@@ -141,7 +141,7 @@ function App() {
     setIsBusy(true);setErrorMessage(null);setStatusMessage(null);
     const r=editingGameId?await services.updateGame.execute({gameId:editingGameId,scorePointsByPlayer:scores,tags:[]}):await services.addGameResult.execute({sessionId:activeSession.session.id,scorePointsByPlayer:scores,tags:[]});
     if(!r.ok){setErrorMessage(r.error.userMessage??"半荘結果を保存できませんでした。");setIsBusy(false);return;}
-    setScoreInputs({});setEditingGameId(null);await refresh(group.id);setStatusMessage(editingGameId?"半荘結果を更新しました。":"半荘結果を保存しました。");setIsBusy(false);
+    setScoreInputs({});setEditingGameId(null);await refresh(group.id,false);setStatusMessage(editingGameId?"半荘結果を更新しました。":"半荘結果を保存しました。");setIsBusy(false);
   };
   const startEditGame=(game:Game)=>{const autoPlayerId=participantIds[participantIds.length-1];setEditingGameId(game.id);setScoreInputs(Object.fromEntries(game.results.map(x=>[x.playerId,x.playerId===autoPlayerId?"":String(x.scorePoint)])));};
   const handleDeleteGame=async(game:Game)=>{if(!group)return;setGamePendingDelete(null);setIsBusy(true);const r=await services.deleteGame.execute(game.id);if(!r.ok)setErrorMessage(r.error.userMessage??"削除できませんでした。");else{if(editingGameId===game.id){setEditingGameId(null);setScoreInputs({});}await refresh(group.id);setStatusMessage("半荘結果を削除しました。");}setIsBusy(false);};
@@ -149,7 +149,7 @@ function App() {
   const chipEntered=chipParsed.filter(x=>x.raw!==""&&x.value!==null);const chipInvalid=chipParsed.some(x=>x.raw!==""&&x.value===null);const canCalcChip=participantIds.length>=3&&!chipInvalid&&chipEntered.length===participantIds.length-1;const chipAllEntered=participantIds.length>=3&&!chipInvalid&&chipEntered.length===participantIds.length;const chipEnteredTotal=chipEntered.reduce((s,x)=>s+(x.value??0),0);const canSaveChip=canCalcChip||(chipAllEntered&&chipEnteredTotal===0);const chipMissingId=canCalcChip?chipParsed.find(x=>x.raw==="")?.id:null;const calculatedChip=canCalcChip?-chipEnteredTotal:null;
   const chipValue=(id:string)=>id===chipMissingId&&calculatedChip!==null?calculatedChip:(chipParsed.find(x=>x.id===id)?.value??0);
   const toggleChipSign=(id:string)=>setChipInputs(current=>{const raw=current[id]??"";if(raw==="")return current;return {...current,[id]:raw.startsWith("-")?raw.slice(1):"-"+raw};});
-  const saveSessionDetails=async()=>{if(!activeSession||!group||!canSaveChip)return;const chips=participantIds.map(id=>({playerId:id,chipCount:chipValue(id)}));setIsBusy(true);const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,note:sessionNote.trim()||null,participantNotes:activeSession.session.participantNotes,chipResults:chips});if(!r.ok)setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");else{await refresh(group.id);setStatusMessage("チップとメモを保存しました。");}setIsBusy(false);};
+  const saveSessionDetails=async()=>{if(!activeSession||!group||!canSaveChip)return;const chips=participantIds.map(id=>({playerId:id,chipCount:chipValue(id)}));setIsBusy(true);const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,note:sessionNote.trim()||null,participantNotes:activeSession.session.participantNotes,chipResults:chips});if(!r.ok)setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");else{await refresh(group.id,false);setStatusMessage("チップとメモを保存しました。");}setIsBusy(false);};
   const handleReviewSession=async()=>{if(!activeSession)return;setResultsBackView("home");setShowFinalizeConfirm(false);setIsBusy(true);setErrorMessage(null);const result=await services.getSessionResults.execute(activeSession.session.id);if(!result.ok||!result.value)setErrorMessage(result.ok?"結果を読み込めませんでした。":result.error.userMessage??"結果を読み込めませんでした。");else{setSessionResults(result.value);setStatusMessage(null);setView("results");}setIsBusy(false);};
   const handleFinalizeSession=async()=>{if(!sessionResults||!group)return;const sessionId=sessionResults.session.id;setIsBusy(true);setErrorMessage(null);const r=await services.finalizeSession.execute(sessionId);if(!r.ok){setErrorMessage(r.error.userMessage??"Sessionを終了できませんでした。");setIsBusy(false);return;}setSessionResults({...sessionResults,session:r.value});setScoreInputs({});setEditingGameId(null);setChipInputs({});setSessionNote("");await refresh(group.id);setStatusMessage("Sessionを終了しました。");setIsBusy(false);};
   const totals=useMemo(()=>{

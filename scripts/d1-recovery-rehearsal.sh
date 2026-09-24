@@ -24,10 +24,10 @@ baseline_bookmark=""
 
 restore_preview() {
   local bookmark="$1"
-  curl -fsS -X POST "$API_BASE/restore" \
-    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-    -H "Content-Type: application/json" \
-    --data "$(node -e "process.stdout.write(JSON.stringify({bookmark:process.argv[1]}))" "$bookmark")"
+  local encoded
+  encoded="$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$bookmark")"
+  curl -fsS -X POST "$API_BASE/restore?bookmark=$encoded" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
 }
 
 cleanup() {

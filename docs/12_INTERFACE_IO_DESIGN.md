@@ -82,3 +82,10 @@ The write baseline exists for repository/API integration work but is **not yet w
 | PATCH | /api/sessions/:sessionId | Update memo/status/end time |
 
 Worker-side validation protects basic invariants (3/4 unique participants, active group membership, integer game points totaling zero, active Session on game creation). The browser UI remains localStorage-backed until authentication/authorization is enforced.
+
+
+## 10. Session details and API client baseline
+
+`PATCH /api/sessions/:sessionId` now replaces participant notes and chip results together with Session metadata. Chip counts must be integers totaling zero. The Worker uses a D1 batch so the aggregate update is submitted as one grouped operation.
+
+`WorkerApiClient` is the browser-side HTTP boundary. It maps non-2xx responses and network failures to the existing `Result<AppError>` convention. It is deliberately not composed into `createBrowserServices` yet; localStorage remains active until authentication and server-side authorization are available.

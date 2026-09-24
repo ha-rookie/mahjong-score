@@ -1,0 +1,5 @@
+import { AppError, err, ok, type Result } from "../../shared/errors";
+export class WorkerApiClient {
+  constructor(private readonly baseUrl = "") {}
+  async request<T>(path:string,init:RequestInit={}):Promise<Result<T>>{try{const response=await fetch(this.baseUrl+path,{...init,headers:{...init.headers,...(init.body?{"content-type":"application/json"}:{})}});const payload=await response.json() as T|{error?:{code?:string;message?:string}};if(!response.ok){const e=(payload as {error?:{code?:string;message?:string}}).error;return err(new AppError({code:e?.code??"api_error",message:e?.message??("API request failed: "+response.status),userMessage:"通信に失敗しました。",retryable:response.status>=500}));}return ok(payload as T);}catch(cause){return err(new AppError({code:"api_network_error",message:"Worker API request failed.",userMessage:"通信状態を確認してください。",retryable:true,cause}));}}
+}

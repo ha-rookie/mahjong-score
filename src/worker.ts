@@ -4,7 +4,7 @@ const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data
 const bad=(code:string,message:string,status=400)=>json({error:{code,message}},{status});
 const body=async(request:Request)=>{try{return await request.json() as Record<string,unknown>}catch{return null}};
 const textValue=(v:unknown)=>typeof v==="string"&&v.trim()?v.trim():null;
-const groupRole=async(env:Env,userId:string,groupId:string)=>env.DB.prepare("SELECT role FROM group_memberships WHERE user_id=? AND group_id=?").bind(userId,groupId).first<{role:\"admin\"|\"member\"}>();
+const groupRole=async(env:Env,userId:string,groupId:string)=>env.DB.prepare("SELECT role FROM group_memberships WHERE user_id=? AND group_id=?").bind(userId,groupId).first<{role:"admin"|"member"}>();
 const sessionGroup=async(env:Env,sessionId:string)=>env.DB.prepare("SELECT group_id AS groupId FROM sessions WHERE id=?").bind(sessionId).first<{groupId:string}>();
 export default { async fetch(request:Request,env:Env):Promise<Response>{
  const url=new URL(request.url); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return finishLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/me")return authMe(request,env); if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(); if(request.method==="POST"&&url.pathname==="/api/auth/bootstrap-admin")return bootstrapAdmin(request,env);

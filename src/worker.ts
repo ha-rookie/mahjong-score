@@ -26,6 +26,74 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
  const games=url.pathname.match(/^\/api\/sessions\/([^/]+)\/games$/);if(request.method==="GET"&&games){const sessionId=decodeURIComponent(games[1]),sg=await sessionGroup(env,sessionId);if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);const q=await env.DB.prepare("SELECT id,session_id AS sessionId,segment_id AS segmentId,sequence,played_at AS playedAt FROM games WHERE session_id=? ORDER BY sequence,id").bind(sessionId).all();const result=[];for(const g of q.results as Array<Record<string,unknown>>){const rr=await env.DB.prepare("SELECT player_id AS playerId,score_point AS scorePoint FROM game_results WHERE game_id=? ORDER BY rank").bind(g.id).all();const tt=await env.DB.prepare("SELECT type,player_id AS playerId FROM game_tags WHERE game_id=? ORDER BY tag_order").bind(g.id).all();result.push({...g,results:rr.results,tags:tt.results});}return json({games:result});}if(request.method==="POST"&&games){const sessionId=decodeURIComponent(games[1]),sg=await sessionGroup(env,sessionId);if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);const b=await body(request),id=textValue(b?.id),segmentId=textValue(b?.segmentId),playedAt=textValue(b?.playedAt),sequence=typeof b?.sequence==="number"?b.sequence:null,results=Array.isArray(b?.results)?b.results:[];if(!id||!segmentId||!playedAt||!Number.isInteger(sequence)||!results.length)return bad("invalid_game","Game fields and results are required");const parsed=results.map((v,i)=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {playerId:textValue(o.playerId),scorePoint:typeof o.scorePoint==="number"&&Number.isInteger(o.scorePoint)?o.scorePoint:null,rank:i+1}});if(parsed.some(v=>!v.playerId||v.scorePoint===null)||parsed.reduce((n,v)=>n+(v.scorePoint??0),0)!==0)return bad("invalid_game_results","Game results must be integer points totaling zero");try{await env.DB.batch([env.DB.prepare("INSERT INTO games(id,session_id,segment_id,sequence,played_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM sessions WHERE id=? AND status='active')").bind(id,sessionId,segmentId,sequence,playedAt,sessionId),...parsed.map(v=>env.DB.prepare("INSERT INTO game_results(game_id,player_id,rank,score_point) VALUES(?,?,?,?)").bind(id,v.playerId,v.rank,v.scorePoint))]);return json({game:{id,sessionId,segmentId,sequence,playedAt,results:parsed}},{status:201});}catch{return bad("game_write_failed","Game could not be created",409);}}
  const segments=url.pathname.match(/^\/api\/sessions\/([^/]+)\/segments$/);if(request.method==="GET"&&segments){const sessionId=decodeURIComponent(segments[1]),sg=await sessionGroup(env,sessionId);if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);const q=await env.DB.prepare("SELECT id,session_id AS sessionId,sequence FROM participant_segments WHERE session_id=? ORDER BY sequence,id").bind(sessionId).all();const result=[];for(const s of q.results as Array<Record<string,unknown>>){const pp=await env.DB.prepare("SELECT player_id AS playerId FROM segment_players WHERE segment_id=? ORDER BY seat_order").bind(s.id).all();result.push({...s,participantPlayerIds:pp.results.map(v=>v.playerId)});}return json({segments:result});}
  const details=url.pathname.match(/^\/api\/sessions\/([^/]+)$/);if(request.method==="GET"&&details){const id=decodeURIComponent(details[1]),sg=await sessionGroup(env,id);if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);const s=await env.DB.prepare("SELECT id,group_id AS groupId,session_date AS sessionDate,started_at AS startedAt,ended_at AS endedAt,status,note FROM sessions WHERE id=?").bind(id).first();if(!s)return bad("session_not_found","Session not found",404);const n=await env.DB.prepare("SELECT player_id AS playerId,note FROM session_participant_notes WHERE session_id=? ORDER BY player_id").bind(id).all();const c=await env.DB.prepare("SELECT player_id AS playerId,chip_count AS chipCount FROM chip_results WHERE session_id=? ORDER BY player_id").bind(id).all();return json({session:{...s,participantNotes:n.results,chipResults:c.results}});}if(request.method==="PATCH"&&details){const id=decodeURIComponent(details[1]),sg=await sessionGroup(env,id);if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);const b=await body(request),note=b?.note===null?null:typeof b?.note==="string"?b.note:null,status=b?.status==="finalized"?"finalized":"active",endedAt=b?.endedAt===null?null:textValue(b?.endedAt),updatedAt=textValue(b?.updatedAt);if(!updatedAt)return bad("invalid_session_update","updatedAt is required");const participantNotes=Array.isArray(b?.participantNotes)?b.participantNotes:[],chipResults=Array.isArray(b?.chipResults)?b.chipResults:[];const notes=participantNotes.map(v=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {playerId:textValue(o.playerId),note:typeof o.note==="string"?o.note:null}}),chips=chipResults.map(v=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {playerId:textValue(o.playerId),chipCount:typeof o.chipCount==="number"&&Number.isInteger(o.chipCount)?o.chipCount:null}});if(notes.some(v=>!v.playerId||v.note===null)||chips.some(v=>!v.playerId||v.chipCount===null)||chips.reduce((n,v)=>n+(v.chipCount??0),0)!==0)return bad("invalid_session_details","Participant notes/chips are invalid");try{await env.DB.batch([env.DB.prepare("UPDATE sessions SET note=?,status=?,ended_at=?,updated_at=?,version=version+1 WHERE id=?").bind(note,status,endedAt,updatedAt,id),env.DB.prepare("DELETE FROM session_participant_notes WHERE session_id=?").bind(id),...notes.map(v=>env.DB.prepare("INSERT INTO session_participant_notes(session_id,player_id,note) VALUES(?,?,?)").bind(id,v.playerId,v.note)),env.DB.prepare("DELETE FROM chip_results WHERE session_id=?").bind(id),...chips.map(v=>env.DB.prepare("INSERT INTO chip_results(session_id,player_id,chip_count) VALUES(?,?,?)").bind(id,v.playerId,v.chipCount))]);return json({ok:true});}catch{return bad("session_update_failed","Session could not be updated",409);}}
+ const gameDetail=url.pathname.match(/^\/api\/games\/([^/]+)$/);
+ if(gameDetail){
+   const gameId=decodeURIComponent(gameDetail[1]);
+   const base=await env.DB.prepare("SELECT g.id,g.session_id AS sessionId,g.segment_id AS segmentId,g.sequence,g.played_at AS playedAt,s.group_id AS groupId,s.status FROM games g JOIN sessions s ON s.id=g.session_id WHERE g.id=?").bind(gameId).first<Record<string,unknown>>();
+   if(!base)return bad("game_not_found","Game not found",404);
+   const groupId=String(base.groupId);
+   if(!await canUseGroup(env,authUserId,groupId))return bad("forbidden","Group access required",403);
+   if(request.method==="GET"){
+     const rr=await env.DB.prepare("SELECT player_id AS playerId,score_point AS scorePoint FROM game_results WHERE game_id=? ORDER BY rank").bind(gameId).all();
+     const tt=await env.DB.prepare("SELECT type,player_id AS playerId FROM game_tags WHERE game_id=? ORDER BY tag_order").bind(gameId).all();
+     const {groupId:_,status:__,...game}=base;
+     return json({game:{...game,results:rr.results,tags:tt.results}});
+   }
+   if(request.method==="PUT"){
+     if(base.status!=="active")return bad("session_not_active","Finalized Session is read-only",409);
+     const b=await body(request),segmentId=textValue(b?.segmentId),playedAt=textValue(b?.playedAt),sequence=typeof b?.sequence==="number"?b.sequence:null,results=Array.isArray(b?.results)?b.results:[],tags=Array.isArray(b?.tags)?b.tags:[];
+     const parsed=results.map((v,i)=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {playerId:textValue(o.playerId),scorePoint:typeof o.scorePoint==="number"&&Number.isInteger(o.scorePoint)?o.scorePoint:null,rank:i+1}});
+     const parsedTags=tags.map((v,i)=>{const o=v&&typeof v==="object"?v as Record<string,unknown>:{};return {type:o.type==="yakuman"||o.type==="double-yakuman"?o.type:null,playerId:o.playerId===null?null:textValue(o.playerId),order:i+1}});
+     if(!segmentId||!playedAt||!Number.isInteger(sequence)||!parsed.length||parsed.some(v=>!v.playerId||v.scorePoint===null)||parsed.reduce((n,v)=>n+(v.scorePoint??0),0)!==0||parsedTags.some(v=>!v.type))return bad("invalid_game","Game payload is invalid");
+     try{
+       await env.DB.batch([
+         env.DB.prepare("UPDATE games SET segment_id=?,sequence=?,played_at=? WHERE id=?").bind(segmentId,sequence,playedAt,gameId),
+         env.DB.prepare("DELETE FROM game_results WHERE game_id=?").bind(gameId),
+         ...parsed.map(v=>env.DB.prepare("INSERT INTO game_results(game_id,player_id,rank,score_point) VALUES(?,?,?,?)").bind(gameId,v.playerId,v.rank,v.scorePoint)),
+         env.DB.prepare("DELETE FROM game_tags WHERE game_id=?").bind(gameId),
+         ...parsedTags.map(v=>env.DB.prepare("INSERT INTO game_tags(game_id,tag_order,type,player_id) VALUES(?,?,?,?)").bind(gameId,v.order,v.type,v.playerId)),
+       ]);
+       return json({ok:true});
+     }catch{return bad("game_update_failed","Game could not be updated",409);}
+   }
+   if(request.method==="DELETE"){
+     if(base.status!=="active")return bad("session_not_active","Finalized Session is read-only",409);
+     await env.DB.prepare("DELETE FROM games WHERE id=?").bind(gameId).run();
+     return new Response(null,{status:204});
+   }
+ }
+ const sessionGames=url.pathname.match(/^\/api\/sessions\/([^/]+)\/games$/);
+ if(request.method==="DELETE"&&sessionGames){
+   const sessionId=decodeURIComponent(sessionGames[1]),sg=await sessionGroup(env,sessionId);
+   if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);
+   await env.DB.prepare("DELETE FROM games WHERE session_id=?").bind(sessionId).run();
+   return new Response(null,{status:204});
+ }
+ const segmentDetail=url.pathname.match(/^\/api\/segments\/([^/]+)$/);
+ if(segmentDetail){
+   const segmentId=decodeURIComponent(segmentDetail[1]);
+   const seg=await env.DB.prepare("SELECT ps.id,ps.session_id AS sessionId,ps.sequence,s.group_id AS groupId,s.status FROM participant_segments ps JOIN sessions s ON s.id=ps.session_id WHERE ps.id=?").bind(segmentId).first<Record<string,unknown>>();
+   if(!seg)return bad("segment_not_found","Segment not found",404);
+   const groupId=String(seg.groupId);
+   if(!await canUseGroup(env,authUserId,groupId))return bad("forbidden","Group access required",403);
+   if(request.method==="GET"){
+     const pp=await env.DB.prepare("SELECT player_id AS playerId FROM segment_players WHERE segment_id=? ORDER BY seat_order").bind(segmentId).all();
+     return json({segment:{id:seg.id,sessionId:seg.sessionId,sequence:seg.sequence,participantPlayerIds:pp.results.map(v=>v.playerId)}});
+   }
+   if(request.method==="PUT"){
+     if(seg.status!=="active")return bad("session_not_active","Finalized Session is read-only",409);
+     const b=await body(request),sequence=typeof b?.sequence==="number"?b.sequence:null,participants=Array.isArray(b?.participantPlayerIds)?b.participantPlayerIds.filter((v):v is string=>typeof v==="string"):[];
+     if(!Number.isInteger(sequence)||![3,4].includes(participants.length)||new Set(participants).size!==participants.length)return bad("invalid_segment","Segment requires 3 or 4 unique Players");
+     await env.DB.batch([env.DB.prepare("UPDATE participant_segments SET sequence=? WHERE id=?").bind(sequence,segmentId),env.DB.prepare("DELETE FROM segment_players WHERE segment_id=?").bind(segmentId),...participants.map((playerId,i)=>env.DB.prepare("INSERT INTO segment_players(segment_id,player_id,seat_order) VALUES(?,?,?)").bind(segmentId,playerId,i))]);
+     return json({ok:true});
+   }
+ }
+ if(request.method==="DELETE"&&details){
+   const id=decodeURIComponent(details[1]),sg=await sessionGroup(env,id);
+   if(!sg||!await canUseGroup(env,authUserId,sg.groupId))return bad("forbidden","Group access required",403);
+   await env.DB.prepare("DELETE FROM sessions WHERE id=?").bind(id).run();
+   return new Response(null,{status:204});
+ }
  const playerInvites=url.pathname.match(/^\/api\/groups\/([^/]+)\/players\/([^/]+)\/invitations$/);
  if(request.method==="POST"&&playerInvites){
    const groupId=decodeURIComponent(playerInvites[1]),playerId=decodeURIComponent(playerInvites[2]);

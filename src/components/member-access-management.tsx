@@ -40,7 +40,8 @@ export function MemberAccessManagement({group,players}:Props){
 
   useEffect(()=>{void load();},[group.id]);
 
-  const canInvite=Boolean(auth&&(auth.user.systemRole==="admin"||auth.memberships.some(x=>x.groupId===group.id&&x.role==="group_admin")));
+  const isSystemAdmin=auth?.user.systemRole==="admin";
+  const canInvite=Boolean(auth&&(isSystemAdmin||auth.memberships.some(x=>x.groupId===group.id&&x.role==="group_admin")));
   const linked=(playerId:string)=>cloudPlayers.find(x=>x.id===playerId)?.userId??null;
 
   const createInvite=async(player:Player)=>{
@@ -52,6 +53,19 @@ export function MemberAccessManagement({group,players}:Props){
       setInvite(payload.invitation);
       setNotice(`${player.displayName}さん用の招待URLを発行しました。`);
     }catch{setError("招待URLを発行できませんでした。");}
+    setBusyPlayerId(null);
+  };
+
+  const unlinkPlayer=async(player:Player)=>{
+    if(!window.confirm(`${player.displayName}さんのLINE連携を解除しますか？一般メンバーの場合は、このグループへの参加も解除されます。`))return;
+    setBusyPlayerId(player.id);setInvite(null);setNotice(null);setError(null);
+    try{
+      const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/players/${encodeURIComponent(player.id)}/link`,{method:"DELETE",credentials:"same-origin"});
+      const payload=await response.json() as {ok?:boolean;error?:{message?:string}};
+      if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"unlink");
+      setNotice(`${player.displayName}さんのLINE連携を解除しました。`);
+      await load();
+    }catch{setError("LINE連携を解除できませんでした。");}
     setBusyPlayerId(null);
   };
 
@@ -77,6 +91,7 @@ export function MemberAccessManagement({group,players}:Props){
             <span className={userId?"member-link-state member-link-state--linked":"member-link-state"}>{userId?"LINE連携済み":"未連携"}</span>
           </div>
           {canInvite&&!userId?<button className="member-invite-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void createInvite(player)}>{busyPlayerId===player.id?"発行中…":"LINEで招待"}</button>:null}
+          {isSystemAdmin&&userId?<button className="member-unlink-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void unlinkPlayer(player)}>{busyPlayerId===player.id?"解除中…":"連携解除"}</button>:null}
         </li>;
       })}
     </ul>

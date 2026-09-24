@@ -21,14 +21,14 @@ Access / Application / Audit Log
 
 ## 3. Current Decision
 
-| Item | Phase 1 |
+| Item | Current |
 | --- | --- |
 | Cloudflare Web Analytics | TBD |
 | Custom Analytics | N/A / TBD |
 | Google Search Console | Search公開決定後 |
 | Access Log | Cloudflare platform範囲 |
-| Application Log | Client-side最小限 |
-| Audit Log | N/A（server/authなし） |
+| Application Log | Worker consoleの構造化Logを採用 |
+| Audit Log | Phase 2: auth/authz failureと重要操作をJSONで記録 |
 
 ## 4. Analytics Design Contract
 
@@ -84,7 +84,12 @@ Audit Log:
 
 ## 7. Correlation
 
-Phase 2でRequest / Correlation IDを導入し、User向けerror codeと運用Logを結び付ける。
+Phase 2でRequest / Correlation IDを導入する。
+
+- Workerはrequest headerの `CF-Ray` を優先してrequestIdとして利用する
+- `CF-Ray` がないlocal/previewではUUIDへfallbackする
+- 同一requestに起因するAudit Logは同じrequestIdで検索できる
+- token / Cookie / request bodyはcorrelation keyとして利用しない
 
 ## 8. Production Evidence
 

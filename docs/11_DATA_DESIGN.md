@@ -153,3 +153,18 @@ UserとPlayerは別Entityのまま、Group内Playerを必要に応じてUserへ�
 
 ### Concurrency
 D1移行時は更新対象にversionまたはupdatedAt等の競合検知情報を持たせ、古い状態からの更新を黙って上書きしない。
+
+
+## 9. Phase 2 D1 Physical Schema
+
+Initial migration: `migrations/0001_initial.sql`.
+
+Phase 1 aggregate JSON is normalized into core D1 tables for Group, Player, Session, Segment, Game and child results.
+
+- Existing domain IDs remain primary keys so historical references can be migrated unchanged.
+- Game result rank and segment player order are persisted explicitly.
+- Mutable roots use integer `version` as the optimistic-concurrency foundation.
+- Player `user_id` is nullable: Player may exist without login linkage.
+- User/ExternalIdentity FK is intentionally deferred until LINE Login.
+- GameTag compatibility is retained although its UI remains deferred.
+- Apply migrations to Preview first; apply the same migration to Production only after verification.

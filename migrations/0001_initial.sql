@@ -1,0 +1,17 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE groups (id TEXT PRIMARY KEY,name TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE players (id TEXT PRIMARY KEY,display_name TEXT NOT NULL,user_id TEXT,version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE group_players (group_id TEXT NOT NULL,player_id TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1 CHECK(active IN(0,1)),PRIMARY KEY(group_id,player_id),FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE,FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE);
+CREATE TABLE sessions (id TEXT PRIMARY KEY,group_id TEXT NOT NULL,session_date TEXT NOT NULL,started_at TEXT NOT NULL,ended_at TEXT,status TEXT NOT NULL CHECK(status IN('active','finalized')),note TEXT,version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE RESTRICT);
+CREATE TABLE participant_segments (id TEXT PRIMARY KEY,session_id TEXT NOT NULL,sequence INTEGER NOT NULL,UNIQUE(session_id,sequence),FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE);
+CREATE TABLE segment_players (segment_id TEXT NOT NULL,player_id TEXT NOT NULL,seat_order INTEGER NOT NULL,PRIMARY KEY(segment_id,player_id),UNIQUE(segment_id,seat_order),FOREIGN KEY(segment_id) REFERENCES participant_segments(id) ON DELETE CASCADE,FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE RESTRICT);
+CREATE TABLE games (id TEXT PRIMARY KEY,session_id TEXT NOT NULL,segment_id TEXT NOT NULL,sequence INTEGER NOT NULL,played_at TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,UNIQUE(session_id,sequence),FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,FOREIGN KEY(segment_id) REFERENCES participant_segments(id) ON DELETE RESTRICT);
+CREATE TABLE game_results (game_id TEXT NOT NULL,player_id TEXT NOT NULL,rank INTEGER NOT NULL,score_point INTEGER NOT NULL,PRIMARY KEY(game_id,player_id),UNIQUE(game_id,rank),FOREIGN KEY(game_id) REFERENCES games(id) ON DELETE CASCADE,FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE RESTRICT);
+CREATE TABLE game_tags (game_id TEXT NOT NULL,tag_order INTEGER NOT NULL,type TEXT NOT NULL CHECK(type IN('yakuman','double-yakuman')),player_id TEXT,PRIMARY KEY(game_id,tag_order),FOREIGN KEY(game_id) REFERENCES games(id) ON DELETE CASCADE,FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE RESTRICT);
+CREATE TABLE session_participant_notes (session_id TEXT NOT NULL,player_id TEXT NOT NULL,note TEXT NOT NULL,PRIMARY KEY(session_id,player_id),FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE RESTRICT);
+CREATE TABLE chip_results (session_id TEXT NOT NULL,player_id TEXT NOT NULL,chip_count INTEGER NOT NULL,PRIMARY KEY(session_id,player_id),FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE RESTRICT);
+CREATE INDEX idx_group_players_player ON group_players(player_id);
+CREATE INDEX idx_sessions_group ON sessions(group_id,started_at);
+CREATE INDEX idx_segments_session ON participant_segments(session_id,sequence);
+CREATE INDEX idx_games_session ON games(session_id,sequence);
+CREATE INDEX idx_game_results_player ON game_results(player_id);

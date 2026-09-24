@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "test": "tsc -p tsconfig.test.json && node scripts/run-compiled-tests.mjs",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrations:list:preview": "wrangler d1 migrations list mahjong-score-preview --remote",
+    "db:migrate:preview": "wrangler d1 migrations apply mahjong-score-preview --remote",
+    "db:migrations:list:prod": "wrangler d1 migrations list mahjong-score-prod --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply mahjong-score-prod --remote"
   },
   "dependencies": {
     "react": "19.3.0",

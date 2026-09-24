@@ -210,3 +210,13 @@ Requirement
 - stale Game/Session削除は409となり対象Dataを削除しないこと
 - 正常なSession/Game更新時にversionが1増えること
 - finalized Session配下のGame訂正/削除を拒否すること
+
+
+### Active Session manual refresh
+- SCORE SHEETから手動で最新Session/Gameを再取得できること
+- 他端末で追加されたGameが更新後に表示されること
+- Sessionのchip/memoも最新値へ更新されること
+- 未保存のScore入力・訂正中・chip/memo変更がある場合のみ破棄確認を表示すること
+- 更新API失敗時は未保存入力を保持すること
+- 他端末でSessionがfinalized済みの場合、active Session表示を終了すること
+- smartphone幅で日付と更新ボタンが重ならないこと

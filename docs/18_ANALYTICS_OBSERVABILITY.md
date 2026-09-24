@@ -99,3 +99,24 @@ Analytics採用時:
 - internal test非送信
 - smoke event区別
 - Privacyとの一致
+
+
+## 9. Phase 2 Observability Status
+
+Phase 2で実装済み:
+- protected APIのauthentication failureをstructured audit logへ記録
+- authorization failureをstructured audit logへ記録
+- LINE Login主要failure/successを記録
+- Session削除、Invitation、unlink、Membership変更、Admin bootstrap、migration等の重要操作を記録
+- requestIdはCF-Ray優先、fallbackはUUID
+- Secret / token / Cookie / request body / Memo本文 / displayName等の不要なPIIは記録しない
+
+Implementation: `src/worker/audit.ts`
+Evidence: #154 / PR #155
+
+未導入:
+- business KPI向けCustom Analytics
+- Cloudflare Web Analyticsを使った利用分析
+- error rate / latencyの自動alert threshold
+
+これらはPhase 2完了条件とは分離する。

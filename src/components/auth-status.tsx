@@ -3,15 +3,16 @@ import { useEffect, useState } from "react";
 type Membership = {
   groupId: string;
   groupName: string;
-  role: "admin" | "member";
+  role: "group_admin" | "member";
   playerId: string | null;
   playerDisplayName: string | null;
 };
 
 type AuthPayload = {
   authenticated: true;
-  user: { id: string; displayName: string | null };
+  user: { id: string; displayName: string | null; systemRole: "admin" | "user" };
   memberships: Membership[];
+  canBootstrapAdmin: boolean;
 };
 
 export function AuthStatus() {
@@ -40,13 +41,13 @@ export function AuthStatus() {
   if(loading)return <div className="auth-status auth-status--loading">認証確認中</div>;
   if(!auth)return <div className="auth-status">{error?<span className="auth-status__error">{error}</span>:null}<button className="auth-login-button" type="button" onClick={login}>LINEでログイン</button></div>;
 
-  const membership=auth.memberships[0]??null;
+  const membership=auth.memberships[0]??null;const roleLabel=auth.user.systemRole==="admin"?"System Admin":membership?.role==="group_admin"?"Group Admin":membership?"Member":"招待待ち";
   return <div className="auth-status">
     <div className="auth-status__identity">
       <span className="auth-status__name">{auth.user.displayName??"LINEユーザー"}</span>
-      {membership?<span className="auth-status__role">{membership.role==="admin"?"Admin":"Member"}</span>:<span className="auth-status__role auth-status__role--pending">未設定</span>}
+      <span className={`auth-status__role ${!membership&&auth.user.systemRole!=="admin"?"auth-status__role--pending":""}`}>{roleLabel}</span>
     </div>
-    {!membership?<button className="auth-bootstrap-button" type="button" disabled={busy} onClick={()=>void bootstrap()}>{busy?"設定中…":"初期管理者に設定"}</button>:null}
+    {auth.canBootstrapAdmin?<button className="auth-bootstrap-button" type="button" disabled={busy} onClick={()=>void bootstrap()}>{busy?"設定中…":"初期管理者に設定"}</button>:null}
     <button className="auth-logout-button" type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
     {error?<span className="auth-status__error">{error}</span>:null}
   </div>;

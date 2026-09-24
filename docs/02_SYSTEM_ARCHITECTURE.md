@@ -174,8 +174,20 @@ Secrets/config required later: `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `AUTH_S
 
 ## 15. Initial administrator and authorization
 
-The first authenticated LINE User can claim the initial administrator role only while `group_memberships` is empty. The bootstrap creates or selects the single initial Group, links the User to a Player in that Group, and inserts an `admin` membership. After the first membership exists, bootstrap is closed to other Users.
+Authorization is split into two scopes.
 
-`group_players.user_id` is the per-Group User↔Player link. A User can therefore have at most one linked Player in each Group while still allowing different Player identities across different Groups.
+- System role: `users.system_role = admin | user`
+- Group role: `group_memberships.role = group_admin | member`
 
-D1 API access now requires an application session. Group reads/writes are limited by Group membership, and Group/Player administration requires the `admin` role. The browser UI exposes LINE login/logout and the one-time initial administrator setup; Phase 1 localStorage data remains the active gameplay store until the dedicated migration/sync step.
+System Admin is independent from Player linkage and Group membership. A System Admin can log in without being a Player, can operate every Group, create/manage Groups and Players, link Users to Players, and assign Group Admin/Member roles.
+
+Group Admin is scoped to one Group. Its elevated responsibility is intentionally limited to invitation management; it does not gain System Admin powers. Until invitation APIs are implemented, Group Admin has the same gameplay access as Member and is retained as the future invitation-authority flag.
+
+Member is a normal Group user. A User may be linked to at most one Player per Group through `group_players.user_id`, while remaining linkable to a different Player in another Group.
+
+The first authenticated LINE User may claim System Admin only while no System Admin exists. This bootstrap updates only the User's system role; it does not create a Player link or Group membership. Existing Player linkage is therefore optional for System Admin.
+
+System Admin management API foundation:
+- `PATCH /api/admin/groups/:groupId/users/:userId`: create/update Group role and optionally link/unlink the User to a Player in that Group
+
+Invitation URL issuance and invite-token consumption are a later slice. Once an initial System Admin exists, an unrelated LINE-authenticated User with no valid invitation remains authenticated at the LINE layer but has no Group access.

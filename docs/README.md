@@ -43,6 +43,7 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | `18_ANALYTICS_OBSERVABILITY.md` | Cloudflare Analytics、Log、Audit、Observability |
 | `19_OPERATIONS_RELEASE_DESIGN.md` | Monitoring、Incident、Recovery、Release |
 | `20_TEST_DESIGN.md` | Unit / Integration / E2E / Security / NFR / Smoke |
+| `21_D1_RECOVERY_RUNBOOK.md` | D1 Time Travel、Production restore guardrail、Preview rehearsal |
 | `21_NAMING_STANDARD.md` | Design ID、source、API、DB、File等の命名 |
 
 ## 4. Cross-project Standards
@@ -125,3 +126,10 @@ Production Appとは分離し、Design Previewを公開する場合はnoindexを
 8. Merge
 9. Production Evidence
 10. Design実態同期
+
+
+## 9. Current Phase
+
+Phase 2 runtimeはWorker API / D1 / LINE Login / Group authorizationを採用済み。Phase 2 completion auditはIssue #145、documentation syncはIssue #162で管理する。
+
+PWAはPhase 3以降へDeferred（Issue #160）。

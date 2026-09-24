@@ -247,7 +247,7 @@ Requirement
 
 
 ### Phase 2 Production Security Headers
-- Vite build後に `dist/_headers` が存在すること
+- Vite build後に `dist/client/_headers` が存在すること
 - Production rootでContent-Security-Policyが返ること
 - CSPに `frame-ancestors 'none'` が含まれること
 - Strict-Transport-Securityが `max-age=31536000` で返ること

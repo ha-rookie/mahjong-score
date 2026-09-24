@@ -7,6 +7,7 @@ import { AuthStatus } from "./components/auth-status";
 import { MemberAccessManagement } from "./components/member-access-management";
 
 type View = "home" | "session-setup" | "results" | "history" | "performance" | "members";
+type AppAuth = { user:{systemRole:"admin"|"user";displayName:string|null}; memberships:Array<{groupId:string;role:"group_admin"|"member"}> };
 const getLocalDateValue = (): string => {
   const now = new Date();
   return [now.getFullYear(), String(now.getMonth()+1).padStart(2,"0"), String(now.getDate()).padStart(2,"0")].join("-");
@@ -19,6 +20,7 @@ function App() {
   const services=useMemo(()=>createBrowserServices(),[]);
   const [view,setView]=useState<View>("home");
   const [authState,setAuthState]=useState<"checking"|"authenticated"|"unauthenticated">("checking");
+  const [appAuth,setAppAuth]=useState<AppAuth|null>(null);
   const [resultsBackView,setResultsBackView]=useState<"home"|"history">("home");
   const [group,setGroup]=useState<Group|null>(null);
   const [groups,setGroups]=useState<readonly Group[]>([]);
@@ -74,14 +76,14 @@ function App() {
     setIsLoading(false);
   },[services]);
   useEffect(()=>{
-    const onAuthState=(event:Event)=>{const detail=(event as CustomEvent<boolean>).detail;setAuthState(detail?"authenticated":"unauthenticated");};
+    const onAuthState=(event:Event)=>{const detail=(event as CustomEvent<AppAuth|null>).detail;setAppAuth(detail);setAuthState(detail?"authenticated":"unauthenticated");};
     window.addEventListener("mahjong:auth-state",onAuthState);
     return()=>window.removeEventListener("mahjong:auth-state",onAuthState);
   },[]);
   useEffect(()=>{
     if(authState==="authenticated"){void refresh();return;}
     if(authState==="unauthenticated"){
-      setIsLoading(false);setGroup(null);setGroups([]);setPlayers([]);setActiveSession(null);setGames([]);setHistory([]);setPerformance([]);
+      setAppAuth(null);setIsLoading(false);setGroup(null);setGroups([]);setPlayers([]);setActiveSession(null);setGames([]);setHistory([]);setPerformance([]);
     }
   },[authState,refresh]);
 
@@ -185,6 +187,7 @@ function App() {
         <div className="selection-summary"><span>{selectedPlayerIds.length}人選択</span><strong>{selectedPlayerIds.length===3||selectedPlayerIds.length===4?getModeLabel(selectedPlayerIds.length):"3人または4人を選択"}</strong></div>
         <Button block disabled={![3,4].includes(selectedPlayerIds.length)||isBusy} onClick={()=>void handleStartSession()}>このメンバーで開始</Button>
       </section>:
+      group===null&&appAuth?.user.systemRole!=="admin"?<section className="login-gate"><p className="screen-eyebrow">INVITATION REQUIRED</p><h1>招待を待っています</h1><p>LINEログインは完了していますが、まだ三麻スコアのグループに参加していません。</p><p>管理者から届いた招待URLをこの端末で開いて、もう一度LINEログインしてください。</p><p className="login-gate__note">通常の「LINEでログイン」から入っただけでは、Playerとの紐付けやグループ参加は行いません。</p></section>:
       group===null?<section className="welcome"><p className="screen-eyebrow">FIRST SETUP</p><h1>最初のグループを作る</h1><form className="form-stack" onSubmit={handleCreateGroup}><TextField id="group-name" label="グループ名" value={groupName} onChange={e=>setGroupName(e.target.value)}/><Button block disabled={isBusy} type="submit">グループを作成</Button></form></section>:
       activeSession?<section className="score-session">
         <div className="score-session__heading"><div><p className="screen-eyebrow">SCORE SHEET</p><h1>{activeSession.session.sessionDate}</h1><p className="score-session__meta">{getModeLabel(participantIds.length)} · {games.length}半荘</p></div></div>

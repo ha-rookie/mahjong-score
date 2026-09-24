@@ -868,3 +868,11 @@ h2 {
   .account-menu__summary{max-width:62px}
   .account-menu__name{max-width:44px}
 }
+
+
+/* Keep Japanese confirmation copy from leaving short sentence endings on their own line. */
+.confirm-dialog h2,
+.confirm-dialog p {
+  text-wrap: balance;
+  word-break: auto-phrase;
+}

@@ -85,7 +85,7 @@ Phase 2ではCloudflare Workers Static Assets公式の `public/_headers` を利�
 ```text
 Design
  -> public/_headers
- -> Vite buildでdist/_headers存在確認
+ -> Vite buildでdist/client/_headers存在確認
  -> deploy
  -> GitHub ActionsからProduction rootへHEAD
  -> 必須Header assert

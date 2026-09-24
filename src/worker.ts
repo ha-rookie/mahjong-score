@@ -123,6 +123,23 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
    await env.DB.prepare("DELETE FROM sessions WHERE id=?").bind(id).run();
    return new Response(null,{status:204});
  }
+ const unlinkPlayer=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)\/players\/([^/]+)\/link$/);
+ if(request.method==="DELETE"&&unlinkPlayer){
+   if(!await isSystemAdmin(env,authUserId))return bad("forbidden","System admin role required",403);
+   const groupId=decodeURIComponent(unlinkPlayer[1]),playerId=decodeURIComponent(unlinkPlayer[2]);
+   const link=await env.DB.prepare("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=? AND active=1").bind(groupId,playerId).first<{userId:string|null}>();
+   if(!link)return bad("player_not_found","Active Player not found in Group",404);
+   if(!link.userId)return json({ok:true,alreadyUnlinked:true});
+   const userId=link.userId,now=new Date().toISOString();
+   try{
+     await env.DB.batch([
+       env.DB.prepare("UPDATE group_players SET user_id=NULL WHERE group_id=? AND player_id=? AND user_id=?").bind(groupId,playerId,userId),
+       env.DB.prepare("DELETE FROM group_memberships WHERE group_id=? AND user_id=? AND role='member'").bind(groupId,userId),
+       env.DB.prepare("UPDATE invitations SET revoked_at=? WHERE group_id=? AND player_id=? AND used_at IS NULL AND revoked_at IS NULL").bind(now,groupId,playerId),
+     ]);
+     return json({ok:true,userId});
+   }catch{return bad("player_unlink_failed","Player link could not be removed",409);}
+ }
  const playerInvites=url.pathname.match(/^\/api\/groups\/([^/]+)\/players\/([^/]+)\/invitations$/);
  if(request.method==="POST"&&playerInvites){
    const groupId=decodeURIComponent(playerInvites[1]),playerId=decodeURIComponent(playerInvites[2]);

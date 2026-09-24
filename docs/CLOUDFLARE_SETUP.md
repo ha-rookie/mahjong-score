@@ -200,3 +200,13 @@ Worker PreviewはD1を自動分離しない。同じdatabase_idを指定したPr
 ### Current repository gap
 
 `wrangler.jsonc` で `preview_urls: true` と空の `previews` blockを明示し、Worker Previewsの基盤を有効化する。D1 resource IDが存在しない段階では架空IDをRepositoryへ追加しない。WranglerはWorker Previews対応の4.135.0を使用する。
+
+
+## 16. Mahjong Score D1 Resources
+
+Created 2026-09-24:
+
+- Production: `mahjong-score-prod` / binding `DB`
+- Preview: `mahjong-score-preview` / binding `DB`
+
+Production and Preview use separate D1 resources. Database UUIDs are configured in `wrangler.jsonc`; they are resource identifiers, not authentication secrets. Do not replace either binding with the other environment's database.

@@ -17,7 +17,7 @@ class FakeStatement{
   values:unknown[]=[];
   constructor(private db:FakeDb,private sql:string){}
   bind(...values:unknown[]){this.values=values;return this;}
-  async first<T>():Promise<T|null>{return this.db.first(this.sql) as T|null;}
+  async first<T>():Promise<T|null>{return this.db.first(this.sql,this.values) as T|null;}
   async all<T>():Promise<{results:T[]}>{return {results:this.db.all() as T[]};}
   async run(){return {meta:{changes:this.db.change()}};}
 }

@@ -17,13 +17,13 @@ class Sessions implements SessionRepository {
   remove():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   cancelEmpty(id:SessionId,version?:number):Promise<Result<void>>{this.cancelled={id,version};return Promise.resolve(ok(undefined));}
   saveSegment():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
-  findSegmentById(_id:SegmentId):Promise<Result<ParticipantSegment|null>>{return Promise.resolve(ok(null));}
+  findSegmentById():Promise<Result<ParticipantSegment|null>>{return Promise.resolve(ok(null));}
 }
 
 class Games implements GameRepository {
   constructor(private readonly games:readonly Game[]){}
   listBySession(id:SessionId):Promise<Result<readonly Game[]>>{return Promise.resolve(ok(this.games.filter(game=>game.sessionId===id)));}
-  findById(_id:GameId):Promise<Result<Game|null>>{return Promise.resolve(ok(null));}
+  findById():Promise<Result<Game|null>>{return Promise.resolve(ok(null));}
   save():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   remove():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   removeBySession():Promise<Result<void>>{return Promise.resolve(ok(undefined));}

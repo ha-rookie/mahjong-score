@@ -28,6 +28,7 @@ class FakeDb{
     private forceStale=false,
     private segments:Record<string,{sessionId:string;players:string[]}>={},
     private games:Record<string,{sessionId:string;segmentId:string;version:number;groupId:string;status:string}>={},
+    private groupPlayers:Record<string,string[]>={},
   ){}
   prepare(sql:string){return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
@@ -47,6 +48,12 @@ class FakeDb{
       const row=this.sessions[String(values[0])];
       return row?{groupId:row.groupId}:null;
     }
+    if(sql.includes("SELECT ps.id,ps.session_id AS sessionId")){
+      const row=this.segments[String(values[0])];
+      if(!row)return null;
+      const session=this.sessions[row.sessionId];
+      return session?{id:String(values[0]),sessionId:row.sessionId,sequence:1,groupId:session.groupId,status:"active"}:null;
+    }
     if(sql.includes("SELECT g.id,g.session_id AS sessionId")){
       const row=this.games[String(values[0])];
       return row?{id:String(values[0]),sessionId:row.sessionId,segmentId:row.segmentId,sequence:1,playedAt:"2026-01-01T00:00:00Z",version:row.version,groupId:row.groupId,status:row.status}:null;
@@ -58,6 +65,9 @@ class FakeDb{
     return null;
   }
   all(sql?:string,values:unknown[]=[]){
+    if(sql?.includes("SELECT player_id AS playerId FROM group_players")){
+      return (this.groupPlayers[String(values[0])]??[]).filter(playerId=>values.slice(1).map(String).includes(playerId)).map(playerId=>({playerId}));
+    }
     if(sql?.includes("SELECT player_id AS playerId FROM segment_players")){
       return (this.segments[String(values[0])]?.players??[]).map(playerId=>({playerId}));
     }
@@ -161,4 +171,12 @@ test("session start rejects a Group that already has an active Session",async()=
   const response=await worker.fetch(await request("/api/groups/g1/sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"new-session",segmentId:"seg-new",sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",participantPlayerIds:["p1","p2","p3"]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"active_session_exists");
+});
+
+
+test("segment edit rejects a Player outside the Session Group before mutation",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}},{},{g1:["p1","p2","p3"]});
+  const response=await worker.fetch(await request("/api/segments/seg1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({sequence:1,participantPlayerIds:["p1","p2","outsider"]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_segment_participants");
 });

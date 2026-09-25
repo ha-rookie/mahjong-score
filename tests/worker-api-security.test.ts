@@ -30,6 +30,7 @@ class FakeDb{
     private games:Record<string,{sessionId:string;segmentId:string;version:number;groupId:string;status:string}>={},
     private groupPlayers:Record<string,string[]>={},
     private failNextBatch=false,
+    private nextRunChanges:number|null=null,
   ){}
   prepare(sql:string){return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){if(this.failNextBatch){this.failNextBatch=false;return statements.map((_,i)=>({meta:{changes:i===0?0:1}}));}return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
@@ -82,8 +83,9 @@ class FakeDb{
     }
     return [];
   }
-  change(){return this.forceStale?0:1;}
+  change(){if(this.nextRunChanges!==null){const value=this.nextRunChanges;this.nextRunChanges=null;return value;}return this.forceStale?0:1;}
   simulateBatchRace(){this.failNextBatch=true;}
+  simulateNextRunChanges(value:number){this.nextRunChanges=value;}
 }
 const env=(db:FakeDb)=>({DB:db as unknown as D1Database,ASSETS:{fetch:async()=>new Response("asset")} as unknown as Fetcher,AUTH_SESSION_SECRET:secret});
 const request=async(path:string,init:RequestInit={},userId?:string)=>{
@@ -202,4 +204,28 @@ test("game create returns 409 when Session finalizes between validation and batc
   const response=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game-race",segmentId:"seg1",sequence:1,playedAt:"2026-09-25T06:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"game_write_failed");
+});
+
+
+test("game delete accepts D1 cascade change count greater than one",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"}}
+  );
+  db.simulateNextRunChanges(4);
+  const response=await worker.fetch(await request("/api/games/game1?version=1",{method:"DELETE"},"member"),env(db));
+  assert.equal(response.status,204);
+});
+
+test("session delete accepts D1 cascade change count greater than one",async()=>{
+  const db=new FakeDb(
+    {admin:{memberships:{g1:"group_admin"}}},
+    {s1:{groupId:"g1",version:2,status:"finalized"}}
+  );
+  db.simulateNextRunChanges(7);
+  const response=await worker.fetch(await request("/api/sessions/s1?version=2",{method:"DELETE"},"admin"),env(db));
+  assert.equal(response.status,204);
 });

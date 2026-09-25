@@ -97,7 +97,7 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
      const versionRaw=url.searchParams.get("version"),expectedVersion=versionRaw&&/^[0-9]+$/.test(versionRaw)?Number(versionRaw):null;
      if(expectedVersion===null||expectedVersion<1)return bad("invalid_expected_version","version is required");
      const deleted=await env.DB.prepare("DELETE FROM games WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM sessions WHERE id=games.session_id AND status='active')").bind(gameId,expectedVersion).run();
-     if((deleted.meta.changes??0)!==1)return bad("stale_update","Game was updated by another client",409);
+     if((deleted.meta.changes??0)===0)return bad("stale_update","Game was updated by another client",409);
      return new Response(null,{status:204});
    }
  }
@@ -126,7 +126,7 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
    const versionRaw=url.searchParams.get("version"),expectedVersion=versionRaw&&/^[0-9]+$/.test(versionRaw)?Number(versionRaw):null;
    if(expectedVersion===null||expectedVersion<1)return bad("invalid_expected_version","version is required");
    const deleted=await env.DB.prepare("DELETE FROM sessions WHERE id=? AND version=?").bind(id,expectedVersion).run();
-   if((deleted.meta.changes??0)!==1)return bad("stale_update","Session was updated by another client",409);
+   if((deleted.meta.changes??0)===0)return bad("stale_update","Session was updated by another client",409);
    auditSuccess("session_deleted",{groupId:sg.groupId,resourceType:"session",resourceId:id});return new Response(null,{status:204});
  }
  const unlinkPlayer=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)\/players\/([^/]+)\/link$/);

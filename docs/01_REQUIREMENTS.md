@@ -124,7 +124,7 @@ Phase 1:
 - Player別Memo UI（本人識別・認可導入まで保留）
 - D1 / Worker API
 - LINE / Google Login
-- Group authorization（管理者のみGroup作成可能。Backup / Restoreも管理者のみ。Phase 1ではRepository owner本人を暫定Adminとして扱い、認証・認可導入後に実際の権限制御へ置き換える）
+- Group authorization（System Admin / Group Admin / MemberをWorker API側で強制。Group作成はSystem Admin、Group管理操作は権限に応じて制御する）
 - multi-device sync
 - server audit log
 
@@ -155,7 +155,7 @@ Phase 1:
 | TBD-002 | 同点Top / rank処理 | Human | Resolved: 入力順を順位として保持 |
 | TBD-003 | 確定Sessionの再編集/訂正 | Human | Resolved: Phase 1は確定前ResultsからActiveへ戻して訂正可能。finalized後の訂正は将来検討 |
 | TBD-004 | 離脱PlayerのChip精算運用 | Human | Resolved: Phase 1は同一Session内で離脱を扱わず、現Sessionを精算・終了後に残ったメンバーで新Sessionを開始 |
-| TBD-005 | Phase 1で複数Groupを扱うUI | Human | Resolved: 複数Group所属時のみHomeに切替UIを表示。Group作成は管理者のみ（Phase 1の認証・認可未実装のため初回セットアップ以外の作成UIは提供しない） |
+| TBD-005 | 複数Groupを扱うUI | Human | Resolved: 複数Group所属時のみHomeに切替UIを表示。Group作成はSystem Adminに限定し、Worker APIでも認可する |
 
 未決事項をAIが推測で確定しない。
 

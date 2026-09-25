@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import type { GameRepository, SessionRepository } from "../src/application/ports";
 import { CancelEmptySessionUseCase } from "../src/application/use-cases";
-import type { Game, GameId, ParticipantSegment, SegmentId, Session, SessionId } from "../src/domain";
+import type { Game, ParticipantSegment, Session, SessionId } from "../src/domain";
 import { ok, type Result } from "../src/shared/errors";
 
 const session:Session={id:"s1",groupId:"g1",sessionDate:"2026-09-25",startedAt:"2026-09-25T08:00:00.000Z",endedAt:null,status:"active",note:null,participantNotes:[],chipResults:[],version:3};

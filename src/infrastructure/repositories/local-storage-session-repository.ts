@@ -117,6 +117,29 @@ export class LocalStorageSessionRepository implements SessionRepository {
     }));
   }
 
+  async cancelEmpty(id: SessionId, expectedVersion?: number): Promise<Result<void>> {
+    return this.store.update((current) => {
+      const session = current.sessions.find((item) => item.id === id);
+      if (session === undefined) {
+        return err(new AppError({code:"session_not_found",message:`Session not found: ${id}`,userMessage:"Sessionが見つかりません。"}));
+      }
+      if (session.status !== "active") {
+        return err(new AppError({code:"session_not_active",message:`Session is not active: ${id}`,userMessage:"このSessionはすでに終了しています。"}));
+      }
+      if (expectedVersion !== undefined && session.version !== expectedVersion) {
+        return err(new AppError({code:"stale_update",message:`Session version mismatch: ${id}`,userMessage:"Sessionが別の端末で更新されています。最新の状態に更新してください。"}));
+      }
+      if (current.games.some((game) => game.sessionId === id)) {
+        return err(new AppError({code:"session_not_empty",message:`Session has Games: ${id}`,userMessage:"半荘が登録されているSessionは取り消せません。"}));
+      }
+      return ok({
+        ...current,
+        sessions: current.sessions.filter((item) => item.id !== id),
+        participantSegments: current.participantSegments.filter((item) => item.sessionId !== id),
+      });
+    });
+  }
+
   async save(session: Session): Promise<Result<void>> {
     return this.store.update((current) => {
       const exists = current.sessions.some((item) => item.id === session.id);

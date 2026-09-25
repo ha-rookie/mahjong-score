@@ -23,21 +23,21 @@ const activeInvitation=async(env:AuthEnv,token:string)=>{
   return env.DB.prepare("SELECT id,group_id AS groupId,player_id AS playerId,expires_at AS expiresAt FROM invitations WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?").bind(tokenHash,new Date().toISOString()).first<InviteRow>();
 };
 
-const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:string):Promise<"accepted"|"invalid"|"conflict">=>{
-  const invite=await env.DB.prepare("SELECT id,group_id AS groupId,player_id AS playerId,expires_at AS expiresAt FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?").bind(invitationId,new Date().toISOString()).first<InviteRow>();
+export const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:string):Promise<"accepted"|"invalid"|"conflict">=>{
+  const now=new Date().toISOString();
+  const invite=await env.DB.prepare("SELECT id,group_id AS groupId,player_id AS playerId,expires_at AS expiresAt FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?").bind(invitationId,now).first<InviteRow>();
   if(!invite)return "invalid";
   const existingLink=await env.DB.prepare("SELECT player_id AS playerId FROM group_players WHERE group_id=? AND user_id=?").bind(invite.groupId,userId).first<{playerId:string}>();
   if(existingLink&&existingLink.playerId!==invite.playerId)return "conflict";
   const target=await env.DB.prepare("SELECT active,user_id AS userId FROM group_players WHERE group_id=? AND player_id=?").bind(invite.groupId,invite.playerId).first<{active:number;userId:string|null}>();
   if(!target||target.active!==1||(target.userId&&target.userId!==userId))return "conflict";
-  const now=new Date().toISOString();
   try{
     const result=await env.DB.batch([
-      env.DB.prepare("INSERT INTO group_memberships(group_id,user_id,role,created_at,updated_at) VALUES(?,?,'member',?,?) ON CONFLICT(group_id,user_id) DO UPDATE SET role=CASE WHEN group_memberships.role='group_admin' THEN 'group_admin' ELSE 'member' END,updated_at=excluded.updated_at").bind(invite.groupId,userId,now,now),
-      env.DB.prepare("UPDATE group_players SET user_id=? WHERE group_id=? AND player_id=? AND active=1 AND (user_id IS NULL OR user_id=?)").bind(userId,invite.groupId,invite.playerId,userId),
-      env.DB.prepare("UPDATE invitations SET used_at=?,used_by_user_id=? WHERE id=? AND used_at IS NULL AND revoked_at IS NULL").bind(now,userId,invite.id),
+      env.DB.prepare("UPDATE group_players SET user_id=? WHERE group_id=? AND player_id=? AND active=1 AND (user_id IS NULL OR user_id=?) AND EXISTS(SELECT 1 FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?)").bind(userId,invite.groupId,invite.playerId,userId,invite.id,now),
+      env.DB.prepare("INSERT INTO group_memberships(group_id,user_id,role,created_at,updated_at) SELECT ?,?,'member',?,? WHERE EXISTS(SELECT 1 FROM group_players WHERE group_id=? AND player_id=? AND user_id=?) AND EXISTS(SELECT 1 FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?) ON CONFLICT(group_id,user_id) DO UPDATE SET role=CASE WHEN group_memberships.role='group_admin' THEN 'group_admin' ELSE 'member' END,updated_at=excluded.updated_at").bind(invite.groupId,userId,now,now,invite.groupId,invite.playerId,userId,invite.id,now),
+      env.DB.prepare("UPDATE invitations SET used_at=?,used_by_user_id=? WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>? AND EXISTS(SELECT 1 FROM group_players WHERE group_id=? AND player_id=? AND user_id=?)").bind(now,userId,invite.id,now,invite.groupId,invite.playerId,userId),
     ]);
-    if(result[1]?.meta.changes!==1||result[2]?.meta.changes!==1)return "conflict";
+    if(result.some(v=>v.meta.changes!==1))return "conflict";
     return "accepted";
   }catch{return "conflict";}
 };

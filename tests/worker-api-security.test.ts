@@ -17,9 +17,9 @@ class FakeStatement{
   values:unknown[]=[];
   constructor(private db:FakeDb,private sql:string){}
   bind(...values:unknown[]){this.values=values;return this;}
-  async first<T>():Promise<T|null>{return this.db.first(this.sql,this.values) as T|null;}
-  async all<T>():Promise<{results:T[]}>{return {results:this.db.all(this.sql,this.values) as T[]};}
-  async run(){return {meta:{changes:this.db.change(this.sql,this.values)}};}
+  async first<T>():Promise<T|null>{return this.db.first(this.sql) as T|null;}
+  async all<T>():Promise<{results:T[]}>{return {results:this.db.all() as T[]};}
+  async run(){return {meta:{changes:this.db.change()}};}
 }
 class FakeDb{
   constructor(
@@ -46,7 +46,7 @@ class FakeDb{
   all(){return [];}
   change(){return this.forceStale?0:1;}
 }
-const env=(db:FakeDb)=>({DB:db as unknown as D1Database,ASSETS:{fetch:async()=>new Response("asset")} as Fetcher,AUTH_SESSION_SECRET:secret});
+const env=(db:FakeDb)=>({DB:db as unknown as D1Database,ASSETS:{fetch:async()=>new Response("asset")} as unknown as Fetcher,AUTH_SESSION_SECRET:secret});
 const request=async(path:string,init:RequestInit={},userId?:string)=>{
   const headers=new Headers(init.headers);
   if(userId)headers.set("cookie",await sessionCookie(userId));
@@ -55,41 +55,41 @@ const request=async(path:string,init:RequestInit={},userId?:string)=>{
 const errorCode=async(response:Response)=>(await response.json() as {error:{code:string}}).error.code;
 
 test("protected API rejects unauthenticated request",async()=>{
-  const response=await worker.fetch(await request("/api/groups"),env(new FakeDb({})),{} as ExecutionContext);
+  const response=await worker.fetch(await request("/api/groups"),env(new FakeDb({})));
   assert.equal(response.status,401);
   assert.equal(await errorCode(response),"unauthorized");
 });
 
 test("member cannot create a group",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}});
-  const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"Nope",createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"member"),env(db),{} as ExecutionContext);
+  const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"Nope",createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"member"),env(db));
   assert.equal(response.status,403);
   assert.equal(await errorCode(response),"forbidden");
 });
 
 test("member cannot cross group boundary",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}});
-  const response=await worker.fetch(await request("/api/groups/g2/players",{},"member"),env(db),{} as ExecutionContext);
+  const response=await worker.fetch(await request("/api/groups/g2/players",{},"member"),env(db));
   assert.equal(response.status,403);
   assert.equal(await errorCode(response),"forbidden");
 });
 
 test("group member can read own group players",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}});
-  const response=await worker.fetch(await request("/api/groups/g1/players",{},"member"),env(db),{} as ExecutionContext);
+  const response=await worker.fetch(await request("/api/groups/g1/players",{},"member"),env(db));
   assert.equal(response.status,200);
   assert.deepEqual(await response.json(),{players:[]});
 });
 
 test("system admin can create a group",async()=>{
   const db=new FakeDb({admin:{systemAdmin:true}});
-  const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"Allowed",createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"admin"),env(db),{} as ExecutionContext);
+  const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"Allowed",createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"admin"),env(db));
   assert.equal(response.status,201);
 });
 
 test("stale session update returns 409 without accepting update",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2}},true);
-  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"stale",status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db),{} as ExecutionContext);
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"stale",status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"stale_update");
 });

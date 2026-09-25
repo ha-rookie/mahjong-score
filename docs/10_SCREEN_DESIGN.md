@@ -15,7 +15,7 @@ Screen Map、画面遷移、項目、Event、画面-Data Mapping、Wireframe/Moc
 | SCR-005 | Chip Settlement | Score Sheet内 | Session Chip精算・最終合計 | User | Phase 1なし | 1 | Active |
 | SCR-006 | Results | TBD | Session / 日次成績 | User | TBD | 1 | Planned |
 | SCR-007 | Statistics | TBD | 月・年・通算 | User | TBD | 1 | Planned |
-| SCR-008 | Backup | Home内 | JSON Backup / Restore | Admin | Phase 1はowner=暫定Admin | 1 | Active |
+| SCR-008 | Backup | Home内 | Legacy localStorage JSON Backup / Restore | Admin | D1運用時はRecovery Runbookを使用 | 1 | Active |
 
 Routerはまだ採用せず、Phase 1最初のVertical SliceはReact stateでHome / Session Setupを切り替える。
 
@@ -65,7 +65,7 @@ Member:
 - 登録済み一覧
 - 空欄はApplication Use Caseで拒否
 
-Phase 1は複数Groupを保持できる。所属Groupが1つの場合は切替UIを表示せず、2つ以上の場合のみHomeにGroup切替UIを表示する。切替後はMember / Active Session / History / Performanceを選択Group単位で再読込する。Group作成は管理者のみとするが、Phase 1では認証・認可を実装しないため、初回セットアップ以外のGroup作成UIは提供しない。
+複数Group所属に対応する。所属Groupが1つの場合は切替UIを表示せず、2つ以上の場合のみHomeにGroup切替UIを表示する。切替後はMember / Active Session / History / Performanceを選択Group単位で再読込する。Group作成はSystem Adminに限定し、Worker API側でも認可する。
 
 ## 6. Session Setup
 
@@ -215,7 +215,7 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 
 ### JSON Backup / Restore
 - Backup / Restoreは管理者機能とする
-- Phase 1は認証・認可未実装のためRepository owner本人を暫定Adminとして扱い、機能を表示する
+- Current runtimeではSystem Admin / Group Admin / Memberのroleに基づき表示を制御し、Worker API側でも同じauthorization boundaryを強制する
 - 認証・認可導入後はAdminにだけ表示・実行を許可する
 - Homeから端末Dataをschema version付きJSONとして保存できる
 - 復元はJSONファイルを選択し、現在Dataを置換する前に確認を表示する

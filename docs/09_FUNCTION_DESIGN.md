@@ -15,6 +15,7 @@
 | FUNC-006 | 成績集計 | 1 | Planned |
 | FUNC-007 | Backup export/import | 1 | Application active / UI pending |
 | FUNC-008 | 認証・認可 | 2-3 | Deferred |
+| FUNC-009 | 0半荘Session取り消し | 3 RC | Active |
 
 ## 3. FUNC-003 半荘結果入力
 
@@ -86,7 +87,8 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 
 
 ## Session終了
-- Active Sessionから「Sessionを終了」を実行できる
+- Gameが1件以上あるActive Sessionから「Sessionを終了」を実行できる
+- Game 0件では終了操作を表示せず、FUNC-009の「Sessionを取り消す」を表示する
 - 終了操作後はまずResultsを確認表示し、Sessionは`active`のまま維持する
 - Resultsの「修正する」でActive Sessionへ戻り、既存の半荘・チップ・メモ編集を利用する
 - Resultsの「終了を確定」でstatusを`finalized`、endedAtを終了時刻に更新する
@@ -117,3 +119,13 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 ### Performance Period Filter
 - Player成績集計は期間指定なし=通算、year指定=年間、year+month指定=月間とする
 - 期間判定はSession.sessionDateを使い、finalized Sessionのみ対象とする
+
+
+## FUNC-009 0半荘Session取り消し
+- 対象は `active` かつGame 0件のSessionのみ
+- Score Sheetでは「Sessionを終了」の代わりに「Sessionを取り消す」を表示する
+- 確認Dialogで、Session情報が削除され履歴へ残らないことを明示する
+- Application Use CaseでGame 0件を確認し、Worker APIでもactive / Game 0件 / expectedVersionを再検証する
+- Group Memberは対象Groupの空Sessionを取り消せる
+- 既存の履歴Session削除はSystem Admin / Group Adminのみのままとし、権限境界を混同しない
+- 0半荘Sessionのfinalizeは禁止する

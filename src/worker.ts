@@ -120,7 +120,8 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
      if(seg.status!=="active")return bad("session_not_active","Finalized Session is read-only",409);
      const b=await body(request),sequence=typeof b?.sequence==="number"?b.sequence:null,participants=Array.isArray(b?.participantPlayerIds)?b.participantPlayerIds.filter((v):v is string=>typeof v==="string"):[];
      if(!Number.isInteger(sequence)||![3,4].includes(participants.length)||new Set(participants).size!==participants.length)return bad("invalid_segment","Segment requires 3 or 4 unique Players");
-     await env.DB.batch([env.DB.prepare("UPDATE participant_segments SET sequence=? WHERE id=?").bind(sequence,segmentId),env.DB.prepare("DELETE FROM segment_players WHERE segment_id=?").bind(segmentId),...participants.map((playerId,i)=>env.DB.prepare("INSERT INTO segment_players(segment_id,player_id,seat_order) VALUES(?,?,?)").bind(segmentId,playerId,i))]);
+     const placeholders=participants.map(()=>"?").join(",");const allowed=await env.DB.prepare(`SELECT player_id AS playerId FROM group_players WHERE group_id=? AND active=1 AND player_id IN (${placeholders})`).bind(groupId,...participants).all();const allowedIds=(allowed.results as Array<{playerId:string}>).map(v=>v.playerId);if(allowedIds.length!==participants.length||participants.some(id=>!allowedIds.includes(id)))return bad("invalid_segment_participants","Segment Players must be active members of the Session Group");
+    await env.DB.batch([env.DB.prepare("UPDATE participant_segments SET sequence=? WHERE id=?").bind(sequence,segmentId),env.DB.prepare("DELETE FROM segment_players WHERE segment_id=?").bind(segmentId),...participants.map((playerId,i)=>env.DB.prepare("INSERT INTO segment_players(segment_id,player_id,seat_order) VALUES(?,?,?)").bind(segmentId,playerId,i))]);
      return json({ok:true});
    }
  }

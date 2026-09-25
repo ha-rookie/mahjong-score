@@ -27,6 +27,7 @@ class FakeDb{
     private sessions:Record<string,{groupId:string;version:number}>={},
     private forceStale=false,
     private segments:Record<string,{sessionId:string;players:string[]}>={},
+    private games:Record<string,{sessionId:string;segmentId:string;version:number;groupId:string;status:string}>={},
   ){}
   prepare(sql:string){return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
@@ -41,6 +42,10 @@ class FakeDb{
     if(sql.includes("SELECT group_id AS groupId FROM sessions")){
       const row=this.sessions[String(values[0])];
       return row?{groupId:row.groupId}:null;
+    }
+    if(sql.includes("SELECT g.id,g.session_id AS sessionId")){
+      const row=this.games[String(values[0])];
+      return row?{id:String(values[0]),sessionId:row.sessionId,segmentId:row.segmentId,sequence:1,playedAt:"2026-01-01T00:00:00Z",version:row.version,groupId:row.groupId,status:row.status}:null;
     }
     if(sql.includes("SELECT id FROM participant_segments")){
       const row=this.segments[String(values[0])];
@@ -117,4 +122,12 @@ test("game create rejects result players that do not match Segment participants"
   const response=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game1",segmentId:"seg1",sequence:1,playedAt:"2026-01-01T00:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"outsider",scorePoint:-5}]})},"member"),env(db));
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"invalid_game_participants");
+});
+
+
+test("game edit rejects a Segment from another Session before mutating results",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{segOther:{sessionId:"s2",players:["p1","p2","p3"]}},{game1:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"}});
+  const response=await worker.fetch(await request("/api/games/game1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({segmentId:"segOther",sequence:1,playedAt:"2026-01-01T00:00:00Z",expectedVersion:1,results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],tags:[]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_game_segment");
 });

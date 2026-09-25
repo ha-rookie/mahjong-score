@@ -229,3 +229,39 @@ test("session delete accepts D1 cascade change count greater than one",async()=>
   const response=await worker.fetch(await request("/api/sessions/s1?version=2",{method:"DELETE"},"admin"),env(db));
   assert.equal(response.status,204);
 });
+
+
+test("stale game update returns 409",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    true,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:2,groupId:"g1",status:"active"}}
+  );
+  const response=await worker.fetch(await request("/api/games/game1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({segmentId:"seg1",sequence:1,playedAt:"2026-09-25T08:00:00Z",expectedVersion:1,results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],tags:[]})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"stale_update");
+});
+
+test("stale game delete returns 409",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    true,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:2,groupId:"g1",status:"active"}}
+  );
+  const response=await worker.fetch(await request("/api/games/game1?version=1",{method:"DELETE"},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"stale_update");
+});
+
+test("group admin can delete a Session",async()=>{
+  const db=new FakeDb(
+    {admin:{memberships:{g1:"group_admin"}}},
+    {s1:{groupId:"g1",version:2,status:"finalized"}}
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1?version=2",{method:"DELETE"},"admin"),env(db));
+  assert.equal(response.status,204);
+});

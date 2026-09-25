@@ -18,7 +18,7 @@ class FakeStatement{
   constructor(private db:FakeDb,private sql:string){}
   bind(...values:unknown[]){this.values=values;return this;}
   async first<T>():Promise<T|null>{return this.db.first(this.sql,this.values) as T|null;}
-  async all<T>():Promise<{results:T[]}>{return {results:this.db.all() as T[]};}
+  async all<T>():Promise<{results:T[]}>{return {results:this.db.all(this.sql,this.values) as T[]};}
   async run(){return {meta:{changes:this.db.change()}};}
 }
 class FakeDb{
@@ -26,6 +26,7 @@ class FakeDb{
     private users:Record<string,User>,
     private sessions:Record<string,{groupId:string;version:number}>={},
     private forceStale=false,
+    private segments:Record<string,{sessionId:string;players:string[]}>={},
   ){}
   prepare(sql:string){return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
@@ -41,9 +42,18 @@ class FakeDb{
       const row=this.sessions[String(values[0])];
       return row?{groupId:row.groupId}:null;
     }
+    if(sql.includes("SELECT id FROM participant_segments")){
+      const row=this.segments[String(values[0])];
+      return row?.sessionId===String(values[1])?{id:String(values[0])}:null;
+    }
     return null;
   }
-  all(){return [];}
+  all(sql?:string,values:unknown[]=[]){
+    if(sql?.includes("SELECT player_id AS playerId FROM segment_players")){
+      return (this.segments[String(values[0])]?.players??[]).map(playerId=>({playerId}));
+    }
+    return [];
+  }
   change(){return this.forceStale?0:1;}
 }
 const env=(db:FakeDb)=>({DB:db as unknown as D1Database,ASSETS:{fetch:async()=>new Response("asset")} as unknown as Fetcher,AUTH_SESSION_SECRET:secret});
@@ -92,4 +102,19 @@ test("stale session update returns 409 without accepting update",async()=>{
   const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"stale",status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"stale_update");
+});
+
+
+test("game create rejects a Segment from another Session",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{segOther:{sessionId:"s2",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game1",segmentId:"segOther",sequence:1,playedAt:"2026-01-01T00:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_game_segment");
+});
+
+test("game create rejects result players that do not match Segment participants",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game1",segmentId:"seg1",sequence:1,playedAt:"2026-01-01T00:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"outsider",scorePoint:-5}]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_game_participants");
 });

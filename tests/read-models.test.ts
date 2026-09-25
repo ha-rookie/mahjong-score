@@ -136,6 +136,10 @@ class FakeSessionRepository implements SessionRepository {
     return Promise.resolve(ok(undefined));
   }
 
+  cancelEmpty(): Promise<Result<void>> {
+    return Promise.resolve(ok(undefined));
+  }
+
   saveSegment(): Promise<Result<void>> {
     return Promise.resolve(ok(undefined));
   }

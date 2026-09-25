@@ -83,6 +83,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | REQ-010 | GameTag | Deferred | Phase 1 UIから除外。利用方法を再定義してから再検討 | Deferred |
 | REQ-011 | Session Memoを保持 | Should | Session単位のoptional memoを保存できる。Player別Memo UIは本人識別・認可導入まで延期 | Active |
 | REQ-012 | JSON Backup/Restore | Must | 管理者のみ利用可能。schema version付きexport/import。復元前に確認し、不正ファイルでは既存Dataを変更しない | Active |
+| REQ-013 | 0半荘のactive Sessionは終了ではなく取り消せる | Must | Game 0件ではSessionを削除して履歴へ残さず、Game 1件以上は取り消し不可。0半荘finalizeも拒否する | Active |
 
 ## 8. 非機能要件
 

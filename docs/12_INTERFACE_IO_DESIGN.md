@@ -80,6 +80,7 @@ The write baseline exists for repository/API integration work but is **not yet w
 | POST | /api/groups/:groupId/sessions | Create active Session + initial participant segment |
 | POST | /api/sessions/:sessionId/games | Add a game result to an active Session |
 | PATCH | /api/sessions/:sessionId | Update memo/status/end time |
+| POST | /api/sessions/:sessionId/cancel | Cancel active Session only when it has zero Games; requires expectedVersion |
 
 Worker-side validation protects basic invariants (3/4 unique participants, active group membership, integer game points totaling zero, active Session on game creation). The browser UI remains localStorage-backed until authentication/authorization is enforced.
 
@@ -108,3 +109,9 @@ The Worker completes the LINE Login v2.1 authorization-code flow server-side. Th
 | POST | /api/auth/logout | Clear application session |
 
 All mutation APIs now require a valid application session. Group-level Admin/Member authorization remains the next enforcement layer. `LINE_CHANNEL_ID` is non-secret configuration. `LINE_CHANNEL_SECRET` and `AUTH_SESSION_SECRET` must be Cloudflare Worker secrets and must never be committed or captured in screenshots.
+
+
+### Empty Session cancellation contract
+`POST /api/sessions/:sessionId/cancel` accepts `expectedVersion` and is available to authenticated Members of the owning Group.
+The Worker rejects finalized Sessions, Sessions with one or more Games, stale versions, and cross-Group access.
+This endpoint is distinct from administrative `DELETE /api/sessions/:sessionId`, whose System Admin / Group Admin authorization remains unchanged.

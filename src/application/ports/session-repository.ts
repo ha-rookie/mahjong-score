@@ -14,6 +14,7 @@ export interface SessionRepository {
   createWithInitialSegment(session: Session, segment: ParticipantSegment): Promise<Result<void>>;
   save(session: Session): Promise<Result<void>>;
   remove(id: SessionId, expectedVersion?: number): Promise<Result<void>>;
+  cancelEmpty(id: SessionId, expectedVersion?: number): Promise<Result<void>>;
   saveSegment(segment: ParticipantSegment): Promise<Result<void>>;
   findSegmentById(id: SegmentId): Promise<Result<ParticipantSegment | null>>;
 }

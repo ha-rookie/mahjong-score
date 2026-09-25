@@ -301,3 +301,15 @@ Requirement
 | PWA | #160へDeferred |
 
 Phase 2最終smokeはIssue #145で管理する。
+
+
+### Empty Session cancellation
+- Game 0件のactive SessionではUIに「Sessionを取り消す」を表示し、「Sessionを終了」は表示しないこと
+- Game 1件以上では「Sessionを終了」を表示し、取り消し操作を表示しないこと
+- Group Memberが自GroupのGame 0件active Sessionを取り消せること
+- Game 1件以上のcancel APIは409 `session_not_empty`になること
+- finalized Sessionのcancel APIは409 `session_not_active`になること
+- stale expectedVersionのcancel APIは409 `stale_update`になること
+- 0半荘SessionのfinalizeをApplication / Worker API双方で拒否すること
+- 通常のSession DELETEは引き続きSystem Admin / Group Adminのみで、Memberは403となること
+- smartphoneで0半荘取り消し後にHomeへ戻り、履歴へ0半荘Sessionが追加されないこと

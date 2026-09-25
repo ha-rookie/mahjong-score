@@ -2,7 +2,7 @@
 
 仲間内の三人麻雀・4人回し三麻のスコア、チップ、月間・年間・通算成績を管理するWebアプリです。
 
-Phase 1の端末内PoCを経て、現在はPhase 2の複数ユーザー対応をProductionへ実装済みです。
+Phase 1の端末内PoCを経て、元の4 Phase roadmap上のPhase 2（D1/API/業務基盤）とPhase 3（LINE Login/招待/複数ユーザー）までProductionへ実装済みです。
 
 ## Current Phase
 

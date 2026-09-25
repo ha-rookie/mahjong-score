@@ -180,11 +180,11 @@ test("session start rejects a Group that already has an active Session",async()=
 });
 
 
-test("segment edit rejects a Player outside the Session Group before mutation",async()=>{
-  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}},{},{g1:["p1","p2","p3"]});
-  const response=await worker.fetch(await request("/api/segments/seg1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({sequence:1,participantPlayerIds:["p1","p2","outsider"]})},"member"),env(db));
-  assert.equal(response.status,400);
-  assert.equal(await errorCode(response),"invalid_segment_participants");
+test("segment edit is rejected because Session participants are immutable",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/segments/seg1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({sequence:1,participantPlayerIds:["p1","p2","p3"]})},"member"),env(db));
+  assert.equal(response.status,405);
+  assert.equal(await errorCode(response),"segment_update_not_supported");
 });
 
 

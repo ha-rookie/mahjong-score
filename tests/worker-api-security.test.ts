@@ -52,6 +52,10 @@ class FakeDb{
     if(sql?.includes("SELECT player_id AS playerId FROM segment_players")){
       return (this.segments[String(values[0])]?.players??[]).map(playerId=>({playerId}));
     }
+    if(sql?.includes("SELECT DISTINCT sp.player_id AS playerId")){
+      const sessionId=String(values[0]);
+      return Object.values(this.segments).filter(segment=>segment.sessionId===sessionId).flatMap(segment=>segment.players).filter((playerId,index,all)=>all.indexOf(playerId)===index).map(playerId=>({playerId}));
+    }
     return [];
   }
   change(){return this.forceStale?0:1;}
@@ -98,7 +102,7 @@ test("system admin can create a group",async()=>{
 });
 
 test("stale session update returns 409 without accepting update",async()=>{
-  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2}},true);
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2}},true,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
   const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"stale",status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"stale_update");
@@ -117,4 +121,19 @@ test("game create rejects result players that do not match Segment participants"
   const response=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game1",segmentId:"seg1",sequence:1,playedAt:"2026-01-01T00:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"outsider",scorePoint:-5}]})},"member"),env(db));
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"invalid_game_participants");
+});
+
+
+test("session detail update rejects non-participant chip player",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:null,status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[{playerId:"p1",chipCount:1},{playerId:"p2",chipCount:-1},{playerId:"outsider",chipCount:0}]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_session_participants");
+});
+
+test("session detail update rejects duplicate chip player",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:null,status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[{playerId:"p1",chipCount:1},{playerId:"p1",chipCount:-1},{playerId:"p3",chipCount:0}]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_session_details");
 });

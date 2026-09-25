@@ -28,7 +28,7 @@ class FakeDb{
     private forceStale=false,
   ){}
   prepare(sql:string){return new FakeStatement(this,sql);}
-  async batch(statements:FakeStatement[]){return statements.map((s)=>({meta:{changes:this.forceStale?0:1}}));}
+  async batch(statements:FakeStatement[]){return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
   first(sql:string,values:unknown[]){
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
@@ -43,8 +43,8 @@ class FakeDb{
     }
     return null;
   }
-  all(_sql:string,_values:unknown[]){return [];}
-  change(_sql:string,_values:unknown[]){return this.forceStale?0:1;}
+  all(){return [];}
+  change(){return this.forceStale?0:1;}
 }
 const env=(db:FakeDb)=>({DB:db as unknown as D1Database,ASSETS:{fetch:async()=>new Response("asset")} as Fetcher,AUTH_SESSION_SECRET:secret});
 const request=async(path:string,init:RequestInit={},userId?:string)=>{

@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "lib": ["ES2023", "DOM"],
-    "types": ["node"],
+    "types": ["node", "@cloudflare/workers-types"],
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -18,6 +18,8 @@
     "src/shared/**/*.ts",
     "src/application/**/*.ts",
     "src/infrastructure/**/*.ts",
+    "src/worker.ts",
+    "src/worker/**/*.ts",
     "tests/**/*.ts"
   ]
 }

@@ -46,6 +46,12 @@ class FakeDb{
       const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0]));
       return entry?{id:entry[0]}:null;
     }
+    if(sql.includes("FROM sessions s WHERE s.id=?")&&sql.includes("AS gameCount")){
+      const row=this.sessions[String(values[0])];
+      if(!row)return null;
+      const gameCount=Object.values(this.games).filter(game=>game.sessionId===String(values[0])).length;
+      return {status:row.status??"active",version:row.version,gameCount};
+    }
     if(sql.includes("SELECT status FROM sessions WHERE id=?")){
       const row=this.sessions[String(values[0])];
       return row?{status:row.status??"active"}:null;
@@ -264,4 +270,68 @@ test("group admin can delete a Session",async()=>{
   );
   const response=await worker.fetch(await request("/api/sessions/s1?version=2",{method:"DELETE"},"admin"),env(db));
   assert.equal(response.status,204);
+});
+
+
+test("group member can cancel an empty active Session",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}}
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({expectedVersion:1})},"member"),env(db));
+  assert.equal(response.status,204);
+});
+
+test("empty Session cancel rejects Session after a Game was registered",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"}}
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({expectedVersion:1})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"session_not_empty");
+});
+
+test("empty Session cancel rejects finalized Session",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:2,status:"finalized"}}
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({expectedVersion:2})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"session_not_active");
+});
+
+test("empty Session cancel rejects stale version",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:2,status:"active"}},
+    true
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({expectedVersion:1})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"stale_update");
+});
+
+test("zero-game Session cannot be finalized through API",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}}
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status:"finalized",endedAt:"2026-09-25T09:00:00Z",updatedAt:"2026-09-25T09:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"session_empty");
+});
+
+test("group member still cannot use administrative Session delete",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:2,status:"finalized"}}
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1?version=2",{method:"DELETE"},"member"),env(db));
+  assert.equal(response.status,403);
+  assert.equal(await errorCode(response),"forbidden");
 });

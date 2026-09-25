@@ -43,6 +43,7 @@ System Adminまたは対象GroupのGroup Adminに許可する操作:
 
 Member許可操作:
 - Session / Game / Chip / Session Memoの通常操作
+- activeかつGame 0件のSession取り消し（Workerで条件とexpectedVersionを再検証）
 - History / Performance参照
 
 D1 Production recoveryはApplication UIのRoleではなく運用手順上のHuman承認を必要とする。
@@ -117,6 +118,7 @@ Phase 2ではCloudflare WorkersのApplication LogへJSON構造化Audit Logを出
 - LINE Loginの主要failure / success
 - system admin bootstrap
 - Session削除
+- 0半荘active Session取り消し
 - Player/User unlink
 - Invitation発行 / 取消
 - Membership / Player link変更

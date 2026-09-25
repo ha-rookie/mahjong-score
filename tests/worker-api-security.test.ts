@@ -24,7 +24,7 @@ class FakeStatement{
 class FakeDb{
   constructor(
     private users:Record<string,User>,
-    private sessions:Record<string,{groupId:string;version:number}>={},
+    private sessions:Record<string,{groupId:string;version:number;status?:string}>={},
     private forceStale=false,
     private segments:Record<string,{sessionId:string;players:string[]}>={},
     private games:Record<string,{sessionId:string;segmentId:string;version:number;groupId:string;status:string}>={},
@@ -43,6 +43,10 @@ class FakeDb{
     if(sql.includes("SELECT id FROM sessions WHERE group_id=? AND status='active'")){
       const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0]));
       return entry?{id:entry[0]}:null;
+    }
+    if(sql.includes("SELECT status FROM sessions WHERE id=?")){
+      const row=this.sessions[String(values[0])];
+      return row?{status:row.status??"active"}:null;
     }
     if(sql.includes("SELECT group_id AS groupId FROM sessions")){
       const row=this.sessions[String(values[0])];
@@ -179,4 +183,12 @@ test("segment edit rejects a Player outside the Session Group before mutation",a
   const response=await worker.fetch(await request("/api/segments/seg1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({sequence:1,participantPlayerIds:["p1","p2","outsider"]})},"member"),env(db));
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"invalid_segment_participants");
+});
+
+
+test("finalized Session cannot be mutated or reopened",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2,status:"finalized"}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status:"active",updatedAt:"2026-09-25T06:00:00Z",expectedVersion:2,participantNotes:[],chipResults:[]})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"session_not_active");
 });

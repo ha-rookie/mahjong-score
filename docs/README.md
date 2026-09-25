@@ -45,6 +45,7 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | `20_TEST_DESIGN.md` | Unit / Integration / E2E / Security / NFR / Smoke |
 | `21_D1_RECOVERY_RUNBOOK.md` | D1 Time Travel、Production restore guardrail、Preview rehearsal |
 | `21_NAMING_STANDARD.md` | Design ID、source、API、DB、File等の命名 |
+| `22_SE_USER_TEST_READINESS.md` | SE向けUser Test前のRelease Candidate Gate、task script、defect severity、説明ポイント |
 
 ## 4. Cross-project Standards
 

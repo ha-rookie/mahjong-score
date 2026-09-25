@@ -39,6 +39,10 @@ class FakeDb{
       const role=this.users[String(values[0])]?.memberships?.[String(values[1])];
       return role?{role}:null;
     }
+    if(sql.includes("SELECT id FROM sessions WHERE group_id=? AND status='active'")){
+      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0]));
+      return entry?{id:entry[0]}:null;
+    }
     if(sql.includes("SELECT group_id AS groupId FROM sessions")){
       const row=this.sessions[String(values[0])];
       return row?{groupId:row.groupId}:null;
@@ -149,4 +153,12 @@ test("game edit rejects a Segment from another Session before mutating results",
   const response=await worker.fetch(await request("/api/games/game1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({segmentId:"segOther",sequence:1,playedAt:"2026-01-01T00:00:00Z",expectedVersion:1,results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],tags:[]})},"member"),env(db));
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"invalid_game_segment");
+});
+
+
+test("session start rejects a Group that already has an active Session",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{existing:{groupId:"g1",version:1}});
+  const response=await worker.fetch(await request("/api/groups/g1/sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"new-session",segmentId:"seg-new",sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",participantPlayerIds:["p1","p2","p3"]})},"member"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"active_session_exists");
 });

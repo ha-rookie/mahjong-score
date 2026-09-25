@@ -102,7 +102,7 @@ test("system admin can create a group",async()=>{
 });
 
 test("stale session update returns 409 without accepting update",async()=>{
-  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2}},true);
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2}},true,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
   const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"stale",status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"stale_update");

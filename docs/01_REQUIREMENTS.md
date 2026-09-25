@@ -173,3 +173,21 @@ Phase 2 requirementの実装状態:
 - Security Headers: Production smokeで検証済み
 - Recoverability: D1 Time Travel runbook + Preview recovery rehearsal実施済み
 - PWA: Phase 3以降へDeferred（Issue #160）
+
+
+## 14. Original 4-Phase Roadmap Mapping
+
+Projectのroadmap正本は次の4 Phase。
+
+| Phase | Purpose | Current Status |
+| --- | --- | --- |
+| Phase 1 | localStorage / 認証なしで麻雀アプリの機能PoC | Completed |
+| Phase 2 | D1 / Worker API / Security / Concurrency / Audit / Recovery | Completed |
+| Phase 3 | LINE Login / Invitation / User-Player linking / Group authorization / Multi-device | Functionally Completed |
+| Phase 4 | Google Login等の追加Authentication Provider / 複数External Identity | Not Started |
+
+Phase 3機能は実装上Phase 2と連続して前倒し実装し、Issue #145のPhase 2 completion auditへ含めた。Roadmap上はPhase 2とPhase 3の責務を分けて扱う。
+
+会社のSE向けUser Testは新しいPhaseではなく **Phase 3 Release Candidate Gate** とする。ReadinessはIssue #165で管理する。
+
+PWA #160と長期性能試験 #137は4 Phaseとは別のCross-Phase Backlog。

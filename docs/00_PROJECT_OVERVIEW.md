@@ -70,32 +70,51 @@ Phase 1では以下を実装しない。
 - Backup / Restore: Phase 1ではRepository ownerを暫定Adminとして実機利用し、将来の認証・認可導入後はAdmin限定へ移行
 - Deferred: GameTag UI / Player別Memo / finalized Session訂正 / 同一Session内参加者変更 / 本格的な認証・認可
 
-## Phase 2 Scope
+## Original 4-Phase Roadmap
 
-Phase 2では個人端末内の記録アプリから、固定Groupの複数Memberが安全に利用できるWebアプリへ拡張する。
+当初からのProject roadmapは次の4 Phaseを正本とする。
 
-実装順序は次を基本とする。
+### Phase 1: 機能PoC — Completed
+- localStorage
+- 認証なし
+- 本人利用
+- 三麻の入力・計算・履歴・成績がアプリとして成立することを確認
 
-1. Cloudflare側のアクセス制限・Phase 2環境準備
-2. D1 database作成・binding・migration基盤
-3. Worker API / D1 persistence
-4. LINE Login
-5. User / Player invitation・linking
-6. Admin / Member authorization enforcement
-7. multi-device sync / concurrency / audit log
+### Phase 2: D1 / API / 業務システム基盤 — Completed
+- Cloudflare D1 / Worker API
+- environment / migration / CI / deploy
+- input validation / parameterized SQL
+- Security Headers
+- optimistic concurrency
+- structured audit log / request correlation
+- D1 Time Travel recovery
 
-PWAはPhase 2完了条件から外し、Phase 3以降の独立FeatureとしてDeferredする。server dataのoffline write/syncはPWA再開時にも初期範囲へ含めない。
+### Phase 3: 仲間内の複数ユーザー利用 — Functionally Completed
+- LINE Login
+- one-time invitation
+- User / Player separation and linking
+- System Admin / Group Admin / Member authorization
+- multi-device data sharing / Active Session refresh
 
-- Authentication
-- Group authorization / Admin・Member role
-- Worker API
-- Cloudflare D1
-- multi-device sync
-- stale update / concurrency control
-- server audit log
-- Group作成とBackup / RestoreのAdmin限定化
+Phase 3機能は実装順序上Phase 2と連続して実装し、Issue #145のPhase 2 completion auditへ前倒しで含めた。この記録は変更しないが、roadmap上の責務はPhase 2とPhase 3に分けて扱う。
 
-PWA backlog: Issue #160。Manifest / App Icon / Service Worker / installability / standalone / static asset cacheをPhase 3以降で再検討する。D1/API dataのoffline write/syncは別設計とする。
+会社のSEを対象とするUser Testは新しいPhaseを追加せず、**Phase 3 Release Candidate Gate** として扱う（Issue #165）。
+
+### Phase 4: Authentication Extension — Not Started
+- Google Login等の追加Authentication Provider
+- 同一Userへ複数External Identityを紐付け可能にする
+- 麻雀DataをAuthentication Providerへ直接依存させない
+
+Phase 4はUser Test結果と実利用の必要性を確認してから着手判断する。
+
+## Cross-Phase Backlog
+
+4 Phase roadmapとは別に、品質・UX改善として管理する。
+
+- PWA: Issue #160
+- 長期性能試験: Issue #137
+
+PWAのoffline write/syncはPWA本体とは別設計とする。
 
 ## Technology
 
@@ -123,9 +142,9 @@ PWA backlog: Issue #160。Manifest / App Icon / Service Worker / installability 
 Use [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
 
-## Phase 2 Completion Status
+## Phase 2 / Phase 3 Implementation Status
 
-2026-09-25時点でPhase 2の主要実装はProductionへ反映済み。
+2026-09-25時点で、元のroadmap上のPhase 2とPhase 3に相当する主要実装はProductionへ反映済み。
 
 - Worker API / D1 persistence
 - LINE Login
@@ -138,4 +157,4 @@ Use [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 - D1 Time Travel recovery runbook / Preview recovery rehearsal
 - PWA: Phase 3以降へDeferred（Issue #160）
 
-最終完了判定はIssue #145のRepository hygiene / documentation sync / smartphone smokeを満たした時点とする。
+Issue #145は2026-09-25にCompletedでclose済み。次のGateはIssue #165のPhase 3 Release Candidate / SE向けUser Test readinessとする。

@@ -20,6 +20,7 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-011 | Session memo | SCR-004 | #6/#27 | Session.note + runtime UI | PR CI + Production review済み | ACTIVE |
 | REQ-011-FUTURE | Participant memo | Future auth/authorization | #6/#27 | Domain互換は維持、Phase 1 UIでは非表示 | 本人識別・認可導入時に再検討 | DEFERRED |
 | REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI + UI実装 + smartphone review | ACTIVE |
+| REQ-013 | 0半荘active Sessionの取り消し | FUNC-009, SCR-004, IF Session cancel | #201 | CancelEmptySessionUseCase + Worker guarded cancel API + conditional UI | application/API tests + smartphone review | ACTIVE |
 | NFR-001 | 卓上スマホUsability | SCR-001..005 | #12/#25/#27 | mobile-first UI + direct score entry + ± sign toggle | Production smartphone review済み | ACTIVE |
 
 ## 3. Score Implementation Gate

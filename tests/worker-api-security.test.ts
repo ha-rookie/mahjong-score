@@ -83,6 +83,13 @@ class FakeDb{
     return null;
   }
   all(sql?:string,values:unknown[]=[]){
+    if(sql?.startsWith("SELECT id,session_id AS sessionId,sequence FROM participant_segments WHERE session_id=?")){
+      let sequence=0;
+      return Object.entries(this.segments).filter(([,segment])=>segment.sessionId===String(values[0])).map(([id,segment])=>({id,sessionId:segment.sessionId,sequence:++sequence}));
+    }
+    if(sql?.includes("FROM segment_players WHERE segment_id IN")){
+      return values.map(String).flatMap(segmentId=>(this.segments[segmentId]?.players??[]).map(playerId=>({segmentId,playerId})));
+    }
     if(sql?.includes("FROM games WHERE session_id=?")){
       let sequence=0;
       return Object.entries(this.games).filter(([,game])=>game.sessionId===String(values[0])).map(([id,game])=>({id,sessionId:game.sessionId,segmentId:game.segmentId,sequence:++sequence,playedAt:"2026-09-25T08:00:00Z",version:game.version}));
@@ -266,6 +273,34 @@ test("session start rejects a Group that already has an active Session",async()=
   assert.equal(await errorCode(response),"active_session_exists");
 });
 
+
+test("segment list bulk loads participants with two data queries",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    false,
+    {
+      seg1:{sessionId:"s1",players:["p1","p2","p3"]},
+      seg2:{sessionId:"s1",players:["p1","p3","p4"]},
+    },
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/segments",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {segments:Array<{id:string;sequence:number;participantPlayerIds:string[]}>};
+  assert.equal(payload.segments.length,2);
+  assert.deepEqual(payload.segments[0],{id:"seg1",sessionId:"s1",sequence:1,participantPlayerIds:["p1","p2","p3"]});
+  assert.deepEqual(payload.segments[1],{id:"seg2",sessionId:"s1",sequence:2,participantPlayerIds:["p1","p3","p4"]});
+  const segmentReadSql=db.preparedSql.filter(sql=>sql.includes("FROM participant_segments WHERE session_id=?")||sql.includes("FROM segment_players WHERE segment_id IN"));
+  assert.equal(segmentReadSql.length,2);
+});
+
+test("empty segment list does not issue participant query",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}});
+  const response=await worker.fetch(await request("/api/sessions/s1/segments",{},"member"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{segments:[]});
+  assert.equal(db.preparedSql.filter(sql=>sql.includes("FROM segment_players WHERE segment_id IN")).length,0);
+});
 
 test("segment edit is rejected because Session participants are immutable",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});

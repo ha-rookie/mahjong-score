@@ -49,9 +49,12 @@ const isInteger = (value: unknown): value is number =>
 
 const isGroup = (value: unknown): value is Group =>
   isRecord(value) &&
-  hasExactKeys(value, ["id", "name", "createdAt", "updatedAt"]) &&
+  (hasExactKeys(value, ["id", "name", "createdAt", "updatedAt"]) || hasExactKeys(value, ["id", "name", "startingPoints", "returnPoints", "chipRate", "createdAt", "updatedAt"])) &&
   isString(value.id) &&
   isString(value.name) &&
+  (value.startingPoints === undefined || (isInteger(value.startingPoints) && value.startingPoints > 0)) &&
+  (value.returnPoints === undefined || (isInteger(value.returnPoints) && value.returnPoints > 0)) &&
+  (value.chipRate === undefined || (isInteger(value.chipRate) && value.chipRate >= 0)) &&
   isString(value.createdAt) &&
   isString(value.updatedAt);
 
@@ -84,17 +87,7 @@ const isChipResult = (value: unknown): value is ChipResult =>
 
 const isSession = (value: unknown): value is Session =>
   isRecord(value) &&
-  hasExactKeys(value, [
-    "id",
-    "groupId",
-    "sessionDate",
-    "startedAt",
-    "endedAt",
-    "status",
-    "note",
-    "participantNotes",
-    "chipResults",
-  ]) &&
+  (hasExactKeys(value, ["id","groupId","sessionDate","startedAt","endedAt","status","note","participantNotes","chipResults"]) || hasExactKeys(value, ["id","groupId","sessionDate","startedAt","endedAt","status","note","participantNotes","chipResults","startingPoints","returnPoints","chipRate"])) &&
   isString(value.id) &&
   isString(value.groupId) &&
   isString(value.sessionDate) &&
@@ -102,6 +95,9 @@ const isSession = (value: unknown): value is Session =>
   isNullableString(value.endedAt) &&
   (value.status === "active" || value.status === "finalized") &&
   isNullableString(value.note) &&
+  (value.startingPoints === undefined || (isInteger(value.startingPoints) && value.startingPoints > 0)) &&
+  (value.returnPoints === undefined || (isInteger(value.returnPoints) && value.returnPoints > 0)) &&
+  (value.chipRate === undefined || (isInteger(value.chipRate) && value.chipRate >= 0)) &&
   Array.isArray(value.participantNotes) &&
   value.participantNotes.every(isParticipantNote) &&
   Array.isArray(value.chipResults) &&

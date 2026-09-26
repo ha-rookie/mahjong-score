@@ -22,6 +22,7 @@ class FakeStatement{
   async run(){return {meta:{changes:this.db.change()}};}
 }
 class FakeDb{
+  readonly preparedSql:string[]=[];
   constructor(
     private users:Record<string,User>,
     private sessions:Record<string,{groupId:string;version:number;status?:string}>={},
@@ -31,8 +32,10 @@ class FakeDb{
     private groupPlayers:Record<string,string[]>={},
     private failNextBatch=false,
     private nextRunChanges:number|null=null,
+    private gameResults:Record<string,Array<{playerId:string;scorePoint:number}>>={},
+    private gameTags:Record<string,Array<{type:"yakuman"|"double-yakuman";playerId:string|null}>>={},
   ){}
-  prepare(sql:string){return new FakeStatement(this,sql);}
+  prepare(sql:string){this.preparedSql.push(sql);return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){if(this.failNextBatch){this.failNextBatch=false;return statements.map((_,i)=>({meta:{changes:i===0?0:1}}));}return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
   first(sql:string,values:unknown[]){
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
@@ -80,6 +83,16 @@ class FakeDb{
     return null;
   }
   all(sql?:string,values:unknown[]=[]){
+    if(sql?.includes("FROM games WHERE session_id=?")){
+      let sequence=0;
+      return Object.entries(this.games).filter(([,game])=>game.sessionId===String(values[0])).map(([id,game])=>({id,sessionId:game.sessionId,segmentId:game.segmentId,sequence:++sequence,playedAt:"2026-09-25T08:00:00Z",version:game.version}));
+    }
+    if(sql?.includes("FROM game_results WHERE game_id IN")){
+      return values.map(String).flatMap(gameId=>(this.gameResults[gameId]??[]).map(result=>({gameId,...result})));
+    }
+    if(sql?.includes("FROM game_tags WHERE game_id IN")){
+      return values.map(String).flatMap(gameId=>(this.gameTags[gameId]??[]).map(tag=>({gameId,...tag})));
+    }
     if(sql?.includes("FROM participant_segments ps JOIN segment_players sp")&&sql.includes("MAX(sequence)")){
       const segment=Object.values(this.segments).find(row=>row.sessionId===String(values[0]));
       return (segment?.players??[]).map(playerId=>({playerId}));
@@ -170,6 +183,43 @@ test("stale session update returns 409 without accepting update",async()=>{
   assert.equal(await errorCode(response),"stale_update");
 });
 
+
+test("game list bulk loads results and tags with three data queries",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {
+      game1:{sessionId:"s1",segmentId:"seg1",version:2,groupId:"g1",status:"active"},
+      game2:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"},
+    },
+    {},false,null,
+    {
+      game1:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],
+      game2:[{playerId:"p1",scorePoint:-8},{playerId:"p2",scorePoint:3},{playerId:"p3",scorePoint:5}],
+    },
+    {game1:[{type:"yakuman",playerId:"p1"}]},
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {games:Array<{id:string;results:Array<{playerId:string;scorePoint:number}>;tags:Array<{type:string;playerId:string|null}>}>};
+  assert.equal(payload.games.length,2);
+  assert.deepEqual(payload.games[0]?.results,[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]);
+  assert.deepEqual(payload.games[0]?.tags,[{type:"yakuman",playerId:"p1"}]);
+  assert.deepEqual(payload.games[1]?.results,[{playerId:"p1",scorePoint:-8},{playerId:"p2",scorePoint:3},{playerId:"p3",scorePoint:5}]);
+  assert.deepEqual(payload.games[1]?.tags,[]);
+  const gameReadSql=db.preparedSql.filter(sql=>sql.includes("FROM games WHERE session_id=?")||sql.includes("FROM game_results WHERE game_id IN")||sql.includes("FROM game_tags WHERE game_id IN"));
+  assert.equal(gameReadSql.length,3);
+});
+
+test("empty game list does not issue child queries",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}});
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{},"member"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{games:[]});
+  assert.equal(db.preparedSql.filter(sql=>sql.includes("FROM game_results WHERE game_id IN")||sql.includes("FROM game_tags WHERE game_id IN")).length,0);
+});
 
 test("game create rejects a Segment from another Session",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{segOther:{sessionId:"s2",players:["p1","p2","p3"]}});

@@ -183,6 +183,42 @@ test("system admin can create a group",async()=>{
   assert.equal(response.status,201);
 });
 
+test("system admin API rejects an oversized group name",async()=>{
+  const db=new FakeDb({admin:{systemAdmin:true}});
+  const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"G".repeat(41),createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"admin"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"group_name_too_long");
+});
+
+test("system admin API rejects an oversized player name",async()=>{
+  const db=new FakeDb({admin:{systemAdmin:true}});
+  const response=await worker.fetch(await request("/api/groups/g1/players",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"p1",displayName:"P".repeat(31),createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"admin"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"player_name_too_long");
+});
+
+test("session update API rejects an oversized note",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"N".repeat(501),status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"session_note_too_long");
+});
+
+test("game create API rejects balanced scores outside the practical limit",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game1",segmentId:"seg1",sequence:1,playedAt:"2026-01-01T00:00:00Z",results:[{playerId:"p1",scorePoint:1000001},{playerId:"p2",scorePoint:-1000000},{playerId:"p3",scorePoint:-1}]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_game_results");
+});
+
+test("session update API rejects balanced chips outside the practical limit",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
+  const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:null,status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[{playerId:"p1",chipCount:10001},{playerId:"p2",chipCount:-10000},{playerId:"p3",chipCount:-1}]})},"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_session_details");
+});
+
+
 test("stale session update returns 409 without accepting update",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:2}},true,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});
   const response=await worker.fetch(await request("/api/sessions/s1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({note:"stale",status:"active",endedAt:null,updatedAt:"2026-01-01T00:00:00Z",expectedVersion:1,participantNotes:[],chipResults:[]})},"member"),env(db));

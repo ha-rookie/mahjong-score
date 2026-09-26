@@ -42,7 +42,7 @@ class FakeDb{
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
     }
-    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
+    if(sql.includes("SELECT starting_points AS startingPoints")){const row=this.groups[String(values[0])];return row?{startingPoints:row.startingPoints??35000,returnPoints:row.returnPoints??40000,chipRate:row.chipRate??5}:null;}\n    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
     if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
       const row=this.groups[String(values[0])];return row?{id:String(values[0]),createdAt:row.createdAt??"2026-01-01"}:null;
     }
@@ -626,7 +626,7 @@ test("Session create accepts and returns a per-Session Mahjong rule snapshot",as
   assert.equal(payload.session.chipRate,10);
 });
 
-test("legacy Session create still uses 35000 / 40000 / chip x5",async()=>{
+test("Session create without override snapshots the Group defaults",async()=>{
   const db=new FakeDb(
     {member:{memberships:{g1:"member"}}},
     {},false,{}, {},{g1:["p1","p2","p3"]}

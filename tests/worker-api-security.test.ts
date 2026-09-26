@@ -42,7 +42,8 @@ class FakeDb{
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
     }
-    if(sql.includes("SELECT starting_points AS startingPoints")){const row=this.groups[String(values[0])];return row?{startingPoints:row.startingPoints??35000,returnPoints:row.returnPoints??40000,chipRate:row.chipRate??5}:null;}\n    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
+    if(sql.includes("SELECT starting_points AS startingPoints")){const row=this.groups[String(values[0])];return row?{startingPoints:row.startingPoints??35000,returnPoints:row.returnPoints??40000,chipRate:row.chipRate??5}:null;}
+    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
     if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
       const row=this.groups[String(values[0])];return row?{id:String(values[0]),createdAt:row.createdAt??"2026-01-01"}:null;
     }

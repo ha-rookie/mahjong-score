@@ -61,6 +61,18 @@ replaceOnce(
 );
 
 replaceOnce(
+  "tests/cancel-empty-session.test.ts",
+  `  listByGroup():Promise<Result<readonly Session[]>>{return Promise.resolve(ok([session]));}\n  listSegments()`,
+  `  listByGroup():Promise<Result<readonly Session[]>>{return Promise.resolve(ok([session]));}\n  findActiveByGroup():Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>>{return Promise.resolve(ok({session,participantPlayerIds:[]}));}\n  listSegments()`,
+);
+
+replaceOnce(
+  "tests/finalize-session.test.ts",
+  `  listByGroup():Promise<Result<readonly Session[]>>{return Promise.resolve(ok([this.session]));}\n  findById`,
+  `  listByGroup():Promise<Result<readonly Session[]>>{return Promise.resolve(ok([this.session]));}\n  findActiveByGroup():Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>>{return Promise.resolve(ok(this.session.status==="active"?{session:this.session,participantPlayerIds:segment.participantPlayerIds}:null));}\n  findById`,
+);
+
+replaceOnce(
   "tests/worker-api-security.test.ts",
   `    if(sql.includes("SELECT id FROM sessions WHERE group_id=? AND status='active'")){\n      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0]));\n      return entry?{id:entry[0]}:null;\n    }`,
   `    if(sql.includes("FROM sessions WHERE group_id=? AND status='active'")){\n      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0])&&(row.status??"active")==="active");\n      if(!entry)return null;\n      const [id,row]=entry;\n      if(sql.includes("group_id AS groupId"))return {id,groupId:row.groupId,sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",endedAt:null,status:row.status??"active",note:null,version:row.version};\n      return {id};\n    }`,

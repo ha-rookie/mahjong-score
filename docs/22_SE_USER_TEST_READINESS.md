@@ -15,7 +15,7 @@
 - ProductionでLINE Login不可
 - #201のsmartphone manual smokeを完了できない
 - #137のProduction felt-performance checkを完了できない
-- current `main`には#203以降のRC改善に加え、#217（複数Group管理）、#218（複数Group performance fixture）、#219（複数Group authorization regression）がMerge済みだが、#205以降Production deployはmanual-onlyであり未反映
+- current `main`には#203以降のRC改善、#217〜#222、#224（Group-default Session rule snapshot fix）、#228（rule semantics / Session chip-rate aggregation guard）までMerge済み。#205以降Production deployはmanual-onlyであり、これらのruntime変更はProduction未反映
 - remote D1復旧までは、benchmark / fixture / migration / deployを追加実行しない
 
 Defect Severity上、service availabilityに重大な問題がある状態ではUser Test開始不可とする。ただし本項目は、アプリ実装の既知S1欠陥とは区別して **Operational Blocker** として管理する。
@@ -43,7 +43,8 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 - 4人回し三麻Score入力
 - 負Score / ±操作
 - 半荘訂正
-- Chip精算
+- Chip精算（各SessionにsnapshotされたchipRateを使用）
+- Group標準ルール / Session固有ルール（持ち点・返し点はルール記録、半荘は精算済み±ポイントを直接入力）
 - Session Memo
 - Session終了
 - 0半荘Session取り消し
@@ -191,9 +192,11 @@ remote D1へアクセス可能になった後も、いきなりUser Testへ進�
 7. #137: History / 通算 / 年間 / 月間 / Session Resultsの体感応答を確認する
 8. #160: Android / iOSでホーム画面追加・standalone起動・通常online flowを確認する
 9. 複数Groupを切り替え、履歴 / 成績 / PlayerがGroup間で混在しないことを確認する
-10. S1/S2 = 0、Operational Blocker = 0を確認する
-11. User Test URL / invitationを準備する
-12. #165のUser Test handoffへ進む
+10. #221 rules: Group標準値（35000 / 40000 / chip x5）、System Admin / Group Admin更新、Member拒否、Session固有override、既存Session snapshot維持、SessionごとのchipRate集計を確認する
+11. representative authorization / concurrencyをProductionで確認する
+12. S1/S2 = 0、Operational Blocker = 0を確認する
+13. User Test URL / invitationを準備する
+14. #165のUser Test handoffへ進む
 
 ## 11. User Test Exit Criteria
 
@@ -224,6 +227,15 @@ RC / Performance:
 - #217 Group management — 複数Group一覧 / 切り替え / 追加 / 名前変更を実装
 - #218 Multi-group performance fixture — local D1で3 Group / 350 Sessions / 3,840 Games / 11,520 Game Resultsを検証
 - #219 Multi-group authorization regression — 所属Group表示 / role分離 / 未所属Group拒否 / System Admin renameを固定
+- #221 Configurable Mahjong rules — Group defaults + Session snapshotを実装
+- #222 Configurable rules regression — defaults / Session override / Group Admin / Member / cross-groupを固定
+- #223 / PR #224 — rule省略時にGroup defaultsをSessionへsnapshotし、partial overrideを拒否するS2修正
+- #227 / PR #228 — 持ち点・返し点とchipRateの意味を明確化し、PerformanceがSession `chip_rate`を使う回帰guardを追加
+
+Current code audit:
+- known Application S1/S2: 0
+- remaining blocker: remote D1 / Production core-flow verification
+- remote D1復旧までは追加のremote migration / benchmark / deployを行わない
 
 Cross-Phase Backlog:
 - #160 PWA

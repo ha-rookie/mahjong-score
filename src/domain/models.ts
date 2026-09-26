@@ -1,3 +1,4 @@
+import type { MahjongRules } from "./rules";
 import type {
   GameId,
   GroupId,
@@ -9,7 +10,7 @@ import type {
 export type IsoDate = string;
 export type IsoDateTime = string;
 
-export interface Group {
+export interface Group extends MahjongRules {
   readonly id: GroupId;
   readonly name: string;
   readonly createdAt: IsoDateTime;
@@ -41,7 +42,7 @@ export interface ChipResult {
   readonly chipCount: number;
 }
 
-export interface Session {
+export interface Session extends MahjongRules {
   readonly id: SessionId;
   readonly version?: number;
   readonly groupId: GroupId;

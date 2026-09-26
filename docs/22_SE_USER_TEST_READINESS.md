@@ -6,7 +6,21 @@
 
 このGateは新しいPhaseではない。元の4 Phase roadmapにおける **Phase 3 Release Candidate Gate** とする。
 
-## 2. Test Positioning
+## 2. Current Gate Status — BLOCKED
+
+2026-09-26時点では、**SE User Testは開始しない**。
+
+理由はコード上の既知S1/S2欠陥ではなく、Productionでremote D1へアクセスできず、LINE Loginを含むD1依存flowを実行できないOperational Blockerがあるため。
+
+- ProductionでLINE Login不可
+- #201のsmartphone manual smokeを完了できない
+- #137のProduction felt-performance checkを完了できない
+- current `main`には#203（D1 read optimization）と#206（履歴削除stale recovery）がMerge済みだが、#205以降Production deployはmanual-onlyであり未反映
+- remote D1復旧までは、benchmark / fixture / migration / deployを追加実行しない
+
+Defect Severity上、service availabilityに重大な問題がある状態ではUser Test開始不可とする。ただし本項目は、アプリ実装の既知S1欠陥とは区別して **Operational Blocker** として管理する。
+
+## 3. Test Positioning
 
 User Testの目的は「粗探しを防ぐこと」ではない。
 
@@ -17,7 +31,7 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 
 を確認する。
 
-## 3. Release Candidate Gate
+## 4. Release Candidate Gate
 
 ### Core Flow
 
@@ -31,6 +45,7 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 - Chip精算
 - Session Memo
 - Session終了
+- 0半荘Session取り消し
 - History / 月間Calendar
 - Performance
 - 管理者Session削除
@@ -49,6 +64,7 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 - Active Session refreshで最新状態を取得する
 - refresh後もscroll positionを維持する
 - 未保存入力がある場合は破棄確認する
+- 履歴Session削除のstale_update後に対象月を自動再読込して再操作できる
 
 ### Error UX
 
@@ -59,15 +75,17 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 
 ### Operations Evidence
 
-- main CI green
-- Production deploy green
-- Production Security Headers確認済み
+- PR CI: lint / test / build / static security headers / local D1 migration
+- Production Security Headers確認済みの過去Evidence
 - Audit log / request correlation設計
 - D1 Time Travel recovery runbook
 - Preview recovery rehearsal evidence
 - Public Repository secret / personal-data final scan済み
+- Production deployは#205以降manual-only
 
-## 4. Defect Severity
+「過去にProduction deployがgreenだったこと」と「current mainがProductionへ反映済みであること」は分けて扱う。
+
+## 5. Defect Severity
 
 | Severity | Definition | Gate |
 | --- | --- | --- |
@@ -76,9 +94,9 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 | S3 | 操作迷い / responsive崩れ / 軽微な不整合 | 原則修正後に実施 |
 | S4 | 文言 / cosmetic | Known issueとして許容可 |
 
-User Test開始条件はS1/S2 = 0。
+User Test開始条件はS1/S2 = 0に加え、認証を含むProduction core flowが実行可能であること。
 
-## 5. Tester Task Script
+## 6. Tester Task Script
 
 説明しすぎず、taskだけ渡して操作を観察する。
 
@@ -92,7 +110,9 @@ User Test開始条件はS1/S2 = 0。
 8. 管理者としてMember招待を行ってください
 9. 別端末で同じActive Sessionを開き、更新競合とrefreshを確認してください
 
-## 6. Observation Record
+User Test前のOwner smokeとして、0半荘Sessionの取り消しと履歴へ残らないことも確認する。
+
+## 7. Observation Record
 
 Testerごとに以下を残す。
 
@@ -107,7 +127,7 @@ Testerごとに以下を残す。
 
 Testerの発言をそのまま仕様へ反映せず、複数の事象と既存設計を照合して判断する。
 
-## 7. Three-minute SE Explanation
+## 8. Three-minute SE Explanation
 
 見せる前に以下を3分程度で説明できる状態にする。
 
@@ -121,22 +141,26 @@ Playerは麻雀成績の主体、UserはAuthenticationの主体。ログイン�
 System Admin / Group Admin / Memberを分離し、Frontendの表示制御ではなくWorker API側で権限を強制する。
 
 ### Concurrency
-複数端末利用を前提にSession / Gameへversionを持ち、stale updateを409で拒否する。
+複数端末利用を前提にSession / Gameへversionを持ち、stale updateを409で拒否する。競合検知だけで終わらず、Active Session refreshや履歴削除後の再読込で回復導線も用意する。
 
 ### Audit / Security / Recovery
-業務System PoCとして、正常系だけでなくAudit、Security Headers、Secret管理、D1 Time Travel recoveryまで実装・rehearsalする。
+業務System PoCとして、正常系だけでなくAudit、Security Headers、Secret管理、D1 Time Travel recoveryまで設計・検証する。
+
+### Performance
+5年相当 / 10年相当の長期データでDB benchmarkを実施済み。さらに#203でActive Session / Games / Segmentsのread pathをbounded queryへ変更し、query-count regression testを追加した。残りはD1復旧後のProduction smartphone felt-performance check。
 
 ### Known Deferred
 未完成ではなく意図的にPhase外へ出したものとして説明する。
 
 - PWA: #160
-- 長期性能試験: #137
 - Google等の追加Authentication: Phase 4
 - GameTag UI / participant memo等の再検討項目
 
-## 8. What to Show an SE
+#137はKnown Deferredではなく、DB performance evidence取得済み・Production実機確認待ちのGate残件として扱う。
 
-順番は以下を推奨する。
+## 9. What to Show an SE
+
+D1復旧後、順番は以下を推奨する。
 
 1. Production appでcore flow
 2. LINE Login / roleの違い
@@ -145,27 +169,51 @@ System Admin / Group Admin / Memberを分離し、Frontendの表示制御では�
 5. Requirements Traceability
 6. Security Design
 7. D1 Recovery Runbook
-8. Known Deferred
+8. Long-term performance evidence
+9. Known Deferred
 
 「全部作った」ではなく、「どこまでを今のrelease boundaryとしたか」を説明する。
 
-## 9. User Test Exit Criteria
+## 10. Resume Checklist after D1 Recovery
+
+remote D1へアクセス可能になった後も、いきなりUser Testへ進まない。
+
+1. D1 access recoveryを最小限の確認で確定する
+2. large fixture / benchmarkは実行しない
+3. Human approval後、current `main`をmanual `workflow_dispatch`でProductionへ反映する
+4. LINE LoginのProduction smokeを確認する
+5. #201: 0半荘 → 取り消し → Home → 履歴へ残らない
+6. #201: 1半荘保存後 → Session終了 → Results → 終了確定
+7. #137: History / 通算 / 年間 / 月間 / Session Resultsの体感応答を確認する
+8. S1/S2 = 0、Operational Blocker = 0を確認する
+9. User Test URL / invitationを準備する
+10. #165のUser Test handoffへ進む
+
+## 11. User Test Exit Criteria
 
 - S1 / S2 = 0
+- Operational Blocker = 0
 - Core smartphone flow success
 - representative authorization case success
 - representative concurrency case success
-- main CI green
+- current mainのProduction反映確認
+- main / PR CI green
 - Known Deferredを説明可能
 - User Test URL / invitation準備済み
 - Tester feedbackをIssueへ分類済み
 
-## 10. Evidence
+## 12. Evidence
 
 Tracking Issue: #165
 
 Phase 2 Completion Audit: #145
 
+RC / Performance:
+- #137 Long-term performance — DB benchmark PASS, smartphone felt-performance待ち
+- #201 0半荘Session cancel — implementation / CI / merge済み、smartphone smoke待ち
+- #195 History delete stale recovery — completed by PR #206
+- #203 D1 read optimization — merged to main
+
 Cross-Phase Backlog:
-- #137 Long-term performance
 - #160 PWA
+- Phase 4 additional authentication

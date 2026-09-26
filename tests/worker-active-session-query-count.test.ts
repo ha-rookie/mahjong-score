@@ -47,7 +47,8 @@ class FakeDb{
     return null;
   }
 
-  all(sql:string,_values:unknown[]=[]){
+  all(sql:string,values:unknown[]=[]){
+    void values;
     if(sql.includes("FROM session_participant_notes"))return [];
     if(sql.includes("FROM chip_results"))return [];
     if(sql.includes("FROM participant_segments ps JOIN segment_players sp")){

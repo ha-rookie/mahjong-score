@@ -37,7 +37,7 @@ jobs:
       - name: Generate realistic Performance D1 fixture (no remote access)
         run: |
           node scripts/performance/generate-performance-d1-fixture.mjs
-          node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.sessions!==260||m.games!==3120||m.gameResults!==9360||m.players.length!==4||!m.invariants.targetGames||!m.invariants.everyGameHasThreeResults||!m.invariants.fourPlayersRotate||!m.invariants.baseFixtureFinalizedOnly||m.invariants.crudDataIncluded) process.exit(1);"
+          node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.sessions!==350||m.games!==3840||m.gameResults!==11520||m.players.length!==4||m.secondaryGroups?.length!==2||!m.invariants.targetGames||!m.invariants.everyGameHasThreeResults||!m.invariants.fourPlayersRotate||!m.invariants.baseFixtureFinalizedOnly||m.invariants.crudDataIncluded) process.exit(1);"
 
       - name: Seed realistic fixture into isolated local Performance D1
         run: |

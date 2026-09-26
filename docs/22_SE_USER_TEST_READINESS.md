@@ -8,14 +8,14 @@
 
 ## 2. Current Gate Status — BLOCKED
 
-2026-09-26時点では、**SE User Testは開始しない**。
+2026-09-27時点では、**SE User Testは開始しない**。
 
 理由はコード上の既知S1/S2欠陥ではなく、Productionでremote D1へアクセスできず、LINE Loginを含むD1依存flowを実行できないOperational Blockerがあるため。
 
 - ProductionでLINE Login不可
 - #201のsmartphone manual smokeを完了できない
 - #137のProduction felt-performance checkを完了できない
-- current `main`には#203（D1 read optimization）と#206（履歴削除stale recovery）がMerge済みだが、#205以降Production deployはmanual-onlyであり未反映
+- current `main`には#203以降のRC改善に加え、#217（複数Group管理）、#218（複数Group performance fixture）、#219（複数Group authorization regression）がMerge済みだが、#205以降Production deployはmanual-onlyであり未反映
 - remote D1復旧までは、benchmark / fixture / migration / deployを追加実行しない
 
 Defect Severity上、service availabilityに重大な問題がある状態ではUser Test開始不可とする。ただし本項目は、アプリ実装の既知S1欠陥とは区別して **Operational Blocker** として管理する。
@@ -36,7 +36,8 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 ### Core Flow
 
 - LINE Login
-- Group選択
+- Group選択 / 複数Group切り替え
+- System AdminによるGroup追加 / 名前変更
 - Session開始
 - 3人三麻Score入力
 - 4人回し三麻Score入力
@@ -54,6 +55,9 @@ User Testの目的は「粗探しを防ぐこと」ではない。
 
 - Memberから管理者専用操作を利用できない
 - Worker APIがGroup / role境界を強制する
+- 複数Group所属Userには所属Groupのみ表示し、未所属Groupへのaccessを拒否する
+- Groupごとのmember / group_admin roleを独立して扱う
+- System Adminのみ全Groupの追加 / 名前変更が可能
 - Invitation / User-Player linkingが正常に完了する
 - logout / re-loginでSession stateが不整合にならない
 
@@ -147,12 +151,12 @@ System Admin / Group Admin / Memberを分離し、Frontendの表示制御では�
 業務System PoCとして、正常系だけでなくAudit、Security Headers、Secret管理、D1 Time Travel recoveryまで設計・検証する。
 
 ### Performance
-5年相当 / 10年相当の長期データでDB benchmarkを実施済み。さらに#203でActive Session / Games / Segmentsのread pathをbounded queryへ変更し、query-count regression testを追加した。残りはD1復旧後のProduction smartphone felt-performance check。
+5年相当 / 10年相当の長期データでDB benchmarkを実施済み。#203でActive Session / Games / Segmentsのread pathをbounded queryへ変更し、query-count regression testを追加した。#218ではlocal D1の実運用fixtureを3 Group・350 Sessions・3,840 Games・11,520 Game Resultsへ拡張し、Group別件数とPlayer分離を検証している。残りはD1復旧後のProduction smartphone felt-performance check。
 
 ### Known Deferred
 未完成ではなく意図的にPhase外へ出したものとして説明する。
 
-- PWA: #160
+- PWA: #160 — installable shell / build regressionは実装済み。Production反映後のAndroid / iOS実機acceptance待ち
 - Google等の追加Authentication: Phase 4
 - GameTag UI / participant memo等の再検討項目
 
@@ -185,9 +189,11 @@ remote D1へアクセス可能になった後も、いきなりUser Testへ進�
 5. #201: 0半荘 → 取り消し → Home → 履歴へ残らない
 6. #201: 1半荘保存後 → Session終了 → Results → 終了確定
 7. #137: History / 通算 / 年間 / 月間 / Session Resultsの体感応答を確認する
-8. S1/S2 = 0、Operational Blocker = 0を確認する
-9. User Test URL / invitationを準備する
-10. #165のUser Test handoffへ進む
+8. #160: Android / iOSでホーム画面追加・standalone起動・通常online flowを確認する
+9. 複数Groupを切り替え、履歴 / 成績 / PlayerがGroup間で混在しないことを確認する
+10. S1/S2 = 0、Operational Blocker = 0を確認する
+11. User Test URL / invitationを準備する
+12. #165のUser Test handoffへ進む
 
 ## 11. User Test Exit Criteria
 
@@ -214,6 +220,10 @@ RC / Performance:
 - #201 0半荘Session cancel — implementation / CI / merge済み、smartphone smoke待ち
 - #195 History delete stale recovery — completed by PR #206
 - #203 D1 read optimization — merged to main
+- #209 / #210 PWA installable shell / build regression validation — merged to main、実機acceptance待ち
+- #217 Group management — 複数Group一覧 / 切り替え / 追加 / 名前変更を実装
+- #218 Multi-group performance fixture — local D1で3 Group / 350 Sessions / 3,840 Games / 11,520 Game Resultsを検証
+- #219 Multi-group authorization regression — 所属Group表示 / role分離 / 未所属Group拒否 / System Admin renameを固定
 
 Cross-Phase Backlog:
 - #160 PWA

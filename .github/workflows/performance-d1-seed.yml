@@ -31,7 +31,7 @@ jobs:
       - name: Generate deterministic 5-year fixture
         run: |
           node scripts/performance/generate-performance-d1-fixture.mjs
-          node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.groupId!=='perf-realistic-5y'||m.sessions!==260||m.games!==3120||m.gameResults!==9360||!Object.values(m.invariants).every(Boolean)) process.exit(1);"
+          node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.groupId!=='perf-realistic-5y'||m.sessions!==260||m.games!==3120||m.gameResults!==9360||!m.invariants.targetGames||!m.invariants.everyGameHasThreeResults||!m.invariants.fourPlayersRotate||!m.invariants.baseFixtureFinalizedOnly||m.invariants.crudDataIncluded) process.exit(1);"
 
       - name: Guard Performance D1 target
         shell: bash

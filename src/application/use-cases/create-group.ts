@@ -1,5 +1,5 @@
 import type { Clock, GroupRepository, IdGenerator } from "../ports";
-import type { Group } from "../../domain";
+import { GROUP_NAME_MAX_LENGTH, type Group } from "../../domain";
 import { AppError, err, type Result } from "../../shared/errors";
 
 export interface CreateGroupInput {
@@ -24,6 +24,14 @@ export class CreateGroupUseCase {
           userMessage: "グループ名を入力してください。",
         }),
       );
+    }
+
+    if (name.length > GROUP_NAME_MAX_LENGTH) {
+      return err(new AppError({
+        code: "group_name_too_long",
+        message: "Group name is too long.",
+        userMessage: `グループ名は${GROUP_NAME_MAX_LENGTH}文字以内で入力してください。`,
+      }));
     }
 
     const now = this.clock.now();

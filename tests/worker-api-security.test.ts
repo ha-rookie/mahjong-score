@@ -648,3 +648,21 @@ test("Session create without override snapshots the Group defaults",async()=>{
     [30000,35000,10]
   );
 });
+
+
+test("Session create rejects a partial rule override",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {},false,{}, {},{g1:["p1","p2","p3"]},false,null,{}, {},
+    {g1:{name:"One",startingPoints:35000,returnPoints:40000,chipRate:5}}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/sessions",{
+    method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({
+      id:"s-partial",segmentId:"seg-partial",sessionDate:"2026-09-27",
+      startedAt:"2026-09-27T03:00:00Z",participantPlayerIds:["p1","p2","p3"],chipRate:10
+    })
+  },"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_mahjong_rules");
+});

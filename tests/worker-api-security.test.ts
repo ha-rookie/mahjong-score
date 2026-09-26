@@ -34,7 +34,7 @@ class FakeDb{
     private nextRunChanges:number|null=null,
     private gameResults:Record<string,Array<{playerId:string;scorePoint:number}>>={},
     private gameTags:Record<string,Array<{type:"yakuman"|"double-yakuman";playerId:string|null}>>={},
-    private groups:Record<string,{name:string;createdAt?:string;updatedAt?:string}>={},
+    private groups:Record<string,{name:string;createdAt?:string;updatedAt?:string;startingPoints?:number;returnPoints?:number;chipRate?:number}>={},
   ){}
   prepare(sql:string){this.preparedSql.push(sql);return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){if(this.failNextBatch){this.failNextBatch=false;return statements.map((_,i)=>({meta:{changes:i===0?0:1}}));}return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
@@ -42,6 +42,7 @@ class FakeDb{
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
     }
+    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
     if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
       const row=this.groups[String(values[0])];return row?{id:String(values[0]),createdAt:row.createdAt??"2026-01-01"}:null;
     }
@@ -90,6 +91,7 @@ class FakeDb{
     if(sql?.includes("FROM groups g JOIN group_memberships gm")){
       const user=this.users[String(values[0])];return Object.entries(user?.memberships??{}).filter(([id])=>this.groups[id]).map(([id,role])=>({id,name:this.groups[id].name,createdAt:this.groups[id].createdAt??"2026-01-01",updatedAt:this.groups[id].updatedAt??"2026-01-01",role}));
     }
+    if(sql?.startsWith("SELECT id,starting_points AS startingPoints")){return Object.entries(this.groups).map(([id,g])=>({id,startingPoints:g.startingPoints??35000,returnPoints:g.returnPoints??40000,chipRate:g.chipRate??5}));}
     if(sql?.startsWith("SELECT id,name,created_at AS createdAt")){
       return Object.entries(this.groups).map(([id,g])=>({id,name:g.name,createdAt:g.createdAt??"2026-01-01",updatedAt:g.updatedAt??"2026-01-01",role:null}));
     }
@@ -556,4 +558,91 @@ test("group member still cannot use administrative Session delete",async()=>{
   const response=await worker.fetch(await request("/api/sessions/s1?version=2",{method:"DELETE"},"member"),env(db));
   assert.equal(response.status,403);
   assert.equal(await errorCode(response),"forbidden");
+});
+
+
+test("group admin can update own Group Mahjong defaults",async()=>{
+  const db=new FakeDb(
+    {admin:{memberships:{g1:"group_admin"}}},
+    {},false,{}, {},{},false,null,{}, {},
+    {g1:{name:"One",startingPoints:35000,returnPoints:40000,chipRate:5}}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/rules",{
+    method:"PATCH",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27"})
+  },"admin"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{rules:{startingPoints:30000,returnPoints:35000,chipRate:10}});
+});
+
+test("member cannot update Group Mahjong defaults",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {},false,{}, {},{},false,null,{}, {},
+    {g1:{name:"One"}}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/rules",{
+    method:"PATCH",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27"})
+  },"member"),env(db));
+  assert.equal(response.status,403);
+  assert.equal(await errorCode(response),"forbidden");
+});
+
+test("group admin cannot update another Group Mahjong defaults",async()=>{
+  const db=new FakeDb(
+    {admin:{memberships:{g1:"group_admin"}}},
+    {},false,{}, {},{},false,null,{}, {},
+    {g1:{name:"One"},g2:{name:"Two"}}
+  );
+  const response=await worker.fetch(await request("/api/groups/g2/rules",{
+    method:"PATCH",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27"})
+  },"admin"),env(db));
+  assert.equal(response.status,403);
+});
+
+test("Session create accepts and returns a per-Session Mahjong rule snapshot",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {},false,{}, {},{g1:["p1","p2","p3"]}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/sessions",{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({
+      id:"s-rules",segmentId:"seg-rules",sessionDate:"2026-09-27",
+      startedAt:"2026-09-27T01:00:00Z",participantPlayerIds:["p1","p2","p3"],
+      startingPoints:30000,returnPoints:35000,chipRate:10
+    })
+  },"member"),env(db));
+  assert.equal(response.status,201);
+  const payload=await response.json() as {session:{startingPoints:number;returnPoints:number;chipRate:number}};
+  assert.equal(payload.session.startingPoints,30000);
+  assert.equal(payload.session.returnPoints,35000);
+  assert.equal(payload.session.chipRate,10);
+});
+
+test("legacy Session create still uses 35000 / 40000 / chip x5",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {},false,{}, {},{g1:["p1","p2","p3"]}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/sessions",{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({
+      id:"s-default",segmentId:"seg-default",sessionDate:"2026-09-27",
+      startedAt:"2026-09-27T02:00:00Z",participantPlayerIds:["p1","p2","p3"]
+    })
+  },"member"),env(db));
+  assert.equal(response.status,201);
+  const payload=await response.json() as {session:{startingPoints:number;returnPoints:number;chipRate:number}};
+  assert.deepEqual(
+    [payload.session.startingPoints,payload.session.returnPoints,payload.session.chipRate],
+    [35000,40000,5]
+  );
 });

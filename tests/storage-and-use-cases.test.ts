@@ -309,3 +309,103 @@ test("group and player names reject oversized values", async () => {
   assert.equal(player.ok, false);
   if (!player.ok) assert.equal(player.error.code, "player_name_too_long");
 });
+
+
+test("new groups keep the current Mahjong rule defaults", async () => {
+  const { groups } = createFixture();
+  const clock = new FixedClock("2026-09-27T00:00:00.000Z");
+  const created = await new CreateGroupUseCase(
+    groups,
+    new SequenceIdGenerator(["g-rules"]),
+    clock,
+  ).execute({ name: "Rules" });
+
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal(created.value.startingPoints, 35000);
+  assert.equal(created.value.returnPoints, 40000);
+  assert.equal(created.value.chipRate, 5);
+});
+
+test("Session snapshots an explicit rule override", async () => {
+  const { store, groups, players, sessions } = createFixture();
+  const clock = new FixedClock("2026-09-27T01:00:00.000Z");
+  const group = await new CreateGroupUseCase(
+    groups,
+    new SequenceIdGenerator(["g-rules"]),
+    clock,
+  ).execute({ name: "Rules" });
+  assert.equal(group.ok, true);
+  if (!group.ok) return;
+
+  const addPlayer = new AddPlayerToGroupUseCase(
+    players,
+    new SequenceIdGenerator(["p1", "p2", "p3"]),
+    clock,
+  );
+  for (const name of ["A", "B", "C"]) {
+    assert.equal((await addPlayer.execute({ groupId: group.value.id, displayName: name })).ok, true);
+  }
+
+  const started = await new StartSessionUseCase(
+    sessions,
+    players,
+    new SequenceIdGenerator(["s-rules", "seg-rules"]),
+    clock,
+  ).execute({
+    groupId: group.value.id,
+    sessionDate: "2026-09-27",
+    participantPlayerIds: ["p1", "p2", "p3"],
+    rules: { startingPoints: 30000, returnPoints: 35000, chipRate: 10 },
+  });
+  assert.equal(started.ok, true);
+  if (!started.ok) return;
+  assert.equal(started.value.startingPoints, 30000);
+  assert.equal(started.value.returnPoints, 35000);
+  assert.equal(started.value.chipRate, 10);
+
+  const loaded = await store.load();
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) return;
+  const saved = loaded.value.sessions[0];
+  assert.equal(saved?.startingPoints, 30000);
+  assert.equal(saved?.returnPoints, 35000);
+  assert.equal(saved?.chipRate, 10);
+});
+
+test("legacy Session creation still snapshots 35000 / 40000 / chip x5", async () => {
+  const { groups, players, sessions } = createFixture();
+  const clock = new FixedClock("2026-09-27T02:00:00.000Z");
+  const group = await new CreateGroupUseCase(
+    groups,
+    new SequenceIdGenerator(["g-legacy"]),
+    clock,
+  ).execute({ name: "Legacy" });
+  assert.equal(group.ok, true);
+  if (!group.ok) return;
+
+  const addPlayer = new AddPlayerToGroupUseCase(
+    players,
+    new SequenceIdGenerator(["lp1", "lp2", "lp3"]),
+    clock,
+  );
+  for (const name of ["A", "B", "C"]) {
+    assert.equal((await addPlayer.execute({ groupId: group.value.id, displayName: name })).ok, true);
+  }
+
+  const started = await new StartSessionUseCase(
+    sessions,
+    players,
+    new SequenceIdGenerator(["s-legacy", "seg-legacy"]),
+    clock,
+  ).execute({
+    groupId: group.value.id,
+    sessionDate: "2026-09-27",
+    participantPlayerIds: ["lp1", "lp2", "lp3"],
+  });
+  assert.equal(started.ok, true);
+  if (!started.ok) return;
+  assert.equal(started.value.startingPoints, 35000);
+  assert.equal(started.value.returnPoints, 40000);
+  assert.equal(started.value.chipRate, 5);
+});

@@ -17,13 +17,16 @@ Deterministic seed `1372026`.
 - 3,120 Games
 - 9,360 Game Results
 - 4 Players rotating through 3-player Sessions
+- 2 additional Groups for multi-group isolation: 78 Sessions / 624 Games and 12 Sessions / 96 Games
+- shared Players across Groups so Group switching and data isolation can be validated
+- total local realistic fixture: 350 Sessions / 3,840 Games / 11,520 Game Results
 - 6-18 Games per Session while preserving exactly 3,120 total
 - positive/negative scores with each Game totaling zero
 - chip variation including zero-chip Sessions with each Session totaling zero
 - note/no-note variation
 - no active Session and no CRUD scratch data
 
-The base fixture is retained. Do not clean it up after a test.
+The base fixture is retained. Do not clean it up after a test. The two smaller Groups are part of the same deterministic local fixture and are intended to validate multi-group selection and isolation without increasing the 5-year base Group itself.
 
 ## Layers
 1. CI local D1: generate, insert and validate the realistic fixture. No Cloudflare quota.
@@ -72,16 +75,18 @@ CLI wall time is not an application latency metric because each local benchmark 
 ## Smartphone CRUD scenario
 After the base fixture exists:
 1. Sign in with LINE to the Performance Worker.
-2. Open the Performance group and confirm history, monthly, yearly and all-time views.
-3. Start a new Session using three fixture Players.
-4. Add several Games including positive and negative scores.
-5. Correct one Game and verify aggregate changes.
-6. Change chips and Session memo.
-7. Delete one Game and verify history/aggregate changes.
-8. Finalize the Session.
-9. Re-open history and statistics.
-10. Delete only the CRUD test Session through the normal authorized UI/API.
-11. Confirm the 260-Session base fixture remains intact.
+2. Confirm all expected Performance Groups are visible for System Admin, switch between them, and verify history/statistics/Players never leak across the selected Group.
+3. Rename a secondary Group and confirm its existing history/statistics remain attached to the same Group ID.
+4. Open the 5-year Performance group and confirm history, monthly, yearly and all-time views.
+5. Start a new Session using three fixture Players.
+6. Add several Games including positive and negative scores.
+7. Correct one Game and verify aggregate changes.
+8. Change chips and Session memo.
+9. Delete one Game and verify history/aggregate changes.
+10. Finalize the Session.
+11. Re-open history and statistics.
+12. Delete only the CRUD test Session through the normal authorized UI/API.
+13. Confirm the 260-Session base fixture and secondary Groups remain intact.
 
 ## Acceptance
 - Major history/statistics displays normally target <=1s; repeated >2s is a failure signal.

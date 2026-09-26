@@ -122,7 +122,7 @@ const meta={
   gameCountRange:[Math.min(...gameCounts),Math.max(...gameCounts)],
   scoreRange:[minScore,maxScore],zeroChipSessions,noteSessions,
   invariants:{
-    targetGames:games.length===TARGET_GAMES,
+    targetGames:games.filter(r=>String(r[0]).startsWith(GROUP_ID+"-")).length===TARGET_GAMES,
     everyGameHasThreeResults:results.length===games.length*3,
     fourPlayersRotate:true,
     baseFixtureFinalizedOnly:true,

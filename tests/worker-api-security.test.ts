@@ -378,7 +378,7 @@ test("game edit rejects a Segment from another Session before mutating results",
 
 
 test("session start rejects a Group that already has an active Session",async()=>{
-  const db=new FakeDb({member:{memberships:{g1:"member"}}},{existing:{groupId:"g1",version:1}});
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{existing:{groupId:"g1",version:1}},false,{}, {},{},false,null,{}, {},{g1:{name:"One"}});
   const response=await worker.fetch(await request("/api/groups/g1/sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"new-session",segmentId:"seg-new",sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",participantPlayerIds:["p1","p2","p3"]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"active_session_exists");
@@ -630,7 +630,8 @@ test("Session create accepts and returns a per-Session Mahjong rule snapshot",as
 test("Session create without override snapshots the Group defaults",async()=>{
   const db=new FakeDb(
     {member:{memberships:{g1:"member"}}},
-    {},false,{}, {},{g1:["p1","p2","p3"]}
+    {},false,{}, {},{g1:["p1","p2","p3"]},false,null,{}, {},
+    {g1:{name:"One",startingPoints:30000,returnPoints:35000,chipRate:10}}
   );
   const response=await worker.fetch(await request("/api/groups/g1/sessions",{
     method:"POST",
@@ -644,6 +645,6 @@ test("Session create without override snapshots the Group defaults",async()=>{
   const payload=await response.json() as {session:{startingPoints:number;returnPoints:number;chipRate:number}};
   assert.deepEqual(
     [payload.session.startingPoints,payload.session.returnPoints,payload.session.chipRate],
-    [35000,40000,5]
+    [30000,35000,10]
   );
 });

@@ -15,7 +15,8 @@
     "db:migrations:list:prod": "wrangler d1 migrations list DB --remote",
     "db:migrate:prod": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:recovery:preview": "bash scripts/d1-recovery-rehearsal.sh"
+    "db:recovery:preview": "bash scripts/d1-recovery-rehearsal.sh",
+    "db:performance:preview": "node scripts/d1-performance-benchmark.mjs"
   },
   "dependencies": {
     "react": "19.3.0",

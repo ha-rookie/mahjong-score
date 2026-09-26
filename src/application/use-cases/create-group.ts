@@ -1,5 +1,5 @@
 import type { Clock, GroupRepository, IdGenerator } from "../ports";
-import { GROUP_NAME_MAX_LENGTH, type Group } from "../../domain";
+import { DEFAULT_MAHJONG_RULES, GROUP_NAME_MAX_LENGTH, type Group } from "../../domain";
 import { AppError, err, type Result } from "../../shared/errors";
 
 export interface CreateGroupInput {
@@ -38,6 +38,7 @@ export class CreateGroupUseCase {
     const group: Group = {
       id: this.ids.generate(),
       name,
+      ...DEFAULT_MAHJONG_RULES,
       createdAt: now,
       updatedAt: now,
     };

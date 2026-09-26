@@ -197,7 +197,8 @@ remote D1へアクセス可能になった後も、いきなりUser Testへ進�
 - representative authorization case success
 - representative concurrency case success
 - current mainのProduction反映確認
-- main / PR CI green
+- PR CI green
+- manual Production workflow green
 - Known Deferredを説明可能
 - User Test URL / invitation準備済み
 - Tester feedbackをIssueへ分類済み

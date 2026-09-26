@@ -45,10 +45,16 @@ Issue Branch
  -> lint / test / build
  -> Human approval
  -> main
+ -> STOP (no automatic remote D1 / deploy)
+ -> Human approval + D1 availability confirmation
+ -> manual Production workflow_dispatch
+ -> Production D1 migration
  -> wrangler deploy
  -> Production smoke
  -> Human verification
 ```
+
+PR CIはlint / test / build / static Security Headers / local D1 migrationまでとし、remote Preview / Production D1へ自動アクセスしない。
 
 Rollback:
 - mainをforce updateしない
@@ -82,6 +88,8 @@ Phase 2:
 
 - Phase 1は有料APIを前提にしない
 - GitHub / Cloudflareのquotaは定期的に実測する
+- D1 Free quotaはaccount-wideで共有されるため、large performance fixtureはlocal D1を標準とする
+- remote performance operationはmanual-onlyとし、quota-limited / access unavailable中は実行しない
 - record件数、Log量、Analytics量、D1容量はPhase 2導入時にNFRとして数値化する
 
 ## 9. TBD

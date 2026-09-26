@@ -46,6 +46,8 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | `21_D1_RECOVERY_RUNBOOK.md` | D1 Time Travel、Production restore guardrail、Preview rehearsal |
 | `21_NAMING_STANDARD.md` | Design ID、source、API、DB、File等の命名 |
 | `22_SE_USER_TEST_READINESS.md` | SE向けUser Test前のRelease Candidate Gate、task script、defect severity、説明ポイント |
+| `23_D1_PERFORMANCE_BENCHMARK.md` | Historical Preview D1 benchmark evidence。現在の実行手順ではない |
+| `23_PERFORMANCE_D1_TEST.md` | Current local / isolated Performance D1 test strategy、query-count guardrail、smartphone scenario |
 
 ## 4. Cross-project Standards
 
@@ -128,9 +130,19 @@ Production Appとは分離し、Design Previewを公開する場合はnoindexを
 9. Production Evidence
 10. Design実態同期
 
+## 9. Current Phase / Gate
 
-## 9. Current Phase
+Phase 2 runtime（Worker API / D1 / Security / concurrency / recovery）とPhase 3主要機能（LINE Login / invitation / Group authorization / multi-device）は実装済み。
 
-Phase 2 runtimeはWorker API / D1 / LINE Login / Group authorizationを採用済み。Phase 2 completion auditはIssue #145、documentation syncはIssue #162で管理する。
+現在は **Phase 3 Release Candidate Gate / SE User Test readiness（Issue #165）**。
 
-PWAはPhase 3以降へDeferred（Issue #160）。
+2026-09-26時点:
+- known application S1/S2 defects: 0
+- #137: DB / local 5y・10y performance evidence取得済み、Production smartphone felt-performance待ち
+- #201: 0半荘Session cancel実装済み、smartphone smoke待ち
+- #160 PWA: Deferred
+- remote D1へアクセスできずLINE Loginを実行できないため、SE User Test GateはOperational Blockerで停止中
+- PR CIはlocal D1まで。Preview / Production remote D1へ自動アクセスしない
+- Production deployは`main`からのmanual `workflow_dispatch`のみ
+
+再開順序は `22_SE_USER_TEST_READINESS.md` のResume Checklistを正本とする。

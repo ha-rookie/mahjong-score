@@ -18,7 +18,7 @@ GitHub Repository: `ha-rookie/mahjong-score`
 
 Phase 1はRepository owner本人。
 
-Phase 2では、普段一緒に麻雀をする固定GroupのMemberへ拡張済み。
+Phase 3では、普段一緒に麻雀をする固定GroupのMemberへ拡張済み。
 
 ## Success Condition
 
@@ -111,8 +111,8 @@ Phase 4はUser Test結果と実利用の必要性を確認してから着手判�
 
 4 Phase roadmapとは別に、品質・UX改善として管理する。
 
-- PWA: Issue #160
-- 長期性能試験: Issue #137
+- PWA: Issue #160 — Deferred
+- 長期性能試験: Issue #137 — DB / local 5y・10y evidence取得済み。Production smartphone felt-performance確認待ち
 
 PWAのoffline write/syncはPWA本体とは別設計とする。
 
@@ -141,7 +141,6 @@ PWAのoffline write/syncはPWA本体とは別設計とする。
 
 Use [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
-
 ## Phase 2 / Phase 3 Implementation Status
 
 2026-09-25時点で、元のroadmap上のPhase 2とPhase 3に相当する主要実装はProductionへ反映済み。
@@ -158,3 +157,13 @@ Use [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 - PWA: Phase 3以降へDeferred（Issue #160）
 
 Issue #145は2026-09-25にCompletedでclose済み。次のGateはIssue #165のPhase 3 Release Candidate / SE向けUser Test readinessとする。
+
+## Current RC / Production Status — 2026-09-26
+
+- current `main`には#203（D1 read optimization）、#206（履歴削除stale recovery）、#207（SE User Test gate同期）がMerge済み
+- #205以降、PR CIとMergeはremote D1へ自動アクセスしない
+- Production D1 migration / Worker deployは`main`からのmanual `workflow_dispatch`のみ
+- current `main`のruntime変更#203 / #206はProductionへ未反映
+- 現在remote D1へアクセスできずLINE Loginが成立しないため、Issue #165のSE User Test GateはOperational Blockerで停止中
+- D1復旧まではremote benchmark / fixture / migration / deployを追加実行しない
+- D1復旧後は最小限のaccess確認 → Human承認 → manual Production deploy → LINE Login smoke → #201 → #137 → #165 User Test handoffの順で再開する

@@ -6,15 +6,18 @@ Deploy後の確認、監視、障害対応、Backup/Restore、Rollbackを設計�
 ## 2. Release Gate
 
 ```text
-CI
+PR CI (local D1 only)
  -> Human approval
  -> Merge
- -> Production deploy
+ -> Human-approved manual Production workflow_dispatch
+ -> Production D1 migration / Worker deploy
  -> Production smoke
  -> Smartphone verification
  -> Design sync
  -> Issue close evidence
 ```
+
+`main`へのMerge自体ではProduction D1 migration / Worker deployを自動実行しない。remote D1はaccount-wide quotaを消費するため、Production反映はD1利用可否を確認したうえでHumanが明示的に開始する。
 
 詳細は `RELEASE_CHECKLIST.md`。
 
@@ -23,11 +26,11 @@ CI
 最低限:
 - HTTP 200 / HTTPS
 - stable application marker
-- main相当
+- manual deploy対象のmain commit相当
 - major assets
 - major flow
 - Security Headers
-  - main deploy後、GitHub ActionsがProduction rootをHEADし必須Headerを自動assert
+  - manual Production workflow内でProduction rootをHEADし必須Headerを自動assert
 - API response（導入時）
 - intended index/noindex
 - analytics receive/exclude（採用時）
@@ -85,12 +88,18 @@ Phase 2:
 - known issue更新
 - reusable lessonをTemplateへ昇格
 
-
 ## 8. Phase 2 Release / Recovery Evidence
 
+Historical evidence:
 - Production Security Headers: main run #36071486621
 - D1 Preview recovery rehearsal: run #36072191864
 - D1 recovery implementation merge: PR #159
-- latest Phase 2 Production deployはmain workflowでD1 migration -> Worker deploy -> Security Headers smokeの順に実行する
+
+Current release safety mode (2026-09-26):
+- PR CIはlint / test / build / static Security Headers / **local D1 migration**まで
+- PR更新・MergeではPreview / Production D1へ自動アクセスしない
+- Production D1 migration / Worker deploy / Production Security Headers smokeは、`main`からのmanual `workflow_dispatch`時だけ実行する
+- remote D1がquota-limitedまたは利用不能な場合はmanual Production workflowを開始しない
+- latest `main`とlatest Productionは同一とは限らないため、Release判断ではdeploy対象commitを明示する
 
 Phase 2のProduction restoreは通常Release手順では実行しない。Incident時のみ `21_D1_RECOVERY_RUNBOOK.md` に従い、Humanがrestore targetとundo bookmarkを確認して実施する。

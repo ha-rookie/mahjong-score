@@ -2,12 +2,18 @@ name: Performance D1 setup
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type SETUP-PERFORMANCE-D1"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   migrate-performance-d1:
+    if: ${{ inputs.confirmation == 'SETUP-PERFORMANCE-D1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: performance
@@ -21,6 +27,15 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Guard Performance D1 target
+        shell: bash
+        run: |
+          set -eu
+          grep -q '"database_name": "mahjong-score-performance"' wrangler.performance.jsonc
+          grep -q '"database_id": "37b05ca8-9f6e-46b4-92be-7e02513cf044"' wrangler.performance.jsonc
+          ! grep -q 'mahjong-score-prod' wrangler.performance.jsonc
+          ! grep -q 'mahjong-score-preview' wrangler.performance.jsonc
 
       - name: Apply migrations to Performance D1
         run: npx wrangler d1 migrations apply mahjong-score-performance --remote --config wrangler.performance.jsonc

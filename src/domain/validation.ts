@@ -1,3 +1,4 @@
+import { CHIP_COUNT_ABS_MAX, GAME_SCORE_ABS_MAX } from "./limits";
 import {
   invalid,
   valid,
@@ -63,6 +64,14 @@ export const validateGameResults = (
     });
   }
 
+  if (!results.every((result) => Math.abs(result.scorePoint) <= GAME_SCORE_ABS_MAX)) {
+    issues.push({
+      code: "game_score_out_of_range",
+      path: "results",
+      message: `スコアは±${GAME_SCORE_ABS_MAX.toLocaleString()}pt以内で入力してください。`,
+    });
+  }
+
   const total = results.reduce((sum, result) => sum + result.scorePoint, 0);
 
   if (total !== 0) {
@@ -108,6 +117,14 @@ export const validateChipResults = (
       code: "duplicate_chip_player",
       path: "chipResults",
       message: "同じ参加者のチップ結果を重複して登録できません。",
+    });
+  }
+
+  if (!results.every((result) => Number.isInteger(result.chipCount) && Math.abs(result.chipCount) <= CHIP_COUNT_ABS_MAX)) {
+    issues.push({
+      code: "chip_count_out_of_range",
+      path: "chipResults",
+      message: `チップは±${CHIP_COUNT_ABS_MAX.toLocaleString()}枚以内の整数で入力してください。`,
     });
   }
 

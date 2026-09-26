@@ -34,12 +34,16 @@ class FakeDb{
     private nextRunChanges:number|null=null,
     private gameResults:Record<string,Array<{playerId:string;scorePoint:number}>>={},
     private gameTags:Record<string,Array<{type:"yakuman"|"double-yakuman";playerId:string|null}>>={},
+    private groups:Record<string,{name:string;createdAt?:string;updatedAt?:string}>={},
   ){}
   prepare(sql:string){this.preparedSql.push(sql);return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){if(this.failNextBatch){this.failNextBatch=false;return statements.map((_,i)=>({meta:{changes:i===0?0:1}}));}return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
   first(sql:string,values:unknown[]){
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
+    }
+    if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
+      const row=this.groups[String(values[0])];return row?{id:String(values[0]),createdAt:row.createdAt??"2026-01-01"}:null;
     }
     if(sql.includes("SELECT role FROM group_memberships")){
       const role=this.users[String(values[0])]?.memberships?.[String(values[1])];
@@ -83,6 +87,12 @@ class FakeDb{
     return null;
   }
   all(sql?:string,values:unknown[]=[]){
+    if(sql?.includes("FROM groups g JOIN group_memberships gm")){
+      const user=this.users[String(values[0])];return Object.entries(user?.memberships??{}).filter(([id])=>this.groups[id]).map(([id,role])=>({id,name:this.groups[id].name,createdAt:this.groups[id].createdAt??"2026-01-01",updatedAt:this.groups[id].updatedAt??"2026-01-01",role}));
+    }
+    if(sql?.startsWith("SELECT id,name,created_at AS createdAt")){
+      return Object.entries(this.groups).map(([id,g])=>({id,name:g.name,createdAt:g.createdAt??"2026-01-01",updatedAt:g.updatedAt??"2026-01-01",role:null}));
+    }
     if(sql?.startsWith("SELECT id,session_id AS sessionId,sequence FROM participant_segments WHERE session_id=?")){
       let sequence=0;
       return Object.entries(this.segments).filter(([,segment])=>segment.sessionId===String(values[0])).map(([id,segment])=>({id,sessionId:segment.sessionId,sequence:++sequence}));
@@ -132,6 +142,55 @@ test("protected API rejects unauthenticated request",async()=>{
   const response=await worker.fetch(await request("/api/groups"),env(new FakeDb({})));
   assert.equal(response.status,401);
   assert.equal(await errorCode(response),"unauthorized");
+});
+
+test("multi-group member lists only groups they belong to",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member",g2:"group_admin"}}},
+    {},false,{}, {},{},false,null,{}, {},
+    {g1:{name:"One"},g2:{name:"Two"},g3:{name:"Hidden"}}
+  );
+  const response=await worker.fetch(await request("/api/groups",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {groups:Array<{id:string;role:string}>};
+  assert.deepEqual(payload.groups.map(g=>[g.id,g.role]),[["g1","member"],["g2","group_admin"]]);
+});
+
+test("system admin lists all groups regardless of memberships",async()=>{
+  const db=new FakeDb(
+    {admin:{systemAdmin:true}},
+    {},false,{}, {},{},false,null,{}, {},
+    {g1:{name:"One"},g2:{name:"Two"},g3:{name:"Three"}}
+  );
+  const response=await worker.fetch(await request("/api/groups",{},"admin"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {groups:Array<{id:string}>};
+  assert.deepEqual(payload.groups.map(g=>g.id),["g1","g2","g3"]);
+});
+
+test("multi-group member still cannot read an unjoined third group",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member",g2:"member"}}});
+  const response=await worker.fetch(await request("/api/groups/g3/players",{},"member"),env(db));
+  assert.equal(response.status,403);
+  assert.equal(await errorCode(response),"forbidden");
+});
+
+test("group admin cannot rename a group",async()=>{
+  const db=new FakeDb({admin:{memberships:{g1:"group_admin"}}});
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"Renamed",updatedAt:"2026-01-02"})},"admin"),env(db));
+  assert.equal(response.status,403);
+});
+
+test("system admin can rename a group without changing its id",async()=>{
+  const db=new FakeDb(
+    {admin:{systemAdmin:true}},
+    {},false,{}, {},{},false,null,{}, {},
+    {g1:{name:"Before",createdAt:"2026-01-01"}}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"After",updatedAt:"2026-01-02"})},"admin"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {group:{id:string;name:string;createdAt:string;updatedAt:string}};
+  assert.deepEqual(payload.group,{id:"g1",name:"After",createdAt:"2026-01-01",updatedAt:"2026-01-02"});
 });
 
 test("member cannot create a group",async()=>{

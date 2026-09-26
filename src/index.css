@@ -958,3 +958,5 @@ h2 {
 .history-calendar__day--played{background:rgb(23 107 87 / 8%);font-weight:800;color:var(--teal-dark)}
 .history-calendar__day i{position:absolute;bottom:4px;width:5px;height:5px;border-radius:50%;background:var(--teal)}
 .history-month-title{margin:0 0 12px;font-size:.95rem}
+
+.group-management-list{display:grid;gap:12px;margin:20px 0 28px}.group-management-row{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.group-management-row>div:first-child{display:flex;align-items:center;gap:8px;min-width:0}.group-management-row strong{overflow-wrap:anywhere}.group-current-badge{font-size:.7rem;font-weight:750;color:var(--teal-dark);background:var(--surface-soft);border-radius:999px;padding:3px 7px;white-space:nowrap}.group-management-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:10px}.group-rename-form{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.group-create-panel{margin-top:28px;padding-top:20px;border-top:1px solid var(--line)}.group-create-panel h2{margin:0}

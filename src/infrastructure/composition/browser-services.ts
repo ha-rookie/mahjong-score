@@ -2,6 +2,7 @@ import {
   AddGameResultUseCase,
   AddPlayerToGroupUseCase,
   CreateGroupUseCase,
+  UpdateGroupNameUseCase,
   CancelEmptySessionUseCase,
   GetActiveSessionUseCase,
   GetSessionResultsUseCase,
@@ -59,6 +60,7 @@ export const createBrowserServices = () => {
   return {
     persistenceMode:mode,
     createGroup: new CreateGroupUseCase(groups, ids, clock),
+    updateGroupName: new UpdateGroupNameUseCase(groups, clock),
     addPlayerToGroup: new AddPlayerToGroupUseCase(players, ids, clock),
     startSession: new StartSessionUseCase(sessions, players, ids, clock),
     addGameResult: new AddGameResultUseCase(games, sessions, ids, clock),

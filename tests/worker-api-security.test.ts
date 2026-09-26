@@ -183,6 +183,19 @@ test("system admin can create a group",async()=>{
   assert.equal(response.status,201);
 });
 
+test("member cannot rename a group",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}});
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"Renamed",updatedAt:"2026-01-02"})},"member"),env(db));
+  assert.equal(response.status,403);
+});
+
+test("system admin API rejects an oversized renamed group name",async()=>{
+  const db=new FakeDb({admin:{systemAdmin:true}});
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"G".repeat(41),updatedAt:"2026-01-02"})},"admin"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"group_name_too_long");
+});
+
 test("system admin API rejects an oversized group name",async()=>{
   const db=new FakeDb({admin:{systemAdmin:true}});
   const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"G".repeat(41),createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"admin"),env(db));

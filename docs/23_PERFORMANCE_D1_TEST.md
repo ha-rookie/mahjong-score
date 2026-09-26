@@ -31,6 +31,35 @@ The base fixture is retained. Do not clean it up after a test.
 3. Remote Performance D1: one-time 5y seed after daily quota availability is confirmed.
 4. Smartphone: real Worker/API/React and LINE authentication.
 
+## D1 read-cost regression rules
+Database cost is part of performance. A fast response is not sufficient if the number of D1 reads grows through N+1 queries.
+
+The normal read paths have these fixed data-query budgets. Authorization queries are separate from these data reads.
+
+- Active Session: at most 4 data queries when an active Session exists: Session, participant notes, chips and current participants. The count must not grow with historical Session count.
+- Games list: at most 3 data queries for a non-empty Session: Games, Game Results and Game Tags. The count must not grow with the number of Games. An empty Session does not issue child queries.
+- Segments list: at most 2 data queries for a non-empty Session: Segments and Segment Players. The count must not grow with the number of Segments. An empty result does not issue the participant query.
+
+These query-count invariants are enforced by Worker tests. Do not replace them with per-row or per-resource SELECT loops.
+
+Wrangler local D1 does not currently expose `rows_read` / `rows_written` metadata in this benchmark environment. Run `36221346876` recorded `costMetricsAvailable: false`, so row-cost fields are intentionally reported as `n/a`. Do not invent local row-count thresholds or treat local timing as a prediction of remote D1 billing. If Wrangler exposes these fields in the future, the benchmark already records them.
+
+## Local benchmark baseline
+Run `36221346876`, 2026-09-26, local D1 only:
+
+| Case | 5y median | 10y median | Expected scaling |
+| --- | ---: | ---: | --- |
+| Active Session lookup | 0 ms | 0 ms | bounded |
+| Monthly history | 0 ms | 1 ms | bounded by month |
+| All-time performance | 11 ms | 21 ms | may grow with total history |
+| Year performance | 4 ms | 4 ms | bounded by year |
+| Month performance | 1 ms | 1 ms | bounded by month |
+| Session Games base query | 0 ms | 0 ms | bounded by one Session |
+
+The 10-year fixture doubles the five-year history from 260 to 520 Sessions and from 3,120 to 6,240 Games. All-time aggregation therefore has more data to process; the other scoped reads should remain approximately bounded by their requested period/resource.
+
+CLI wall time is not an application latency metric because each local benchmark invocation includes Wrangler startup overhead.
+
 ## Remote safety rules
 - Never seed the base fixture into Production or Preview.
 - Never run a bulk cleanup of the base fixture.
@@ -38,6 +67,7 @@ The base fixture is retained. Do not clean it up after a test.
 - The seed workflow refuses to run if the base fixture already exists.
 - Remote seed is manual-only and requires `SEED-PERFORMANCE-5Y`.
 - Do not run migration or seed while the account is D1 quota-limited.
+- Pull-request CI validates migrations locally and must not apply migrations to remote Preview D1.
 
 ## Smartphone CRUD scenario
 After the base fixture exists:
@@ -55,6 +85,8 @@ After the base fixture exists:
 
 ## Acceptance
 - Major history/statistics displays normally target <=1s; repeated >2s is a failure signal.
+- Active Session, Games and Segments read paths satisfy the fixed query-count budgets above.
+- Five-year to ten-year growth does not reintroduce history-sized N+1 query counts.
 - No timeout, broken layout, unusable scrolling, or graph failure at the five-year load.
 - CRUD remains correct after long-term accumulation.
 - No false stale/conflict message after successful update/delete.

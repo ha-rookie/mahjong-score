@@ -39,7 +39,15 @@ jobs:
           node scripts/performance/generate-performance-d1-fixture.mjs
           node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.sessions!==260||m.games!==3120||m.gameResults!==9360||m.players.length!==4||!Object.values(m.invariants).every(Boolean)) process.exit(1);"
 
-      - name: Seed local D1
+      - name: Seed realistic fixture into isolated local Performance D1
+        run: |
+          npx wrangler d1 migrations apply DB --local --config wrangler.performance.jsonc
+          npx wrangler d1 execute DB --local --config wrangler.performance.jsonc --file=performance-output/performance-5y-realistic.sql
+
+      - name: Validate realistic fixture in local Performance D1
+        run: node scripts/performance/validate-performance-d1-fixture-local.mjs
+
+      - name: Seed benchmark fixture into local D1
         run: npx wrangler d1 execute DB --local --file=performance-output/long-term-fixture.sql
 
       - name: Benchmark local D1
@@ -61,6 +69,7 @@ jobs:
           path: |
             performance-output/fixture-meta.json
             performance-output/performance-5y-realistic-meta.json
+            performance-output/performance-5y-local-validation.json
             performance-output/results.json
             performance-output/summary.md
           if-no-files-found: warn

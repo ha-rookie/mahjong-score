@@ -42,7 +42,8 @@ class FakeDb{
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
     }
-    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}\n    if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
+    if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
+    if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
       const row=this.groups[String(values[0])];return row?{id:String(values[0]),createdAt:row.createdAt??"2026-01-01"}:null;
     }
     if(sql.includes("SELECT role FROM group_memberships")){
@@ -90,7 +91,8 @@ class FakeDb{
     if(sql?.includes("FROM groups g JOIN group_memberships gm")){
       const user=this.users[String(values[0])];return Object.entries(user?.memberships??{}).filter(([id])=>this.groups[id]).map(([id,role])=>({id,name:this.groups[id].name,createdAt:this.groups[id].createdAt??"2026-01-01",updatedAt:this.groups[id].updatedAt??"2026-01-01",role}));
     }
-    if(sql?.startsWith("SELECT id,starting_points AS startingPoints")){return Object.entries(this.groups).map(([id,g])=>({id,startingPoints:g.startingPoints??35000,returnPoints:g.returnPoints??40000,chipRate:g.chipRate??5}));}\n    if(sql?.startsWith("SELECT id,name,created_at AS createdAt")){
+    if(sql?.startsWith("SELECT id,starting_points AS startingPoints")){return Object.entries(this.groups).map(([id,g])=>({id,startingPoints:g.startingPoints??35000,returnPoints:g.returnPoints??40000,chipRate:g.chipRate??5}));}
+    if(sql?.startsWith("SELECT id,name,created_at AS createdAt")){
       return Object.entries(this.groups).map(([id,g])=>({id,name:g.name,createdAt:g.createdAt??"2026-01-01",updatedAt:g.updatedAt??"2026-01-01",role:null}));
     }
     if(sql?.startsWith("SELECT id,session_id AS sessionId,sequence FROM participant_segments WHERE session_id=?")){

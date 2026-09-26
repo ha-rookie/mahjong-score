@@ -47,7 +47,6 @@ export class ListGamesBySessionUseCase {
   }
 }
 
-
 export interface SessionResultsSummary {
   readonly session: Session;
   readonly participantPlayerIds: readonly PlayerId[];
@@ -93,41 +92,4 @@ export interface PlayerPerformanceAggregate {
   readonly mahjongPointTotal: number;
   readonly finalPointTotal: number;
   readonly firstPlaceCount: number;
-}
-
-export class GetPlayerPerformanceAggregatesUseCase {
-  constructor(
-    private readonly sessions: SessionRepository,
-    private readonly games: GameRepository,
-  ) {}
-
-  async execute(groupId: GroupId, period?: { year: number; month?: number }): Promise<Result<readonly PlayerPerformanceAggregate[]>> {
-    const listed = await this.sessions.listByGroup(groupId);
-    if (!listed.ok) return listed;
-    const finalized = listed.value.filter(s=>{if(s.status!=="finalized")return false;if(!period)return true;const [year,month]=s.sessionDate.split("-").map(Number);return year===period.year&&(period.month===undefined||month===period.month);});
-    const aggregates = new Map<PlayerId, {sessionCount:number;gameCount:number;mahjongPointTotal:number;finalPointTotal:number;firstPlaceCount:number}>();
-
-    for (const session of finalized) {
-      const segments = await this.sessions.listSegments(session.id);
-      if (!segments.ok) return segments;
-      const participantIds = [...new Set(segments.value.flatMap(s=>s.participantPlayerIds))];
-      const sessionGames = await this.games.listBySession(session.id);
-      if (!sessionGames.ok) return sessionGames;
-      const mahjong = new Map<PlayerId,number>();
-      const gameCounts = new Map<PlayerId,number>();
-      for (const game of sessionGames.value) for (const result of game.results) {
-        mahjong.set(result.playerId,(mahjong.get(result.playerId)??0)+result.scorePoint);
-        gameCounts.set(result.playerId,(gameCounts.get(result.playerId)??0)+1);
-      }
-      const chip = (id:PlayerId)=>session.chipResults.find(x=>x.playerId===id)?.chipCount??0;
-      const final = (id:PlayerId)=>(mahjong.get(id)??0)+chip(id)*5;
-      const best = participantIds.length ? Math.max(...participantIds.map(final)) : null;
-      for (const id of participantIds) {
-        const a=aggregates.get(id)??{sessionCount:0,gameCount:0,mahjongPointTotal:0,finalPointTotal:0,firstPlaceCount:0};
-        a.sessionCount+=1;a.gameCount+=gameCounts.get(id)??0;a.mahjongPointTotal+=mahjong.get(id)??0;a.finalPointTotal+=final(id);if(best!==null&&final(id)===best)a.firstPlaceCount+=1;
-        aggregates.set(id,a);
-      }
-    }
-    return ok([...aggregates].map(([playerId,a])=>({playerId,...a})).sort((a,b)=>b.finalPointTotal-a.finalPointTotal));
-  }
 }

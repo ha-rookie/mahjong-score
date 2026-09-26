@@ -118,43 +118,6 @@ Phase 1ではinvalid JSON / import validationの一部のみ自動化済み。�
 - supported browser/device
 - rollback rehearsal
 
-### Long-term D1 performance benchmark
-
-Issue #137ではProduction DBを水増しせず、Cloudflare Preview D1へ専用fixtureを一時投入して長期性能を測定する。
-
-負荷モデル:
-- 5年相当: 260 Session / 3,120 Game / 9,360 GameResult
-- 10年相当: 520 Session / 6,240 Game / 18,720 GameResult
-- 各Sessionは12半荘、3人分のGameResult、chip、participant noteを保持
-
-計測対象:
-- 月別履歴
-- 通算成績
-- 年間成績
-- 月間成績
-- 12半荘を持つSessionのGame/Result/Tag参照
-
-実行:
-
-```bash
-npm run db:performance:preview
-```
-
-GitHub Actions `.github/workflows/d1-performance-benchmark.yml` では次をEvidenceとして残す。
-- D1 `meta.duration` の3回計測平均/最大
-- Wrangler CLI wall timeの3回計測平均/最大
-- rows read
-- 5年/10年fixture件数
-- Markdown / JSON artifact
-- Step Summary
-
-判定:
-- DB側の一次判定は各benchmark invocationのD1 server duration最大1,000ms以下
-- CLI wall timeはWrangler起動・network overheadを含むため参考値として分離
-- 体感目標（通常1秒以内、継続的に2秒超なし）はDB benchmark合格後にスマホ実機で確認
-- benchmark終了時は成功/失敗にかかわらず専用fixtureをcleanupする
-- Preview / ProductionのD1 IDが一致している場合は安全のため実行を拒否する
-
 ## 8. UI State Tests
 
 React UI接続後に別Issueで追加する。
@@ -295,3 +258,58 @@ Requirement
 - LINE Loginの主要failure/successがrequestId付きで記録されること
 - Session削除、Invitation発行/取消、Player/User unlink、Membership変更、Admin bootstrap、migration等の重要操作成功が記録されること
 - Audit LogにOAuth/LINE token、Invitation token、Cookie、request body、Memo本文、displayNameを含めないこと
+- requestIdはCF-Rayを優先し、存在しない場合はUUIDへfallbackすること
+
+
+### Phase 2 Production Security Headers
+- Vite build後に `dist/client/_headers` が存在すること
+- Production rootでContent-Security-Policyが返ること
+- CSPに `frame-ancestors 'none'` が含まれること
+- Strict-Transport-Securityが `max-age=31536000` で返ること
+- X-Frame-OptionsがDENYであること
+- X-Content-Type-Optionsがnosniffであること
+- Referrer-Policyがstrict-origin-when-cross-originであること
+- Permissions-Policyが返ること
+- X-Permitted-Cross-Domain-Policiesがnoneであること
+- Headerが欠落したProduction deployはpost-deploy smokeで失敗すること
+
+
+### Phase 2 D1 backup / recovery
+- Preview / Production D1 database IDが異なることをrehearsal前にassertすること
+- Previewでbaseline bookmarkを取得できること
+- rehearsal probe table / markerをPreviewへ作成し存在確認できること
+- baseline bookmarkへのTime Travel restoreが成功すること
+- restore後にprobe tableが消えていること
+- rehearsal途中でfailureした場合もtrapでbaseline restoreを試行すること
+- Production DBにrehearsal probeを書き込まないこと
+- Production restore手順にpre-restore bookmark / target bookmark / smoke / undoを含むこと
+
+
+## 11. Phase 2 Completion Evidence
+
+| Area | Evidence |
+| --- | --- |
+| LINE Login / User session | Production flow + PR #105/#106/#117/#118/#123 |
+| System / Group authorization | PR #112/#120 + API-side checks |
+| Invitation / linking | PR #113/#116/#119/#120 |
+| D1 runtime | PR #94/#97/#98/#100/#114 |
+| Optimistic concurrency | #146 / PR #147 |
+| Multi-device active refresh | #148 / PR #149, #152 / PR #153 |
+| Audit / request correlation | #154 / PR #155 |
+| Security Headers | #156 / PR #157, main run #36071486621 |
+| D1 recovery | #158 / PR #159, run #36072191864 |
+| PWA | #160へDeferred |
+
+Phase 2最終smokeはIssue #145で管理する。
+
+
+### Empty Session cancellation
+- Game 0件のactive SessionではUIに「Sessionを取り消す」を表示し、「Sessionを終了」は表示しないこと
+- Game 1件以上では「Sessionを終了」を表示し、取り消し操作を表示しないこと
+- Group Memberが自GroupのGame 0件active Sessionを取り消せること
+- Game 1件以上のcancel APIは409 `session_not_empty`になること
+- finalized Sessionのcancel APIは409 `session_not_active`になること
+- stale expectedVersionのcancel APIは409 `stale_update`になること
+- 0半荘SessionのfinalizeをApplication / Worker API双方で拒否すること
+- 通常のSession DELETEは引き続きSystem Admin / Group Adminのみで、Memberは403となること
+- smartphoneで0半荘取り消し後にHomeへ戻り、履歴へ0半荘Sessionが追加されないこと

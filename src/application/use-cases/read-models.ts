@@ -34,27 +34,8 @@ export interface ActiveSessionSummary {
 export class GetActiveSessionUseCase {
   constructor(private readonly sessions: SessionRepository) {}
 
-  async execute(groupId: GroupId): Promise<Result<ActiveSessionSummary | null>> {
-    const listed = await this.sessions.listByGroup(groupId);
-    if (!listed.ok) return listed;
-
-    const active = [...listed.value]
-      .filter((session) => session.status === "active")
-      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
-
-    if (active === undefined) return ok(null);
-
-    const segments = await this.sessions.listSegments(active.id);
-    if (!segments.ok) return segments;
-
-    const currentSegment = [...segments.value].sort(
-      (a, b) => b.sequence - a.sequence,
-    )[0];
-
-    return ok({
-      session: active,
-      participantPlayerIds: currentSegment?.participantPlayerIds ?? [],
-    });
+  execute(groupId: GroupId): Promise<Result<ActiveSessionSummary | null>> {
+    return this.sessions.findActiveByGroup(groupId);
   }
 }
 

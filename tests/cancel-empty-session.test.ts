@@ -11,6 +11,7 @@ class Sessions implements SessionRepository {
   cancelled:{id:SessionId;version?:number}|null=null;
   findById(id:SessionId):Promise<Result<Session|null>>{return Promise.resolve(ok(id===session.id?session:null));}
   listByGroup():Promise<Result<readonly Session[]>>{return Promise.resolve(ok([session]));}
+  findActiveByGroup():Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>>{return Promise.resolve(ok({session,participantPlayerIds:[]}));}
   listSegments():Promise<Result<readonly ParticipantSegment[]>>{return Promise.resolve(ok([]));}
   createWithInitialSegment():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
   save():Promise<Result<void>>{return Promise.resolve(ok(undefined));}

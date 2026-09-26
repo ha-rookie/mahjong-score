@@ -12,6 +12,7 @@ const game:Game={id:"g1",sessionId:"s1",segmentId:"seg1",sequence:1,playedAt:"20
 class Repo implements SessionRepository {
   session:Session=base;
   listByGroup():Promise<Result<readonly Session[]>>{return Promise.resolve(ok([this.session]));}
+  findActiveByGroup():Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>>{return Promise.resolve(ok(this.session.status==="active"?{session:this.session,participantPlayerIds:segment.participantPlayerIds}:null));}
   findById(id:SessionId):Promise<Result<Session|null>>{return Promise.resolve(ok(id===this.session.id?this.session:null));}
   listSegments():Promise<Result<readonly ParticipantSegment[]>>{return Promise.resolve(ok([segment]));}
   createWithInitialSegment():Promise<Result<void>>{return Promise.resolve(ok(undefined));}

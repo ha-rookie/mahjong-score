@@ -42,9 +42,12 @@ class FakeDb{
       const role=this.users[String(values[0])]?.memberships?.[String(values[1])];
       return role?{role}:null;
     }
-    if(sql.includes("SELECT id FROM sessions WHERE group_id=? AND status='active'")){
-      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0]));
-      return entry?{id:entry[0]}:null;
+    if(sql.includes("FROM sessions WHERE group_id=? AND status='active'")){
+      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0])&&(row.status??"active")==="active");
+      if(!entry)return null;
+      const [id,row]=entry;
+      if(sql.includes("group_id AS groupId"))return {id,groupId:row.groupId,sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",endedAt:null,status:row.status??"active",note:null,version:row.version};
+      return {id};
     }
     if(sql.includes("FROM sessions s WHERE s.id=?")&&sql.includes("AS gameCount")){
       const row=this.sessions[String(values[0])];
@@ -77,6 +80,10 @@ class FakeDb{
     return null;
   }
   all(sql?:string,values:unknown[]=[]){
+    if(sql?.includes("FROM participant_segments ps JOIN segment_players sp")&&sql.includes("MAX(sequence)")){
+      const segment=Object.values(this.segments).find(row=>row.sessionId===String(values[0]));
+      return (segment?.players??[]).map(playerId=>({playerId}));
+    }
     if(sql?.includes("SELECT player_id AS playerId FROM group_players")){
       return (this.groupPlayers[String(values[0])]??[]).filter(playerId=>values.slice(1).map(String).includes(playerId)).map(playerId=>({playerId}));
     }
@@ -126,6 +133,28 @@ test("group member can read own group players",async()=>{
   const response=await worker.fetch(await request("/api/groups/g1/players",{},"member"),env(db));
   assert.equal(response.status,200);
   assert.deepEqual(await response.json(),{players:[]});
+});
+
+test("group member can read active Session without loading Session history",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:3,status:"active"}},
+    false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/active-session",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {activeSession:{session:{id:string;version:number};participantPlayerIds:string[]}|null};
+  assert.equal(payload.activeSession?.session.id,"s1");
+  assert.equal(payload.activeSession?.session.version,3);
+  assert.deepEqual(payload.activeSession?.participantPlayerIds,["p1","p2","p3"]);
+});
+
+test("active Session endpoint returns null when the Group has no active Session",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}});
+  const response=await worker.fetch(await request("/api/groups/g1/active-session",{},"member"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{activeSession:null});
 });
 
 test("system admin can create a group",async()=>{

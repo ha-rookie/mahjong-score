@@ -1,4 +1,4 @@
-import type { SessionRepository } from "../../application/ports";
+import type { ActiveSessionSnapshot, SessionRepository } from "../../application/ports";
 import type {
   GroupId,
   ParticipantSegment,
@@ -18,6 +18,25 @@ export class LocalStorageSessionRepository implements SessionRepository {
     return loaded.ok
       ? ok(loaded.value.sessions.filter((session) => session.groupId === groupId))
       : loaded;
+  }
+
+  async findActiveByGroup(groupId: GroupId): Promise<Result<ActiveSessionSnapshot | null>> {
+    const loaded = await this.store.load();
+    if (!loaded.ok) return loaded;
+
+    const active = loaded.value.sessions
+      .filter((session) => session.groupId === groupId && session.status === "active")
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    if (active === undefined) return ok(null);
+
+    const currentSegment = loaded.value.participantSegments
+      .filter((segment) => segment.sessionId === active.id)
+      .sort((a, b) => b.sequence - a.sequence)[0];
+
+    return ok({
+      session: active,
+      participantPlayerIds: currentSegment?.participantPlayerIds ?? [],
+    });
   }
 
   async findById(id: SessionId): Promise<Result<Session | null>> {

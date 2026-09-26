@@ -1,0 +1,32 @@
+name: Cleanup generated package lock
+
+on:
+  push:
+    branches:
+      - perf/long-term-benchmark-137
+    paths:
+      - scripts/maintenance/remove-generated-package-lock.txt
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Remove generated files and one-time runner
+        run: |
+          rm -f package-lock.json
+          rm -f scripts/maintenance/remove-generated-package-lock.txt
+          rm -f .github/workflows/cleanup-generated-package-lock.yml
+      - name: Commit cleanup
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && { echo "No cleanup changes"; exit 1; }
+          git commit -m "chore: remove generated package lock"
+          git push

@@ -5,14 +5,19 @@ import { performance } from "node:perf_hooks";
 const meta=JSON.parse(fs.readFileSync("performance-output/fixture-meta.json","utf8"));
 const npx=process.platform==="win32"?"npx.cmd":"npx";
 const quote=(v)=>"'"+String(v).replaceAll("'","''")+"'";
-const durations=(value,out=[])=>{
-  if(Array.isArray(value)){for(const v of value)durations(v,out);return out;}
+const metas=(value,out=[])=>{
+  if(Array.isArray(value)){for(const v of value)metas(v,out);return out;}
   if(value&&typeof value==="object"){
-    if(value.meta&&typeof value.meta.duration==="number")out.push(value.meta.duration);
-    for(const v of Object.values(value))durations(v,out);
+    if(value.meta&&typeof value.meta==="object")out.push(value.meta);
+    for(const v of Object.values(value))metas(v,out);
   }
   return out;
 };
+const metric=(m,...keys)=>{
+  for(const key of keys)if(typeof m?.[key]==="number")return m[key];
+  return null;
+};
+const sumOrNull=(values)=>values.length?values.reduce((a,b)=>a+b,0):null;
 const run=(sql)=>{
   const start=performance.now();
   const raw=execFileSync(npx,["wrangler","d1","execute","DB","--local","--json","--command",sql],{
@@ -21,10 +26,22 @@ const run=(sql)=>{
   const wallMs=performance.now()-start;
   const first=Math.min(...["[","{"].map(ch=>{const i=raw.indexOf(ch);return i<0?Number.POSITIVE_INFINITY:i;}));
   const json=JSON.parse(raw.slice(first));
-  const ds=durations(json);
-  return {wallMs,serverMs:ds.length?ds.reduce((a,b)=>a+b,0):null,json};
+  const ms=metas(json);
+  const durations=ms.map(m=>metric(m,"duration")).filter(v=>v!==null);
+  const rowsRead=ms.map(m=>metric(m,"rows_read","rowsRead")).filter(v=>v!==null);
+  const rowsWritten=ms.map(m=>metric(m,"rows_written","rowsWritten")).filter(v=>v!==null);
+  return {
+    wallMs,
+    serverMs:sumOrNull(durations),
+    rowsRead:sumOrNull(rowsRead),
+    rowsWritten:sumOrNull(rowsWritten),
+    json,
+  };
 };
 const median=(xs)=>{const s=[...xs].sort((a,b)=>a-b);return s[Math.floor(s.length/2)];};
+const medianOrNull=(xs)=>xs.length?median(xs):null;
+const maxOrNull=(xs)=>xs.length?Math.max(...xs):null;
+const fmt=(value,digits=0)=>value===null?"n/a":Number(value).toFixed(digits);
 const performanceSql=(groupId,extra="")=>`WITH selected AS (
 SELECT s.id FROM sessions s WHERE s.group_id=${quote(groupId)} AND s.status='finalized' ${extra}
 ), participants AS (
@@ -53,6 +70,7 @@ let hardFail=false;
 for(const p of meta.profiles){
   const ym=`${p.latestYear}-${String(p.latestMonth).padStart(2,"0")}`;
   const cases=[
+    ["active_session_lookup",`SELECT id FROM sessions WHERE group_id=${quote(p.groupId)} AND status='active' LIMIT 1`],
     ["history_month",`SELECT s.id,s.session_date AS sessionDate,s.status,
       (SELECT COUNT(*) FROM games g WHERE g.session_id=s.id) AS gameCount
       FROM sessions s WHERE s.group_id=${quote(p.groupId)} AND s.status='finalized'
@@ -63,7 +81,7 @@ for(const p of meta.profiles){
     ["performance_month",performanceSql(p.groupId,`AND substr(s.session_date,1,4)=${quote(String(p.latestYear))} AND substr(s.session_date,6,2)=${quote(String(p.latestMonth).padStart(2,"0"))}`)],
     ["session_games",`SELECT id,session_id AS sessionId,segment_id AS segmentId,sequence,played_at AS playedAt,version FROM games WHERE session_id=${quote(p.sampleSessionId)} ORDER BY sequence,id`],
   ];
-  const countCheck=run(`SELECT
+  run(`SELECT
     (SELECT COUNT(*) FROM sessions WHERE group_id=${quote(p.groupId)}) AS sessions,
     (SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id=${quote(p.groupId)}) AS games,
     (SELECT COUNT(*) FROM game_results gr JOIN games g ON g.id=gr.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id=${quote(p.groupId)}) AS gameResults`);
@@ -72,27 +90,49 @@ for(const p of meta.profiles){
     const samples=Array.from({length:3},()=>run(sql));
     const server=samples.map(x=>x.serverMs).filter(x=>x!==null);
     const wall=samples.map(x=>x.wallMs);
-    const serverMedian=server.length?median(server):null;
-    const serverMax=server.length?Math.max(...server):null;
+    const reads=samples.map(x=>x.rowsRead).filter(x=>x!==null);
+    const writes=samples.map(x=>x.rowsWritten).filter(x=>x!==null);
+    const serverMedian=medianOrNull(server);
+    const serverMax=maxOrNull(server);
     const wallMedian=median(wall),wallMax=Math.max(...wall);
+    const rowsReadMedian=medianOrNull(reads),rowsReadMax=maxOrNull(reads);
+    const rowsWrittenMedian=medianOrNull(writes),rowsWrittenMax=maxOrNull(writes);
     let status="MEASURED";
     if(serverMedian!==null&&serverMax!==null){
       status=serverMedian<=1000&&serverMax<=2000?"PASS":serverMedian>2000?"FAIL":"WARN";
       if(status==="FAIL")hardFail=true;
     }
-    results.push({profile:p.key,sessions:p.sessions,games:p.games,name,status,serverMedianMs:serverMedian,serverMaxMs:serverMax,wallMedianMs:wallMedian,wallMaxMs:wallMax});
+    results.push({
+      profile:p.key,
+      sessions:p.sessions,
+      games:p.games,
+      name,
+      status,
+      queryCount:1,
+      serverMedianMs:serverMedian,
+      serverMaxMs:serverMax,
+      wallMedianMs:wallMedian,
+      wallMaxMs:wallMax,
+      rowsReadMedian,
+      rowsReadMax,
+      rowsWrittenMedian,
+      rowsWrittenMax,
+    });
   }
 }
-fs.writeFileSync("performance-output/results.json",JSON.stringify({generatedAt:new Date().toISOString(),results},null,2));
+const costMetricsAvailable=results.some(r=>r.rowsReadMedian!==null||r.rowsWrittenMedian!==null);
+fs.writeFileSync("performance-output/results.json",JSON.stringify({generatedAt:new Date().toISOString(),costMetricsAvailable,results},null,2));
 const lines=[
   "# Long-term local D1 performance benchmark",
   "",
   "Local D1 on the GitHub runner / 3 samples per case. Target: median <= 1000ms; repeated > 2000ms is a failure signal.",
+  "Rows read/written are recorded when Wrangler local D1 exposes those metadata fields. They are regression evidence, not an exact prediction of remote D1 billing.",
   "",
-  "| Data | Case | Result | D1 median ms | D1 max ms | CLI wall median ms |",
-  "| --- | --- | --- | ---: | ---: | ---: |",
-  ...results.map(r=>`| ${r.profile} (${r.sessions} sessions / ${r.games} games) | ${r.name} | ${r.status} | ${r.serverMedianMs===null?"n/a":r.serverMedianMs.toFixed(2)} | ${r.serverMaxMs===null?"n/a":r.serverMaxMs.toFixed(2)} | ${r.wallMedianMs.toFixed(0)} |`),
+  "| Data | Case | Result | Queries | D1 median ms | D1 max ms | Rows read median | Rows read max | Rows written max | CLI wall median ms |",
+  "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+  ...results.map(r=>`| ${r.profile} (${r.sessions} sessions / ${r.games} games) | ${r.name} | ${r.status} | ${r.queryCount} | ${fmt(r.serverMedianMs,2)} | ${fmt(r.serverMaxMs,2)} | ${fmt(r.rowsReadMedian)} | ${fmt(r.rowsReadMax)} | ${fmt(r.rowsWrittenMax)} | ${fmt(r.wallMedianMs)} |`),
   "",
+  `D1 row-cost metadata available: ${costMetricsAvailable?"yes":"no"}.`,
   "CLI wall time includes Wrangler startup overhead and is recorded separately from D1 query duration. No remote D1 quota is consumed."
 ];
 fs.writeFileSync("performance-output/summary.md",lines.join("\n"));

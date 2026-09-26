@@ -1,0 +1,51 @@
+name: Apply active-session optimization
+
+on:
+  push:
+    branches:
+      - perf/long-term-benchmark-137
+    paths:
+      - scripts/maintenance/apply-active-session-optimization.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Apply source changes
+        run: node scripts/maintenance/apply-active-session-optimization.mjs
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate changes
+        run: |
+          npm run lint
+          npm test
+          npm run build
+          npm run db:migrate:local
+
+      - name: Remove one-time runner
+        run: |
+          rm scripts/maintenance/apply-active-session-optimization.mjs
+          rm .github/workflows/apply-active-session-optimization.yml
+
+      - name: Commit validated optimization
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
+          git commit -m "perf: bound active session reads"
+          git push

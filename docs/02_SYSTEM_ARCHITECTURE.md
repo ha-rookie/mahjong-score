@@ -9,7 +9,7 @@
 - ARCH-001: React UI / Application / Repository / Worker API / D1の責務を分離する
 - ARCH-002: Phase 2 runtimeはCloudflare Worker API + D1をsource of truthとする
 - ARCH-003: Public RepositoryへSecret値を保存しない
-- ARCH-004: GitHub Actionsでlint/test/build/D1 migration検証後、WranglerからCloudflare WorkersへDeployする
+- ARCH-004: GitHub Actionsでlint/test/build/local D1 migrationを検証し、Production deployはHuman承認後のmanual workflow_dispatchで実行する
 - ARCH-005: AuthenticationはLINE Login、AuthorizationはApplication側のSystem Admin / Group Admin / Memberで強制する
 - ARCH-006: Preview D1とProduction D1を分離し、migration/recovery rehearsalでProductionを触らない
 - ARCH-007: PWAはPhase 3以降へDeferredし、offline write/syncは独立設計とする
@@ -40,9 +40,11 @@ GitHub
   v
 GitHub Actions
   |- lint / test / build
-  |- D1 migration validation
-  |- Production deploy
-  `- Production Security Headers smoke
+  |- local D1 migration validation
+  `- manual Production release
+       |- Production D1 migration
+       |- Worker deploy
+       `- Production Security Headers smoke
       |
       v
 Cloudflare Workers + Static Assets
@@ -64,8 +66,9 @@ Phase 2の麻雀DataはD1がsource of truth。legacy localStorageは移行前dat
 ### Environment Separation
 
 - Production D1とPreview D1は別database ID
-- Pull Request CIはPreview D1 migrationを適用してschema compatibilityを確認
-- main merge後のみProduction migration / Worker deployを実行
+- Pull Request CIはlocal D1 migrationでschema compatibilityを確認し、remote Preview D1へアクセスしない
+- mainへのMergeではProduction migration / Worker deployを実行しない
+- Production migration / Worker deployはmainからHumanが明示的に開始するmanual workflow_dispatchのみ
 - D1 recovery rehearsalはPreview専用で、Production IDと一致した場合scriptが停止する
 - Production SecretはCloudflare Worker Secret / GitHub Actions Secretsで管理
 - Public RepositoryへSecret値をcommitしない
@@ -94,13 +97,17 @@ Issue branch
   -> GitHub Actions
        -> npm install
        -> lint
+       -> test
        -> build
+       -> local D1 migration validation
   -> Human review
   -> Merge to main
-  -> GitHub Actions
-       -> lint
-       -> build
+  -> STOP (no automatic remote D1 / deploy)
+  -> Human approval + D1 availability confirmation
+  -> manual Production workflow_dispatch
+       -> Production D1 migration
        -> wrangler deploy
+       -> Production Security Headers smoke
   -> Cloudflare Workers + Static Assets
 ```
 
@@ -158,15 +165,16 @@ Issue branch
 - Persistence: Cloudflare D1
 - Authentication: LINE Login
 - Authorization: System Admin / Group Admin / Member
-- A## 12.5 Phase 2 Cloudflare Environment Gate
+## 12.5 Phase 2 Cloudflare Environment Gate
 
 Phase 2の環境分離は実装済み。
 
 - Production Workerは `mahjong-score`
 - Production D1 / Preview D1は別database
-- PR CIではPreview D1 migrationを検証
-- main merge後のみProduction D1 migrationとWorker deployを実行
-- Security Headersはmain deploy後にProduction responseを自動検証
+- PR CIではlocal D1 migrationを検証し、remote Preview D1へアクセスしない
+- mainへのMergeではProduction D1 migration / Worker deployを自動実行しない
+- Production反映はmainからのmanual workflow_dispatchのみ
+- Security Headersはmanual Production workflow内でProduction responseを検証
 - Preview recovery rehearsalはProduction DB IDと同一なら停止
 - Cloudflare AccessはApplicationのSystem Admin / Group Admin / Member認証を代替しない
 

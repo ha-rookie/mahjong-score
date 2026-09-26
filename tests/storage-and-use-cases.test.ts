@@ -297,3 +297,15 @@ test("backup export/import restores data and invalid import preserves existing d
     beforeInvalidImport,
   );
 });
+
+test("group and player names reject oversized values", async () => {
+  const { groups, players } = createFixture();
+  const clock = new FixedClock("2026-09-23T00:00:00.000Z");
+  const group = await new CreateGroupUseCase(groups, new SequenceIdGenerator(["g-long"]), clock).execute({ name: "G".repeat(41) });
+  assert.equal(group.ok, false);
+  if (!group.ok) assert.equal(group.error.code, "group_name_too_long");
+
+  const player = await new AddPlayerToGroupUseCase(players, new SequenceIdGenerator(["p-long"]), clock).execute({ groupId: "g1", displayName: "P".repeat(31) });
+  assert.equal(player.ok, false);
+  if (!player.ok) assert.equal(player.error.code, "player_name_too_long");
+});

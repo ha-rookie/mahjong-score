@@ -34,7 +34,10 @@ sql.push(...rows("group_players",["group_id","player_id","active"],PLAYERS.map((
 const sessions=[],segments=[],segmentPlayers=[],games=[],results=[],chips=[],notes=[];
 const gameCounts=Array(SESSION_COUNT).fill(12);
 // Keep the same 3,120-game total while introducing realistic short/long sessions.
-for(let i=0;i<20;i++){gameCounts[i]-=6;gameCounts[20+i]+=3;gameCounts[40+i]+=2;gameCounts[60+i]+=1;}
+for(let i=0;i<20;i++){gameCounts[i]-=6;gameCounts[20+i]+=6;}
+for(let i=0;i<10;i++){gameCounts[40+i]-=3;gameCounts[50+i]+=3;}
+for(let i=0;i<10;i++){gameCounts[60+i]-=2;gameCounts[70+i]+=2;}
+for(let i=0;i<10;i++){gameCounts[80+i]-=1;gameCounts[90+i]+=1;}
 if(gameCounts.reduce((a,b)=>a+b,0)!==TARGET_GAMES)throw new Error("game count invariant failed");
 
 let minScore=Infinity,maxScore=-Infinity,zeroChipSessions=0,noteSessions=0;

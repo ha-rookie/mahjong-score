@@ -106,6 +106,10 @@ class FakeSessionRepository implements SessionRepository {
     return Promise.resolve(ok([activeSession]));
   }
 
+  findActiveByGroup(): Promise<Result<{ session: Session; participantPlayerIds: readonly PlayerId[] } | null>> {
+    return Promise.resolve(ok({ session: activeSession, participantPlayerIds: currentSegment.participantPlayerIds }));
+  }
+
   findById(id: SessionId): Promise<Result<Session | null>> {
     return Promise.resolve(ok(id === activeSession.id ? activeSession : null));
   }

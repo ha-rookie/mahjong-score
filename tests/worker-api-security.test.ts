@@ -22,6 +22,7 @@ class FakeStatement{
   async run(){return {meta:{changes:this.db.change()}};}
 }
 class FakeDb{
+  readonly preparedSql:string[]=[];
   constructor(
     private users:Record<string,User>,
     private sessions:Record<string,{groupId:string;version:number;status?:string}>={},
@@ -31,8 +32,10 @@ class FakeDb{
     private groupPlayers:Record<string,string[]>={},
     private failNextBatch=false,
     private nextRunChanges:number|null=null,
+    private gameResults:Record<string,Array<{playerId:string;scorePoint:number}>>={},
+    private gameTags:Record<string,Array<{type:"yakuman"|"double-yakuman";playerId:string|null}>>={},
   ){}
-  prepare(sql:string){return new FakeStatement(this,sql);}
+  prepare(sql:string){this.preparedSql.push(sql);return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){if(this.failNextBatch){this.failNextBatch=false;return statements.map((_,i)=>({meta:{changes:i===0?0:1}}));}return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
   first(sql:string,values:unknown[]){
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
@@ -42,9 +45,12 @@ class FakeDb{
       const role=this.users[String(values[0])]?.memberships?.[String(values[1])];
       return role?{role}:null;
     }
-    if(sql.includes("SELECT id FROM sessions WHERE group_id=? AND status='active'")){
-      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0]));
-      return entry?{id:entry[0]}:null;
+    if(sql.includes("FROM sessions WHERE group_id=? AND status='active'")){
+      const entry=Object.entries(this.sessions).find(([,row])=>row.groupId===String(values[0])&&(row.status??"active")==="active");
+      if(!entry)return null;
+      const [id,row]=entry;
+      if(sql.includes("group_id AS groupId"))return {id,groupId:row.groupId,sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",endedAt:null,status:row.status??"active",note:null,version:row.version};
+      return {id};
     }
     if(sql.includes("FROM sessions s WHERE s.id=?")&&sql.includes("AS gameCount")){
       const row=this.sessions[String(values[0])];
@@ -77,6 +83,27 @@ class FakeDb{
     return null;
   }
   all(sql?:string,values:unknown[]=[]){
+    if(sql?.startsWith("SELECT id,session_id AS sessionId,sequence FROM participant_segments WHERE session_id=?")){
+      let sequence=0;
+      return Object.entries(this.segments).filter(([,segment])=>segment.sessionId===String(values[0])).map(([id,segment])=>({id,sessionId:segment.sessionId,sequence:++sequence}));
+    }
+    if(sql?.includes("FROM segment_players WHERE segment_id IN")){
+      return values.map(String).flatMap(segmentId=>(this.segments[segmentId]?.players??[]).map(playerId=>({segmentId,playerId})));
+    }
+    if(sql?.includes("FROM games WHERE session_id=?")){
+      let sequence=0;
+      return Object.entries(this.games).filter(([,game])=>game.sessionId===String(values[0])).map(([id,game])=>({id,sessionId:game.sessionId,segmentId:game.segmentId,sequence:++sequence,playedAt:"2026-09-25T08:00:00Z",version:game.version}));
+    }
+    if(sql?.includes("FROM game_results WHERE game_id IN")){
+      return values.map(String).flatMap(gameId=>(this.gameResults[gameId]??[]).map(result=>({gameId,...result})));
+    }
+    if(sql?.includes("FROM game_tags WHERE game_id IN")){
+      return values.map(String).flatMap(gameId=>(this.gameTags[gameId]??[]).map(tag=>({gameId,...tag})));
+    }
+    if(sql?.includes("FROM participant_segments ps JOIN segment_players sp")&&sql.includes("MAX(sequence)")){
+      const segment=Object.values(this.segments).find(row=>row.sessionId===String(values[0]));
+      return (segment?.players??[]).map(playerId=>({playerId}));
+    }
     if(sql?.includes("SELECT player_id AS playerId FROM group_players")){
       return (this.groupPlayers[String(values[0])]??[]).filter(playerId=>values.slice(1).map(String).includes(playerId)).map(playerId=>({playerId}));
     }
@@ -128,6 +155,28 @@ test("group member can read own group players",async()=>{
   assert.deepEqual(await response.json(),{players:[]});
 });
 
+test("group member can read active Session without loading Session history",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:3,status:"active"}},
+    false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/active-session",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {activeSession:{session:{id:string;version:number};participantPlayerIds:string[]}|null};
+  assert.equal(payload.activeSession?.session.id,"s1");
+  assert.equal(payload.activeSession?.session.version,3);
+  assert.deepEqual(payload.activeSession?.participantPlayerIds,["p1","p2","p3"]);
+});
+
+test("active Session endpoint returns null when the Group has no active Session",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}});
+  const response=await worker.fetch(await request("/api/groups/g1/active-session",{},"member"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{activeSession:null});
+});
+
 test("system admin can create a group",async()=>{
   const db=new FakeDb({admin:{systemAdmin:true}});
   const response=await worker.fetch(await request("/api/groups",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"g2",name:"Allowed",createdAt:"2026-01-01",updatedAt:"2026-01-01"})},"admin"),env(db));
@@ -141,6 +190,43 @@ test("stale session update returns 409 without accepting update",async()=>{
   assert.equal(await errorCode(response),"stale_update");
 });
 
+
+test("game list bulk loads results and tags with three data queries",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {
+      game1:{sessionId:"s1",segmentId:"seg1",version:2,groupId:"g1",status:"active"},
+      game2:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"},
+    },
+    {},false,null,
+    {
+      game1:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],
+      game2:[{playerId:"p1",scorePoint:-8},{playerId:"p2",scorePoint:3},{playerId:"p3",scorePoint:5}],
+    },
+    {game1:[{type:"yakuman",playerId:"p1"}]},
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {games:Array<{id:string;results:Array<{playerId:string;scorePoint:number}>;tags:Array<{type:string;playerId:string|null}>}>};
+  assert.equal(payload.games.length,2);
+  assert.deepEqual(payload.games[0]?.results,[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]);
+  assert.deepEqual(payload.games[0]?.tags,[{type:"yakuman",playerId:"p1"}]);
+  assert.deepEqual(payload.games[1]?.results,[{playerId:"p1",scorePoint:-8},{playerId:"p2",scorePoint:3},{playerId:"p3",scorePoint:5}]);
+  assert.deepEqual(payload.games[1]?.tags,[]);
+  const gameReadSql=db.preparedSql.filter(sql=>sql.includes("FROM games WHERE session_id=?")||sql.includes("FROM game_results WHERE game_id IN")||sql.includes("FROM game_tags WHERE game_id IN"));
+  assert.equal(gameReadSql.length,3);
+});
+
+test("empty game list does not issue child queries",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}});
+  const response=await worker.fetch(await request("/api/sessions/s1/games",{},"member"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{games:[]});
+  assert.equal(db.preparedSql.filter(sql=>sql.includes("FROM game_results WHERE game_id IN")||sql.includes("FROM game_tags WHERE game_id IN")).length,0);
+});
 
 test("game create rejects a Segment from another Session",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1}},false,{segOther:{sessionId:"s2",players:["p1","p2","p3"]}});
@@ -187,6 +273,34 @@ test("session start rejects a Group that already has an active Session",async()=
   assert.equal(await errorCode(response),"active_session_exists");
 });
 
+
+test("segment list bulk loads participants with two data queries",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},
+    false,
+    {
+      seg1:{sessionId:"s1",players:["p1","p2","p3"]},
+      seg2:{sessionId:"s1",players:["p1","p3","p4"]},
+    },
+  );
+  const response=await worker.fetch(await request("/api/sessions/s1/segments",{},"member"),env(db));
+  assert.equal(response.status,200);
+  const payload=await response.json() as {segments:Array<{id:string;sequence:number;participantPlayerIds:string[]}>};
+  assert.equal(payload.segments.length,2);
+  assert.deepEqual(payload.segments[0],{id:"seg1",sessionId:"s1",sequence:1,participantPlayerIds:["p1","p2","p3"]});
+  assert.deepEqual(payload.segments[1],{id:"seg2",sessionId:"s1",sequence:2,participantPlayerIds:["p1","p3","p4"]});
+  const segmentReadSql=db.preparedSql.filter(sql=>sql.includes("FROM participant_segments WHERE session_id=?")||sql.includes("FROM segment_players WHERE segment_id IN"));
+  assert.equal(segmentReadSql.length,2);
+});
+
+test("empty segment list does not issue participant query",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}});
+  const response=await worker.fetch(await request("/api/sessions/s1/segments",{},"member"),env(db));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{segments:[]});
+  assert.equal(db.preparedSql.filter(sql=>sql.includes("FROM segment_players WHERE segment_id IN")).length,0);
+});
 
 test("segment edit is rejected because Session participants are immutable",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}},{s1:{groupId:"g1",version:1,status:"active"}},false,{seg1:{sessionId:"s1",players:["p1","p2","p3"]}});

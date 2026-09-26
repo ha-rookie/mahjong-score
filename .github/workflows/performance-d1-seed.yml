@@ -1,0 +1,72 @@
+name: Seed Performance D1
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type SEED-PERFORMANCE-5Y"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  seed-performance-d1:
+    if: ${{ inputs.confirmation == 'SEED-PERFORMANCE-5Y' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: performance
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate deterministic 5-year fixture
+        run: |
+          node scripts/performance/generate-performance-d1-fixture.mjs
+          node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.groupId!=='perf-realistic-5y'||m.sessions!==260||m.games!==3120||m.gameResults!==9360||!m.invariants.targetGames||!m.invariants.everyGameHasThreeResults||!m.invariants.fourPlayersRotate||!m.invariants.baseFixtureFinalizedOnly||m.invariants.crudDataIncluded) process.exit(1);"
+
+      - name: Guard Performance D1 target
+        shell: bash
+        run: |
+          grep -q '"database_name": "mahjong-score-performance"' wrangler.performance.jsonc
+          grep -q '"database_id": "37b05ca8-9f6e-46b4-92be-7e02513cf044"' wrangler.performance.jsonc
+          ! grep -q 'mahjong-score-prod' wrangler.performance.jsonc
+          ! grep -q 'mahjong-score-preview' wrangler.performance.jsonc
+
+      - name: Apply migrations to Performance D1
+        run: npx wrangler d1 migrations apply mahjong-score-performance --remote --config wrangler.performance.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Refuse duplicate base fixture
+        shell: bash
+        run: |
+          RESULT=$(npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT COUNT(*) AS n FROM groups WHERE id='perf-realistic-5y';")
+          echo "$RESULT"
+          node -e "const x=JSON.parse(process.argv[1]); const n=Number(x[0]?.results?.[0]?.n??0); if(n!==0){console.error('Performance base fixture already exists; refusing reseed.');process.exit(1)}" "$RESULT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Seed 5-year fixture once
+        run: npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --file=performance-output/performance-5y-realistic.sql
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify counts only
+        run: npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --command "SELECT (SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS sessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS games,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS game_results;"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Intentionally no cleanup step. The 5-year base fixture is retained.

@@ -38,6 +38,7 @@ class FakeSessionRepository implements SessionRepository {
     return Promise.resolve(ok([segment]));
   }
   listByGroup(): Promise<Result<readonly Session[]>> { return Promise.resolve(ok([session])); }
+  findActiveByGroup(): Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>> { return Promise.resolve(ok({session,participantPlayerIds:segment.participantPlayerIds})); }
   createWithInitialSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   save(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   remove(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }

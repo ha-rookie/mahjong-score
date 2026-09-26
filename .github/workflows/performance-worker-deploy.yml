@@ -1,0 +1,79 @@
+name: Deploy Performance Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type DEPLOY-PERFORMANCE"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-performance:
+    if: ${{ inputs.confirmation == 'DEPLOY-PERFORMANCE' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: performance
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Guard Performance target
+        shell: bash
+        run: |
+          grep -q '"name": "mahjong-score-performance"' wrangler.performance.jsonc
+          grep -q '"database_name": "mahjong-score-performance"' wrangler.performance.jsonc
+          grep -q '"database_id": "37b05ca8-9f6e-46b4-92be-7e02513cf044"' wrangler.performance.jsonc
+          ! grep -q 'mahjong-score-prod' wrangler.performance.jsonc
+          ! grep -q 'mahjong-score-preview' wrangler.performance.jsonc
+
+      - name: Validate Performance secrets
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$LINE_CHANNEL_SECRET"
+          test -n "$AUTH_SESSION_SECRET"
+
+      - name: Configure Performance Worker secrets
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+        run: |
+          printf '%s' "$LINE_CHANNEL_SECRET" | npx wrangler secret put LINE_CHANNEL_SECRET --config wrangler.performance.jsonc
+          printf '%s' "$AUTH_SESSION_SECRET" | npx wrangler secret put AUTH_SESSION_SECRET --config wrangler.performance.jsonc
+
+      - name: Deploy Performance Worker only
+        run: npx wrangler deploy --config wrangler.performance.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Deliberately no migration, seed, cleanup, Production deploy, or Preview deploy.

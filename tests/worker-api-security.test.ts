@@ -666,3 +666,13 @@ test("Session create rejects a partial rule override",async()=>{
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"invalid_mahjong_rules");
 });
+
+
+test("performance aggregation uses each Session chip rate",async()=>{
+  const db=new FakeDb({member:{memberships:{g1:"member"}}});
+  const response=await worker.fetch(await request("/api/groups/g1/performance-summary",{}, "member"),env(db));
+  assert.equal(response.status,200);
+  const sql=db.preparedSql.find(value=>value.includes("AS finalPoint"))??"";
+  assert.match(sql,/cr\.chip_count,0\)\*s\.chip_rate AS finalPoint/);
+  assert.doesNotMatch(sql,/cr\.chip_count,0\)\*[0-9]+ AS finalPoint/);
+});

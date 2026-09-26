@@ -17,7 +17,7 @@ replaceOnce(
 replaceOnce(
   "tests/worker-api-security.test.ts",
   `  all(sql?:string,values:unknown[]=[]){\n    if(sql?.includes("FROM games WHERE session_id=?")){`,
-  `  all(sql?:string,values:unknown[]=[]){\n    if(sql?.includes("FROM participant_segments WHERE session_id=?")){\n      let sequence=0;\n      return Object.entries(this.segments).filter(([,segment])=>segment.sessionId===String(values[0])).map(([id,segment])=>({id,sessionId:segment.sessionId,sequence:++sequence}));\n    }\n    if(sql?.includes("FROM segment_players WHERE segment_id IN")){\n      return values.map(String).flatMap(segmentId=>(this.segments[segmentId]?.players??[]).map(playerId=>({segmentId,playerId})));\n    }\n    if(sql?.includes("FROM games WHERE session_id=?")){`,
+  `  all(sql?:string,values:unknown[]=[]){\n    if(sql?.startsWith("SELECT id,session_id AS sessionId,sequence FROM participant_segments WHERE session_id=?")){\n      let sequence=0;\n      return Object.entries(this.segments).filter(([,segment])=>segment.sessionId===String(values[0])).map(([id,segment])=>({id,sessionId:segment.sessionId,sequence:++sequence}));\n    }\n    if(sql?.includes("FROM segment_players WHERE segment_id IN")){\n      return values.map(String).flatMap(segmentId=>(this.segments[segmentId]?.players??[]).map(playerId=>({segmentId,playerId})));\n    }\n    if(sql?.includes("FROM games WHERE session_id=?")){`,
 );
 
 replaceOnce(

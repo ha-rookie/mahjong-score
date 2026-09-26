@@ -11,14 +11,14 @@ import type {
   PlayerId,
   Session,
 } from "../../domain";
-import { validateParticipantSegment } from "../../domain";
+import { DEFAULT_MAHJONG_RULES, validateParticipantSegment } from "../../domain";
 import { AppError, err, type Result } from "../../shared/errors";
 
 export interface StartSessionInput {
   readonly groupId: GroupId;
   readonly sessionDate: string;
   readonly participantPlayerIds: readonly PlayerId[];
-  readonly rules: MahjongRules;
+  readonly rules?: MahjongRules;
 }
 
 const isIsoDate = (value: string): boolean => {
@@ -110,7 +110,7 @@ export class StartSessionUseCase {
       note: null,
       participantNotes: [],
       chipResults: [],
-      ...input.rules,
+      ...(input.rules??DEFAULT_MAHJONG_RULES),
     };
 
     const saved = await this.sessions.createWithInitialSegment(session, segment);

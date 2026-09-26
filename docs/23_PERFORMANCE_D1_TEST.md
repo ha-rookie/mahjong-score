@@ -45,16 +45,16 @@ The normal read paths have these fixed data-query budgets. Authorization queries
 
 These query-count invariants are enforced by Worker tests. Do not replace them with per-row or per-resource SELECT loops.
 
-Wrangler local D1 does not currently expose `rows_read` / `rows_written` metadata in this benchmark environment. Run `36221346876` recorded `costMetricsAvailable: false`, so row-cost fields are intentionally reported as `n/a`. Do not invent local row-count thresholds or treat local timing as a prediction of remote D1 billing. If Wrangler exposes these fields in the future, the benchmark already records them.
+Wrangler local D1 does not currently expose `rows_read` / `rows_written` metadata in this benchmark environment. The final #203 baseline also records these cost fields as unavailable, so row-cost fields are intentionally reported as `n/a`. Do not invent local row-count thresholds or treat local timing as a prediction of remote D1 billing. If Wrangler exposes these fields in the future, the benchmark already records them.
 
 ## Local benchmark baseline
-Run `36221346876`, 2026-09-26, local D1 only:
+Final #203 baseline run `36227692527`, 2026-09-26, local D1 only:
 
 | Case | 5y median | 10y median | Expected scaling |
 | --- | ---: | ---: | --- |
 | Active Session lookup | 0 ms | 0 ms | bounded |
 | Monthly history | 0 ms | 1 ms | bounded by month |
-| All-time performance | 11 ms | 21 ms | may grow with total history |
+| All-time performance | 13 ms | 17 ms | may grow with total history |
 | Year performance | 4 ms | 4 ms | bounded by year |
 | Month performance | 1 ms | 1 ms | bounded by month |
 | Session Games base query | 0 ms | 0 ms | bounded by one Session |

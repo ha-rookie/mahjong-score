@@ -52,12 +52,9 @@ jobs:
       - name: Validate D1 migrations locally
         run: npm run db:migrate:local
 
-      - name: Apply D1 migrations to protected Preview database
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run db:migrate:preview
+      # Pull requests intentionally stop at local D1 validation.
+      # Remote Preview D1 is not touched by PR CI so development and tests
+      # cannot consume the account-wide D1 daily quota.
 
       - name: Validate deploy secrets
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

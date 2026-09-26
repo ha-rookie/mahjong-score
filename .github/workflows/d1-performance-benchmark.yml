@@ -1,15 +1,6 @@
 name: D1 Long-term Performance Benchmark
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/d1-performance-benchmark.yml"
-      - "scripts/d1-performance-benchmark.mjs"
-      - "package.json"
-      - "migrations/**"
-      - "src/worker.ts"
   workflow_dispatch:
 
 permissions:
@@ -21,7 +12,6 @@ concurrency:
 
 jobs:
   benchmark-preview-d1:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

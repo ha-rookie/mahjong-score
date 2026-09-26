@@ -83,12 +83,6 @@ for(let s=0;s<SESSION_COUNT;s++){
     participants.forEach(([id],i)=>results.push([gid,id,rank.get(id),vals[i]]));
   }
 }
-sql.push(...rows("sessions",["id","group_id","session_date","started_at","ended_at","status","note","version","created_at","updated_at"],sessions));
-sql.push(...rows("participant_segments",["id","session_id","sequence"],segments));
-sql.push(...rows("segment_players",["segment_id","player_id","seat_order"],segmentPlayers));
-sql.push(...rows("games",["id","session_id","segment_id","sequence","played_at","version"],games));
-sql.push(...rows("game_results",["game_id","player_id","rank","score_point"],results));
-sql.push(...rows("chip_results",["session_id","player_id","chip_count"],chips));
 
 // Add smaller secondary Groups so local validation covers realistic multi-group isolation.
 for(const secondary of SECONDARY_GROUPS){
@@ -113,6 +107,13 @@ for(const secondary of SECONDARY_GROUPS){
     }
   }
 }
+sql.push(...rows("sessions",["id","group_id","session_date","started_at","ended_at","status","note","version","created_at","updated_at"],sessions));
+sql.push(...rows("participant_segments",["id","session_id","sequence"],segments));
+sql.push(...rows("segment_players",["segment_id","player_id","seat_order"],segmentPlayers));
+sql.push(...rows("games",["id","session_id","segment_id","sequence","played_at","version"],games));
+sql.push(...rows("game_results",["game_id","player_id","rank","score_point"],results));
+sql.push(...rows("chip_results",["session_id","player_id","chip_count"],chips));
+
 
 const meta={
   seed:SEED,groupId:GROUP_ID,startDate,endDate:END_DATE,secondaryGroups:SECONDARY_GROUPS.map(g=>({id:g.id,name:g.name,sessions:g.sessionCount,players:g.playerIndexes.map(i=>PLAYERS[i][0])})),

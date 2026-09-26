@@ -1,5 +1,5 @@
 import type { Clock, IdGenerator, PlayerRepository } from "../ports";
-import type { GroupId, Player } from "../../domain";
+import { PLAYER_NAME_MAX_LENGTH, type GroupId, type Player } from "../../domain";
 import { AppError, err, type Result } from "../../shared/errors";
 
 export interface AddPlayerToGroupInput {
@@ -25,6 +25,14 @@ export class AddPlayerToGroupUseCase {
           userMessage: "メンバー名を入力してください。",
         }),
       );
+    }
+
+    if (displayName.length > PLAYER_NAME_MAX_LENGTH) {
+      return err(new AppError({
+        code: "player_name_too_long",
+        message: "Player display name is too long.",
+        userMessage: `メンバー名は${PLAYER_NAME_MAX_LENGTH}文字以内で入力してください。`,
+      }));
     }
 
     const now = this.clock.now();

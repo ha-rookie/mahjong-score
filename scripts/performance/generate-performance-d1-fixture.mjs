@@ -2,10 +2,10 @@ import fs from "node:fs";
 
 const GROUP_ID="perf-realistic-5y";
 const PLAYERS=[
-  ["perf-realistic-p1","山田"],
-  ["perf-realistic-p2","鈴木"],
-  ["perf-realistic-p3","佐藤"],
-  ["perf-realistic-p4","高橋"],
+  ["perf-realistic-p1","性能 山田"],
+  ["perf-realistic-p2","性能 鈴木"],
+  ["perf-realistic-p3","性能 佐藤"],
+  ["perf-realistic-p4","性能 高橋"],
 ];
 const SESSION_COUNT=260;
 const TARGET_GAMES=3120;

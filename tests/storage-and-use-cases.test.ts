@@ -360,9 +360,9 @@ test("Session snapshots an explicit rule override", async () => {
   });
   assert.equal(started.ok, true);
   if (!started.ok) return;
-  assert.equal(started.value.session.startingPoints, 30000);
-  assert.equal(started.value.session.returnPoints, 35000);
-  assert.equal(started.value.session.chipRate, 10);
+  assert.equal(started.value.startingPoints, 30000);
+  assert.equal(started.value.returnPoints, 35000);
+  assert.equal(started.value.chipRate, 10);
 
   const loaded = await store.load();
   assert.equal(loaded.ok, true);
@@ -405,7 +405,7 @@ test("legacy Session creation still snapshots 35000 / 40000 / chip x5", async ()
   });
   assert.equal(started.ok, true);
   if (!started.ok) return;
-  assert.equal(started.value.session.startingPoints, 35000);
-  assert.equal(started.value.session.returnPoints, 40000);
-  assert.equal(started.value.session.chipRate, 5);
+  assert.equal(started.value.startingPoints, 35000);
+  assert.equal(started.value.returnPoints, 40000);
+  assert.equal(started.value.chipRate, 5);
 });

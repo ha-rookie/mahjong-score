@@ -1,0 +1,57 @@
+name: Branch local-only CI
+
+on:
+  push:
+    branches:
+      - perf/long-term-benchmark-137
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mahjong-score-local-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-local-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate static security headers artifact
+        run: |
+          set -eu
+          test -f dist/client/_headers
+          grep -q "Content-Security-Policy:" dist/client/_headers
+          grep -q "Strict-Transport-Security:" dist/client/_headers
+          grep -q "X-Frame-Options: DENY" dist/client/_headers
+          grep -q "X-Content-Type-Options: nosniff" dist/client/_headers
+
+      - name: Validate D1 migrations locally
+        run: npm run db:migrate:local
+
+      - name: Safety guard - remote D1 credentials are not used
+        run: |
+          set -eu
+          ! grep -q "CLOUDFLARE_API_TOKEN" .github/workflows/branch-local-ci.yml
+          ! grep -q -- "--remote" .github/workflows/branch-local-ci.yml
+          ! grep -q "db:migrate:preview" .github/workflows/branch-local-ci.yml
+          ! grep -q "db:migrate:prod" .github/workflows/branch-local-ci.yml

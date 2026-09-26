@@ -1,6 +1,10 @@
 import fs from "node:fs";
 
 const GROUP_ID="perf-realistic-5y";
+const SECONDARY_GROUPS=[
+  {id:"perf-realistic-club",name:"Performance Club",sessionCount:78,playerIndexes:[0,1,2]},
+  {id:"perf-realistic-friends",name:"Performance Friends",sessionCount:12,playerIndexes:[0,2,3]},
+];
 const PLAYERS=[
   ["perf-realistic-p1","性能 山田"],
   ["perf-realistic-p2","性能 鈴木"],
@@ -30,6 +34,10 @@ const sql=[];
 sql.push(...rows("groups",["id","name","created_at","updated_at"],[[GROUP_ID,"Performance 5y realistic",createdAt,createdAt]]));
 sql.push(...rows("players",["id","display_name","created_at","updated_at"],PLAYERS.map(([id,name])=>[id,name,createdAt,createdAt])));
 sql.push(...rows("group_players",["group_id","player_id","active"],PLAYERS.map(([id])=>[GROUP_ID,id,1])));
+for(const secondary of SECONDARY_GROUPS){
+  sql.push(...rows("groups",["id","name","created_at","updated_at"],[[secondary.id,secondary.name,createdAt,createdAt]]));
+  sql.push(...rows("group_players",["group_id","player_id","active"],secondary.playerIndexes.map(i=>[secondary.id,PLAYERS[i][0],1])));
+}
 
 const sessions=[],segments=[],segmentPlayers=[],games=[],results=[],chips=[],notes=[];
 const gameCounts=Array(SESSION_COUNT).fill(12);
@@ -82,8 +90,32 @@ sql.push(...rows("games",["id","session_id","segment_id","sequence","played_at",
 sql.push(...rows("game_results",["game_id","player_id","rank","score_point"],results));
 sql.push(...rows("chip_results",["session_id","player_id","chip_count"],chips));
 
+// Add smaller secondary Groups so local validation covers realistic multi-group isolation.
+for(const secondary of SECONDARY_GROUPS){
+  for(let s=0;s<secondary.sessionCount;s++){
+    const date=addDays(startDate,s*14);
+    const sid=`${secondary.id}-s${String(s+1).padStart(4,"0")}`;
+    const seg=`${sid}-seg1`;
+    const started=`${date}T10:00:00Z`,ended=`${date}T14:00:00Z`;
+    const participantIds=secondary.playerIndexes.map(i=>PLAYERS[i][0]);
+    sessions.push([sid,secondary.id,date,started,ended,"finalized",s%11===0?`${secondary.name} fixture ${s+1}`:null,1,started,ended]);
+    segments.push([seg,sid,1]);
+    participantIds.forEach((id,seat)=>segmentPlayers.push([seg,id,seat]));
+    const cv=[s%5-2,(s+2)%5-2,0];cv[2]=-(cv[0]+cv[1]);
+    participantIds.forEach((id,i)=>chips.push([sid,id,cv[i]]));
+    for(let g=0;g<8;g++){
+      const gid=`${sid}-g${String(g+1).padStart(2,"0")}`;
+      games.push([gid,sid,seg,g+1,`${date}T${String(10+Math.floor(g/3)).padStart(2,"0")}:${String((g%3)*20).padStart(2,"0")}:00Z`,1]);
+      const a=((s+g)%41)-20,b=((s*2+g)%31)-15,vals=[a,b,-a-b];
+      const ranked=participantIds.map((id,i)=>({id,score:vals[i]})).sort((x,y)=>y.score-x.score||x.id.localeCompare(y.id));
+      const rank=new Map(ranked.map((x,i)=>[x.id,i+1]));
+      participantIds.forEach((id,i)=>results.push([gid,id,rank.get(id),vals[i]]));
+    }
+  }
+}
+
 const meta={
-  seed:SEED,groupId:GROUP_ID,startDate,endDate:END_DATE,
+  seed:SEED,groupId:GROUP_ID,startDate,endDate:END_DATE,secondaryGroups:SECONDARY_GROUPS.map(g=>({id:g.id,name:g.name,sessions:g.sessionCount,players:g.playerIndexes.map(i=>PLAYERS[i][0])})),
   sessions:sessions.length,games:games.length,gameResults:results.length,
   players:PLAYERS.map(([id,name])=>({id,name,sessions:participation.get(id)})),
   gameCountRange:[Math.min(...gameCounts),Math.max(...gameCounts)],

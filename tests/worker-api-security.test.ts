@@ -42,6 +42,7 @@ class FakeDb{
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
     }
+    if(sql.includes("SELECT starting_points AS startingPoints")){const row=this.groups[String(values[0])];return row?{startingPoints:row.startingPoints??35000,returnPoints:row.returnPoints??40000,chipRate:row.chipRate??5}:null;}
     if(sql.includes("SELECT id FROM groups WHERE id=?")){const row=this.groups[String(values[0])];return row?{id:String(values[0])}:null;}
     if(sql.includes("SELECT id,created_at AS createdAt FROM groups WHERE id=?")){
       const row=this.groups[String(values[0])];return row?{id:String(values[0]),createdAt:row.createdAt??"2026-01-01"}:null;
@@ -377,7 +378,7 @@ test("game edit rejects a Segment from another Session before mutating results",
 
 
 test("session start rejects a Group that already has an active Session",async()=>{
-  const db=new FakeDb({member:{memberships:{g1:"member"}}},{existing:{groupId:"g1",version:1}});
+  const db=new FakeDb({member:{memberships:{g1:"member"}}},{existing:{groupId:"g1",version:1}},false,{}, {},{},false,null,{}, {},{g1:{name:"One"}});
   const response=await worker.fetch(await request("/api/groups/g1/sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"new-session",segmentId:"seg-new",sessionDate:"2026-09-25",startedAt:"2026-09-25T06:00:00Z",participantPlayerIds:["p1","p2","p3"]})},"member"),env(db));
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"active_session_exists");
@@ -626,10 +627,11 @@ test("Session create accepts and returns a per-Session Mahjong rule snapshot",as
   assert.equal(payload.session.chipRate,10);
 });
 
-test("legacy Session create still uses 35000 / 40000 / chip x5",async()=>{
+test("Session create without override snapshots the Group defaults",async()=>{
   const db=new FakeDb(
     {member:{memberships:{g1:"member"}}},
-    {},false,{}, {},{g1:["p1","p2","p3"]}
+    {},false,{}, {},{g1:["p1","p2","p3"]},false,null,{}, {},
+    {g1:{name:"One",startingPoints:30000,returnPoints:35000,chipRate:10}}
   );
   const response=await worker.fetch(await request("/api/groups/g1/sessions",{
     method:"POST",
@@ -643,6 +645,24 @@ test("legacy Session create still uses 35000 / 40000 / chip x5",async()=>{
   const payload=await response.json() as {session:{startingPoints:number;returnPoints:number;chipRate:number}};
   assert.deepEqual(
     [payload.session.startingPoints,payload.session.returnPoints,payload.session.chipRate],
-    [35000,40000,5]
+    [30000,35000,10]
   );
+});
+
+
+test("Session create rejects a partial rule override",async()=>{
+  const db=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {},false,{}, {},{g1:["p1","p2","p3"]},false,null,{}, {},
+    {g1:{name:"One",startingPoints:35000,returnPoints:40000,chipRate:5}}
+  );
+  const response=await worker.fetch(await request("/api/groups/g1/sessions",{
+    method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({
+      id:"s-partial",segmentId:"seg-partial",sessionDate:"2026-09-27",
+      startedAt:"2026-09-27T03:00:00Z",participantPlayerIds:["p1","p2","p3"],chipRate:10
+    })
+  },"member"),env(db));
+  assert.equal(response.status,400);
+  assert.equal(await errorCode(response),"invalid_mahjong_rules");
 });

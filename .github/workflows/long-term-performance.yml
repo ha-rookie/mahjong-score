@@ -34,6 +34,11 @@ jobs:
       - name: Generate 5y / 10y performance fixtures
         run: node scripts/performance/generate-long-term-fixture.mjs
 
+      - name: Generate realistic Performance D1 fixture (no remote access)
+        run: |
+          node scripts/performance/generate-performance-d1-fixture.mjs
+          node -e "const m=require('./performance-output/performance-5y-realistic-meta.json'); if(m.sessions!==260||m.games!==3120||m.gameResults!==9360||m.players.length!==4||!Object.values(m.invariants).every(Boolean)) process.exit(1);"
+
       - name: Seed local D1
         run: npx wrangler d1 execute DB --local --file=performance-output/long-term-fixture.sql
 
@@ -55,6 +60,7 @@ jobs:
           name: long-term-performance-${{ github.run_id }}
           path: |
             performance-output/fixture-meta.json
+            performance-output/performance-5y-realistic-meta.json
             performance-output/results.json
             performance-output/summary.md
           if-no-files-found: warn

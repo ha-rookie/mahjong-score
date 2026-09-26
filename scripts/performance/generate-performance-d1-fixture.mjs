@@ -117,7 +117,7 @@ sql.push(...rows("chip_results",["session_id","player_id","chip_count"],chips));
 
 const meta={
   seed:SEED,groupId:GROUP_ID,startDate,endDate:END_DATE,secondaryGroups:SECONDARY_GROUPS.map(g=>({id:g.id,name:g.name,sessions:g.sessionCount,players:g.playerIndexes.map(i=>PLAYERS[i][0])})),
-  sessions:sessions.length,games:games.length,gameResults:results.length,
+  sessions:sessions.filter(r=>r[1]===GROUP_ID).length,games:games.filter(r=>String(r[0]).startsWith(GROUP_ID+"-")).length,gameResults:results.filter(r=>String(r[0]).startsWith(GROUP_ID+"-")).length,totalSessions:sessions.length,totalGames:games.length,totalGameResults:results.length,
   players:PLAYERS.map(([id,name])=>({id,name,sessions:participation.get(id)})),
   gameCountRange:[Math.min(...gameCounts),Math.max(...gameCounts)],
   scoreRange:[minScore,maxScore],zeroChipSessions,noteSessions,

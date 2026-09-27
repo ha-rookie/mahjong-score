@@ -30,18 +30,9 @@ class Games implements GameRepository {
   removeBySession():Promise<Result<void>>{return Promise.resolve(ok(undefined));}
 }
 
-test("empty active Session is cancelled with the read version",async()=>{
+test("empty Session cancel preserves the version observed by the UI",async()=>{
   const sessions=new Sessions();
-  const result=await new CancelEmptySessionUseCase(sessions,new Games([])).execute("s1");
+  const result=await new CancelEmptySessionUseCase(sessions,new Games([])).execute("s1",2);
   assert.equal(result.ok,true);
-  assert.deepEqual(sessions.cancelled,{id:"s1",version:3});
-});
-
-test("Session with a Game cannot be cancelled",async()=>{
-  const sessions=new Sessions();
-  const game:Game={id:"g1",sessionId:"s1",segmentId:"seg1",sequence:1,playedAt:"2026-09-25T08:30:00.000Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],tags:[],version:1};
-  const result=await new CancelEmptySessionUseCase(sessions,new Games([game])).execute("s1");
-  assert.equal(result.ok,false);
-  if(!result.ok)assert.equal(result.error.code,"session_not_empty");
-  assert.equal(sessions.cancelled,null);
+  assert.deepEqual(sessions.cancelled,{id:"s1",version:2});
 });

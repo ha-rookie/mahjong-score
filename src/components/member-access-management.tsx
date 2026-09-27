@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Group, Player } from "../domain";
 
 type GroupRole = "group_admin" | "member";
@@ -48,6 +48,7 @@ export function MemberAccessManagement({group,players}:Props){
   const [invite,setInvite]=useState<InvitationResult|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
   const [error,setError]=useState<string|null>(null);
+  const linkPanelRef=useRef<HTMLDivElement>(null);
 
   const load=async()=>{
     setError(null);
@@ -71,6 +72,16 @@ export function MemberAccessManagement({group,players}:Props){
   };
 
   useEffect(()=>{void load();},[group.id]);
+  useEffect(()=>{
+    if(linkingPlayerId===null)return;
+    const handlePointerDown=(event:PointerEvent)=>{
+      const panel=linkPanelRef.current;
+      if(!panel||!(event.target instanceof Node)||panel.contains(event.target))return;
+      setLinkingPlayerId(null);setSelectedUserId("");
+    };
+    document.addEventListener("pointerdown",handlePointerDown);
+    return()=>document.removeEventListener("pointerdown",handlePointerDown);
+  },[linkingPlayerId]);
 
   const isSystemAdmin=auth?.user.systemRole==="admin";
   const canInvite=Boolean(auth&&(isSystemAdmin||auth.memberships.some(x=>x.groupId===group.id&&x.role==="group_admin")));
@@ -167,7 +178,7 @@ export function MemberAccessManagement({group,players}:Props){
             {isSystemAdmin&&userId?<button className="member-unlink-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void unlinkPlayer(player)}>{busyPlayerId===player.id?"解除中…":"連携解除"}</button>:null}
           </div>
 
-          {isSystemAdmin&&!userId&&linkingPlayerId===player.id?<div className="member-link-panel">
+          {isSystemAdmin&&!userId&&linkingPlayerId===player.id?<div ref={linkPanelRef} className="member-link-panel">
             <select value={selectedUserId} onChange={e=>setSelectedUserId(e.target.value)}>
               <option value="">Userを選択</option>
               {options.map(user=><option key={user.id} value={user.id}>{user.displayName??"名称未設定"}{user.systemRole==="admin"?"（System Admin）":user.groupRole==="group_admin"?"（Group Admin）":user.groupRole==="member"?"（Member）":""}</option>)}

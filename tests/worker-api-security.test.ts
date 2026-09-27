@@ -691,3 +691,35 @@ test("stale Group Mahjong rules update returns 409",async()=>{
   assert.equal(response.status,409);
   assert.equal(await errorCode(response),"stale_update");
 });
+
+
+test("Game mutations advance the Session aggregate version",async()=>{
+  const createDb=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}}
+  );
+  const created=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game-new",segmentId:"seg1",sequence:1,playedAt:"2026-09-27T12:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]})},"member"),env(createDb));
+  assert.equal(created.status,201);
+  assert.ok(createDb.preparedSql.some(sql=>sql.includes("UPDATE sessions SET version=version+1")));
+
+  const updateDb=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:2,status:"active"}},false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"}}
+  );
+  const updated=await worker.fetch(await request("/api/games/game1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({segmentId:"seg1",sequence:1,playedAt:"2026-09-27T12:00:00Z",expectedVersion:1,results:[{playerId:"p1",scorePoint:8},{playerId:"p2",scorePoint:-3},{playerId:"p3",scorePoint:-5}],tags:[]})},"member"),env(updateDb));
+  assert.equal(updated.status,200);
+  assert.ok(updateDb.preparedSql.some(sql=>sql.includes("UPDATE sessions SET version=version+1")));
+
+  const deleteDb=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:3,status:"active"}},false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:2,groupId:"g1",status:"active"}}
+  );
+  const deleted=await worker.fetch(await request("/api/games/game1?version=2",{method:"DELETE"},"member"),env(deleteDb));
+  assert.equal(deleted.status,204);
+  assert.ok(deleteDb.preparedSql.some(sql=>sql.includes("UPDATE sessions SET version=version+1")));
+});

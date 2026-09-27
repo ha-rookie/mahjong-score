@@ -4,5 +4,5 @@ import type { Result } from "../../shared/errors";
 export interface GroupRepository {
   list(): Promise<Result<readonly Group[]>>;
   findById(id: GroupId): Promise<Result<Group | null>>;
-  save(group: Group): Promise<Result<void>>;
+  save(group: Group, expectedUpdatedAt?: string): Promise<Result<void>>;
 }

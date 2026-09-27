@@ -26,11 +26,9 @@ export class DeleteGameUseCase {
 }
 export class DeleteSessionUseCase {
   constructor(private readonly sessions:SessionRepository,private readonly games:GameRepository){}
-  async execute(sessionId:SessionId):Promise<Result<void>>{
-    const found=await this.sessions.findById(sessionId);if(!found.ok)return found;
-    if(!found.value)return err(new AppError({code:"session_not_found",message:"Session not found.",userMessage:"Sessionが見つかりません。"}));
+  async execute(sessionId:SessionId,expectedVersion?:number):Promise<Result<void>>{
     const removedGames=await this.games.removeBySession(sessionId);if(!removedGames.ok)return removedGames;
-    return this.sessions.remove(sessionId,found.value.version);
+    return this.sessions.remove(sessionId,expectedVersion);
   }
 }
 export class UpdateSessionDetailsUseCase {

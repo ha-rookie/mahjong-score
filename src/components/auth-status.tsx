@@ -84,6 +84,7 @@ export function AuthStatus() {
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";
   const navigatorStandalone=(navigator as NavigatorWithStandalone).standalone;
   const isStandalone=window.matchMedia("(display-mode: standalone)").matches||navigatorStandalone===true;
+  // During #242 investigation, show diagnostics for every non-admin account. The invitation screen is driven by /api/groups, so it can appear even when /api/auth/me already contains memberships.
   const showDiagnostics=auth.user.systemRole!=="admin";
   const diagnosticLines=[
     `checkedAt: ${authCheckedAt??"unknown"}`,

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 
 type Membership = {
   groupId: string;
@@ -16,22 +15,17 @@ type AuthPayload = {
   canBootstrapAdmin: boolean;
 };
 
-type NavigatorWithStandalone = Navigator & { standalone?: boolean };
-
 export function AuthStatus() {
   const [auth,setAuth]=useState<AuthPayload|null>(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [hasLegacyData,setHasLegacyData]=useState(false);
-  const [authResponseStatus,setAuthResponseStatus]=useState<number|null>(null);
-  const [authCheckedAt,setAuthCheckedAt]=useState<string|null>(null);
 
   const load=async()=>{
     setLoading(true);setError(null);
     try{
       const response=await fetch("/api/auth/me",{credentials:"same-origin"});
-      setAuthResponseStatus(response.status);setAuthCheckedAt(new Date().toISOString());
       if(response.status===401){setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:null}));setLoading(false);return;}
       if(!response.ok)throw new Error("auth status");
       const payload=await response.json() as AuthPayload;setAuth(payload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:payload}));
@@ -83,54 +77,23 @@ export function AuthStatus() {
 
   const membership=auth.memberships[0]??null;
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";
-  const navigatorStandalone=(navigator as NavigatorWithStandalone).standalone;
-  const isStandalone=window.matchMedia("(display-mode: standalone)").matches||navigatorStandalone===true;
-  // The invitation-required screen is driven by /api/groups, so keep diagnostics available for every non-admin user during #242 investigation even if /api/auth/me reports memberships.
-  const showDiagnostics=auth.user.systemRole!=="admin";
-  const persistenceMarker=window.localStorage.getItem("mahjong-score:persistence-mode");
-  const diagnosticLines=[
-    `userId: ${auth.user.id}`,
-    `displayName: ${auth.user.displayName??"null"}`,
-    `memberships.count: ${auth.memberships.length}`,
-    `memberships: ${JSON.stringify(auth.memberships.map(item=>({groupId:item.groupId,groupName:item.groupName,role:item.role,playerId:item.playerId,playerDisplayName:item.playerDisplayName})))}`,
-    `persistenceMode.marker: ${persistenceMarker??"(missing => d1)"}`,
-    `displayMode: ${isStandalone?"standalone":"browser"}`,
-    `navigator.standalone: ${navigatorStandalone===undefined?"undefined":String(navigatorStandalone)}`,
-    `systemRole: ${auth.user.systemRole}`,
-    `authResponseStatus: ${authResponseStatus??"unknown"}`,
-    `checkedAt: ${authCheckedAt??"unknown"}`,
-    `origin: ${window.location.origin}`,
-    `pathname: ${window.location.pathname}`,
-    `referrer: ${document.referrer||"(empty)"}`,
-  ];
 
-  const diagnostics=showDiagnostics?createPortal(
-    <details style={{position:"fixed",zIndex:9999,left:"8px",right:"8px",bottom:"calc(env(safe-area-inset-bottom, 0px) + 8px)",maxWidth:"728px",maxHeight:"calc(100dvh - 96px)",margin:"0 auto",overflow:"auto",padding:"10px 12px",border:"1px solid rgba(110,231,183,.45)",borderRadius:"12px",background:"rgba(17,24,39,.96)",color:"#d1fae5",boxShadow:"0 12px 36px rgba(0,0,0,.32)",fontSize:"12px",lineHeight:1.6,textAlign:"left"}}>
-      <summary style={{cursor:"pointer",fontWeight:800,letterSpacing:".06em"}}>AUTH DIAGNOSTICS #242</summary>
-      <pre style={{margin:"10px 0 0",whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontFamily:"ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"}}>{diagnosticLines.join("\n")}</pre>
-    </details>,
-    document.body,
-  ):null;
-
-  return <>
-    <div className="auth-status">
-      <details className="account-menu">
-        <summary className="account-menu__summary">
-          <span className="account-menu__name">{auth.user.displayName??"LINEユーザー"}</span>
-          <span className="account-menu__chevron" aria-hidden="true">⌄</span>
-        </summary>
-        <div className="account-menu__panel">
-          <div className="account-menu__meta">
-            <strong>{auth.user.displayName??"LINEユーザー"}</strong>
-            <span>{roleLabel}</span>
-          </div>
-          {auth.canBootstrapAdmin?<button type="button" disabled={busy} onClick={()=>void bootstrap()}>初期管理者に設定</button>:null}
-          {auth.user.systemRole==="admin"&&hasLegacyData?<button type="button" disabled={busy} onClick={()=>void migrateToD1()}>D1へ移行</button>:null}
-          <button type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
-          {error?<span className="auth-status__error">{error}</span>:null}
+  return <div className="auth-status">
+    <details className="account-menu">
+      <summary className="account-menu__summary">
+        <span className="account-menu__name">{auth.user.displayName??"LINEユーザー"}</span>
+        <span className="account-menu__chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div className="account-menu__panel">
+        <div className="account-menu__meta">
+          <strong>{auth.user.displayName??"LINEユーザー"}</strong>
+          <span>{roleLabel}</span>
         </div>
-      </details>
-    </div>
-    {diagnostics}
-  </>;
+        {auth.canBootstrapAdmin?<button type="button" disabled={busy} onClick={()=>void bootstrap()}>初期管理者に設定</button>:null}
+        {auth.user.systemRole==="admin"&&hasLegacyData?<button type="button" disabled={busy} onClick={()=>void migrateToD1()}>D1へ移行</button>:null}
+        <button type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
+        {error?<span className="auth-status__error">{error}</span>:null}
+      </div>
+    </details>
+  </div>;
 }

@@ -4,7 +4,7 @@ import { startLineLogin } from "../src/worker/auth/line-login";
 
 class Statement {
   constructor(readonly sql:string){}
-  bind(..._values:unknown[]){return this;}
+  bind(...values:unknown[]){void values;return this;}
 }
 
 class FakeDb {

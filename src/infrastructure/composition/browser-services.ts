@@ -41,8 +41,12 @@ export type PersistenceMode = "local" | "d1";
 
 export const getBrowserPersistenceMode = ():PersistenceMode => {
   const explicit=window.localStorage.getItem(PERSISTENCE_MODE_KEY);
-  if(explicit==="d1")return "d1";
-  return "local";
+  if(explicit==="local")return "local";
+  // The production application is D1-backed. A Home Screen Web App can start
+  // with a copied authenticated cookie but without the browser context's
+  // historical `d1` marker, so a missing marker must not silently select the
+  // legacy local repository and hide the user's cloud groups.
+  return "d1";
 };
 
 export const createBrowserServices = () => {

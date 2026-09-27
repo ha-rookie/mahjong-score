@@ -253,7 +253,7 @@ test("member cannot rename a group",async()=>{
 
 test("system admin API rejects an oversized renamed group name",async()=>{
   const db=new FakeDb({admin:{systemAdmin:true}});
-  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"G".repeat(41),updatedAt:"2026-01-02"})},"admin"),env(db));
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"G".repeat(41),updatedAt:"2026-01-02",expectedUpdatedAt:"2026-01-01"})},"admin"),env(db));
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"group_name_too_long");
 });

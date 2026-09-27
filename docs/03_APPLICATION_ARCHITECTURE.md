@@ -158,3 +158,24 @@ Application Use Case
 - security/NFR: `20_TEST_DESIGN.md`
 
 特に複数Persistenceを持つ間は、`local` / `d1` / marker未設定の選択結果を回帰テスト対象とする。
+
+## Optimistic concurrency boundary
+
+Production mutations must preserve the state observed by the user. A mutation must not replace its concurrency token with a newer value fetched immediately before the write.
+
+For version-managed Session/Game flows:
+
+`Read/View -> observed version -> user action -> mutation(expectedVersion) -> conditional D1 write -> stale_update -> reload/recovery`
+
+Rules:
+- Game and Session update/delete commands carry the version observed by the UI
+- repository existence checks must not change update intent or replace the observed token
+- Game create/update/delete advances the parent Session version in the same D1 batch transaction, because Session results are the consistency aggregate reviewed before finalization
+- Session finalization uses the Session snapshot shown on the result-review screen; any intervening Game mutation advances Session.version and makes that finalization stale
+- Group name/rule edits use Group.updatedAt as a compare-and-set token
+- membership/link admin mutations compare the observed role/link state before applying changes
+- stale/already-removed conflicts must not silently retry as last-write-wins; the UI reloads current state and asks the user to re-evaluate
+- create-only invariants remain database-backed (for example one active Session per Group and unique Game sequence per Session)
+
+This boundary is a regression-sensitive composition rule. New mutable resources must explicitly document whether they are create-only/idempotent, last-write-wins by design, or protected by an optimistic concurrency token.
+

@@ -6,19 +6,26 @@
 
 このGateは新しいPhaseではない。元の4 Phase roadmapにおける **Phase 3 Release Candidate Gate** とする。
 
-## 2. Current Gate Status — BLOCKED
+## 2. Current Gate Status — READY
 
-2026-09-27時点では、**SE User Testは開始しない**。
+2026-09-27時点で、**SE User Testを開始可能**。
 
-理由はコード上の既知S1/S2欠陥ではなく、Productionでremote D1へアクセスできず、LINE Loginを含むD1依存flowを実行できないOperational Blockerがあるため。
+RC Gate再監査結果:
+- known S1 / S2 / User Test前S3 blocker: 0
+- Operational Blocker: 0
+- current main: Production反映済み
+- Android / iPhone: LINE Login / D1 data PASS
+- #201 smartphone smoke: PASS
+- #137 Production felt-performance: PASS
+- #230 / #231 mobile UI polish: PASS
+- authorization / multi-group representative gates: PASS
+- configurable Mahjong rules representative gates: PASS
+- #263 Mutation Boundary全面監査: completed
+- stale Game edit / History Session delete / stale Session finalize: Production representative PASS
+- #264 iPhone form-focus auto-zoom: Production real-device PASS
+- Open Issue再監査: #165以外 0件
 
-- ProductionでLINE Login不可
-- #201のsmartphone manual smokeを完了できない
-- #137のProduction felt-performance checkを完了できない
-- current `main`には#203以降のRC改善、#217〜#222、#224（Group-default Session rule snapshot fix）、#228（rule semantics / Session chip-rate aggregation guard）までMerge済み。#205以降Production deployはmanual-onlyであり、これらのruntime変更はProduction未反映
-- remote D1復旧までは、benchmark / fixture / migration / deployを追加実行しない
-
-Defect Severity上、service availabilityに重大な問題がある状態ではUser Test開始不可とする。ただし本項目は、アプリ実装の既知S1欠陥とは区別して **Operational Blocker** として管理する。
+large fixture / benchmarkは引き続きremote D1へ投入せず、local D1 regressionを正本とする。
 
 ## 3. Test Positioning
 
@@ -179,24 +186,51 @@ D1復旧後、順番は以下を推奨する。
 
 「全部作った」ではなく、「どこまでを今のrelease boundaryとしたか」を説明する。
 
-## 10. Resume Checklist after D1 Recovery
+## 10. SE User Test Handoff
 
-remote D1へアクセス可能になった後も、いきなりUser Testへ進まない。
+### Production URL
 
-1. D1 access recoveryを最小限の確認で確定する
-2. large fixture / benchmarkは実行しない
-3. Human approval後、current `main`をmanual `workflow_dispatch`でProductionへ反映する
-4. LINE LoginのProduction smokeを確認する
-5. #201: 0半荘 → 取り消し → Home → 履歴へ残らない
-6. #201: 1半荘保存後 → Session終了 → Results → 終了確定
-7. #137: History / 通算 / 年間 / 月間 / Session Resultsの体感応答を確認する
-8. #160: Android / iOSでホーム画面追加・standalone起動・通常online flowを確認する
-9. 複数Groupを切り替え、履歴 / 成績 / PlayerがGroup間で混在しないことを確認する
-10. #221 rules: Group標準値（35000 / 40000 / chip x5）、System Admin / Group Admin更新、Member拒否、Session固有override、既存Session snapshot維持、SessionごとのchipRate集計を確認する
-11. representative authorization / concurrencyをProductionで確認する
-12. S1/S2 = 0、Operational Blocker = 0を確認する
-13. User Test URL / invitationを準備する
-14. #165のUser Test handoffへ進む
+https://mahjong-score.ha-rookie.workers.dev/
+
+### Tester setup
+
+1. Tester本人のLINEアカウントでProductionへログインしてもらう
+2. Owner側でUser Test用Groupへ招待する
+3. 最初はMember権限でcore flowを実施する
+4. 管理者taskを行うTesterだけ、必要な時点でGroup Adminへ変更する
+5. System Admin権限は通常のTesterへ付与しない
+
+本番の既存Group / 実データをテスト用に流用せず、User Test専用Groupを作ることを推奨する。
+
+### Testerへ渡すTask
+
+説明で誘導しすぎず、まず以下だけを渡す。
+
+1. LINEでログインする
+2. 3人のSessionを開始する
+3. 2半荘入力する
+4. 保存済みの1半荘を訂正する
+5. ChipとMemoを入力してSessionを終了する
+6. 今月の履歴から今のSessionを探す
+7. 通算成績を確認する
+8. Group Admin権限を付与されたTesterはMember招待を試す
+9. 2端末を使える場合は同じActive Sessionを開き、片方で更新した後にもう片方から古い状態で更新して挙動を確認する
+
+### Feedback record
+
+各指摘は以下へ分類する。
+
+| Field | Record |
+| --- | --- |
+| Task | 何をしていたか |
+| Result | success / failure |
+| Observation | 迷った・分からなかった・期待と違った内容 |
+| Reproduction | 再現手順 |
+| Category | defect / UX improvement / question |
+| Severity | S1 / S2 / S3 / S4 |
+| Decision | fix / defer / no-change |
+
+S1 / S2が見つかった場合はRC Gateへ戻す。S3 / S4は内容を評価し、User Test継続可否を判断する。
 
 ## 11. User Test Exit Criteria
 
@@ -216,27 +250,19 @@ remote D1へアクセス可能になった後も、いきなりUser Testへ進�
 
 Tracking Issue: #165
 
-Phase 2 Completion Audit: #145
+Current RC evidence:
+- #137: Production felt-performance PASS
+- #201: 0半荘取消 / 1半荘通常終了 smartphone PASS
+- #217-#219: Group management / multi-group authorization
+- #221-#228: configurable Mahjong rules + regression guards
+- #248 / #254 / #256: D1 source-of-truth / persistence selector
+- #259 / PR #260: stale Game edit fix + Production PASS
+- #261 / PR #262: History stale delete + Mutation Boundary remediation
+- #263: Mutation Boundary全面監査 completed
+- #264 / PR #265: iPhone form-focus auto-zoom Production PASS
 
-RC / Performance:
-- #137 Long-term performance — DB benchmark PASS, smartphone felt-performance待ち
-- #201 0半荘Session cancel — implementation / CI / merge済み、smartphone smoke待ち
-- #195 History delete stale recovery — completed by PR #206
-- #203 D1 read optimization — merged to main
-- #209 / #210 PWA installable shell / build regression validation — merged to main、実機acceptance待ち
-- #217 Group management — 複数Group一覧 / 切り替え / 追加 / 名前変更を実装
-- #218 Multi-group performance fixture — local D1で3 Group / 350 Sessions / 3,840 Games / 11,520 Game Resultsを検証
-- #219 Multi-group authorization regression — 所属Group表示 / role分離 / 未所属Group拒否 / System Admin renameを固定
-- #221 Configurable Mahjong rules — Group defaults + Session snapshotを実装
-- #222 Configurable rules regression — defaults / Session override / Group Admin / Member / cross-groupを固定
-- #223 / PR #224 — rule省略時にGroup defaultsをSessionへsnapshotし、partial overrideを拒否するS2修正
-- #227 / PR #228 — 持ち点・返し点とchipRateの意味を明確化し、PerformanceがSession `chip_rate`を使う回帰guardを追加
-
-Current code audit:
-- known Application S1/S2: 0
-- remaining blocker: remote D1 / Production core-flow verification
-- remote D1復旧までは追加のremote migration / benchmark / deployを行わない
-
-Cross-Phase Backlog:
-- #160 PWA
-- Phase 4 additional authentication
+Current readiness:
+- known S1 / S2 / User Test前S3 blocker: 0
+- Operational Blocker: 0
+- #165以外のOpen Issue: 0
+- SE User Test: READY

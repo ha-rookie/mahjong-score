@@ -123,6 +123,7 @@ export const authMe=async(request:Request,env:AuthEnv)=>{
   if(!userId)return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});
   const user=await env.DB.prepare("SELECT id,display_name AS displayName,system_role AS systemRole FROM users WHERE id=?").bind(userId).first();
   const memberships=await env.DB.prepare("SELECT gm.group_id AS groupId,g.name AS groupName,gm.role,gp.player_id AS playerId,p.display_name AS playerDisplayName FROM group_memberships gm JOIN groups g ON g.id=gm.group_id LEFT JOIN group_players gp ON gp.group_id=gm.group_id AND gp.user_id=gm.user_id LEFT JOIN players p ON p.id=gp.player_id WHERE gm.user_id=? ORDER BY gm.created_at,gm.group_id").bind(userId).all();
+  auditAuth(request,"auth_session_resolved","success",{userId,resourceType:"authentication",reason:"membership_count="+memberships.results.length});
   const anyAdmin=await env.DB.prepare("SELECT 1 AS ok FROM users WHERE system_role='admin' LIMIT 1").first();
   return new Response(JSON.stringify({authenticated:true,user,memberships:memberships.results,canBootstrapAdmin:!anyAdmin}),{headers:{"content-type":"application/json; charset=utf-8"}});
 };

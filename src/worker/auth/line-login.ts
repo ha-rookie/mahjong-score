@@ -63,7 +63,7 @@ export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await reso
 
 export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID)return new Response("LINE Login is not configured",{status:503});
-  const url=new URL(request.url),inviteToken=url.searchParams.get("invite");
+  const url=new URL(request.url),inviteToken=url.searchParams.get("invite"),responseMode=url.searchParams.get("response");
   if(inviteToken&&!validInviteToken(inviteToken)){auditAuth(request,"line_login_failure","failure",{reason:"invalid_invitation_format"});return new Response("Invalid invitation",{status:400});}
   const invitation=inviteToken?await activeInvitation(env,inviteToken):null;
   if(inviteToken&&!invitation){auditAuth(request,"line_login_failure","failure",{reason:"invitation_invalid_or_expired"});return new Response("Invitation is invalid or expired",{status:410});}
@@ -74,6 +74,7 @@ export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   ]);
   const callback=new URL("/api/auth/line/callback",url.origin).toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
   to.search=new URLSearchParams({response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callback,state,scope:"profile openid",nonce}).toString();
+  if(responseMode==="json")return new Response(JSON.stringify({authorizationUrl:to.toString()}),{headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
   return new Response(null,{status:302,headers:{location:to.toString()}});
 };
 

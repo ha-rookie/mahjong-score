@@ -37,6 +37,7 @@ const segment: ParticipantSegment = {
 class FakeSessionRepository implements SessionRepository {
   findByIdCalls = 0;
   removedVersion: number | undefined;
+  savedSession: Session | null = null;
   findById(id: SessionId): Promise<Result<Session | null>> {
     this.findByIdCalls += 1;
     return Promise.resolve(ok(id === session.id ? session : null));
@@ -47,7 +48,7 @@ class FakeSessionRepository implements SessionRepository {
   listByGroup(): Promise<Result<readonly Session[]>> { return Promise.resolve(ok([session])); }
   findActiveByGroup(): Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>> { return Promise.resolve(ok({session,participantPlayerIds:segment.participantPlayerIds})); }
   createWithInitialSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
-  save(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
+  save(value: Session): Promise<Result<void>> { this.savedSession = value; return Promise.resolve(ok(undefined)); }
   remove(_id: SessionId, expectedVersion?: number): Promise<Result<void>> { this.removedVersion = expectedVersion; return Promise.resolve(ok(undefined)); }
   cancelEmpty(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   saveSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
@@ -208,11 +209,9 @@ test("game delete uses the version observed in the score sheet", async () => {
 
 test("session details preserve the version observed before editing", async () => {
   const sessions = new FakeSessionRepository();
-  let saved: Session | null = null;
-  sessions.save = (value: Session) => { saved = value; return Promise.resolve(ok(undefined)); };
-  const result = await new UpdateSessionDetailsUseCase(sessions).execute({
+   const result = await new UpdateSessionDetailsUseCase(sessions).execute({
     sessionId: "s1", expectedVersion: 7, note: "memo", participantNotes: [], chipResults: [],
   });
   assert.equal(result.ok, true);
-  assert.equal(saved?.version, 7);
+  assert.equal(sessions.savedSession?.version, 7);
 });

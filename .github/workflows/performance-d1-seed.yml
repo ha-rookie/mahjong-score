@@ -1,6 +1,11 @@
 name: Seed Performance D1
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/performance-d1-seed'
   workflow_dispatch:
     inputs:
       confirmation:
@@ -13,7 +18,7 @@ permissions:
 
 jobs:
   seed-performance-d1:
-    if: ${{ inputs.confirmation == 'SEED-PERFORMANCE-5Y' }}
+    if: ${{ github.event_name == 'push' || inputs.confirmation == 'SEED-PERFORMANCE-5Y' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: performance

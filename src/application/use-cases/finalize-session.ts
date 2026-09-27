@@ -1,5 +1,5 @@
 import type { Clock, GameRepository, SessionRepository } from "../ports";
-import type { Session, SessionId } from "../../domain";
+import type { Session } from "../../domain";
 import { AppError, err, type Result } from "../../shared/errors";
 
 export class FinalizeSessionUseCase {

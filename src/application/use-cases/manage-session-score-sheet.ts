@@ -5,14 +5,14 @@ import type { GameRepository, SessionRepository } from "../ports";
 
 export class UpdateGameUseCase {
   constructor(private readonly games: GameRepository, private readonly sessions: SessionRepository) {}
-  async execute(input:{gameId:GameId;scorePointsByPlayer:Readonly<Record<PlayerId,number|null>>;tags:readonly GameTag[]}){
+  async execute(input:{gameId:GameId;expectedVersion?:number;scorePointsByPlayer:Readonly<Record<PlayerId,number|null>>;tags:readonly GameTag[]}){
     const found=await this.games.findById(input.gameId); if(!found.ok)return found;
     if(!found.value)return err(new AppError({code:"game_not_found",message:"Game not found.",userMessage:"半荘が見つかりません。"}));
     const segment=await this.sessions.findSegmentById(found.value.segmentId); if(!segment.ok)return segment;
     if(!segment.value)return err(new AppError({code:"game_segment_not_found",message:"Segment not found.",userMessage:"参加者構成が見つかりません。"}));
     const results=createGameResultsFromScoreSheet({participantPlayerIds:segment.value.participantPlayerIds,scorePointsByPlayer:input.scorePointsByPlayer});
     if(!results.ok)return results;
-    const game={...found.value,results:results.value,tags:input.tags};
+    const game={...found.value,version:input.expectedVersion??found.value.version,results:results.value,tags:input.tags};
     const saved=await this.games.save(game); return saved.ok?ok(game):saved;
   }
 }

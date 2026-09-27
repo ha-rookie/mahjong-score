@@ -9,6 +9,7 @@ import type {
 import {
   AddGameResultUseCase,
   ListGamesBySessionUseCase,
+  UpdateGameUseCase,
 } from "../src/application/use-cases";
 import type {
   Game,
@@ -143,4 +144,36 @@ test("list games by session delegates to repository", async () => {
   const result = await new ListGamesBySessionUseCase(games).execute("s1");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.value.length, 1);
+});
+
+
+test("update game preserves the version observed when editing started", async () => {
+  const games = new FakeGameRepository();
+  games.games.push({
+    id: "g1", version: 2, sessionId: "s1", segmentId: "seg1", sequence: 1,
+    playedAt: "2026-09-23T05:30:00.000Z",
+    results: [
+      { playerId: "p1", scorePoint: 4 },
+      { playerId: "p2", scorePoint: 1 },
+      { playerId: "p3", scorePoint: -5 },
+    ],
+    tags: [],
+  });
+
+  const result = await new UpdateGameUseCase(
+    games, new FakeSessionRepository(),
+  ).execute({
+    gameId: "g1",
+    expectedVersion: 1,
+    scorePointsByPlayer: { p1: 8, p2: null, p3: -3 },
+    tags: [],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(games.games[0]?.version, 1);
+  assert.deepEqual(games.games[0]?.results, [
+    { playerId: "p1", scorePoint: 8 },
+    { playerId: "p2", scorePoint: -5 },
+    { playerId: "p3", scorePoint: -3 },
+  ]);
 });

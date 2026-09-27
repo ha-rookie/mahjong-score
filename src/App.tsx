@@ -144,8 +144,8 @@ function App() {
   const handleRenameGroup=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();if(!editingGroupId)return;setIsBusy(true);setErrorMessage(null);
     const r=await services.updateGroupName.execute({id:editingGroupId,name:editingGroupName,expectedUpdatedAt:editingGroupExpectedUpdatedAt??undefined});
-    if(!r.ok){setErrorMessage(r.error.userMessage??"グループ名を変更できませんでした。");setIsBusy(false);return;}
-    const preferred=group?.id;setEditingGroupId(null);setEditingGroupName("");setEditingGroupExpectedUpdatedAt(null);setEditingGroupExpectedUpdatedAt(null);await refresh(preferred);setStatusMessage("グループ名を変更しました。");setIsBusy(false);
+    if(!r.ok){if(r.error.code==="stale_update"){await refresh(group?.id,false);setEditingGroupId(null);setEditingGroupName("");setEditingGroupExpectedUpdatedAt(null);setErrorMessage("他の端末でグループ情報が更新されました。最新状態を確認して再操作してください。");}else setErrorMessage(r.error.userMessage??"グループ名を変更できませんでした。");setIsBusy(false);return;}
+    const preferred=group?.id;setEditingGroupId(null);setEditingGroupName("");setEditingGroupExpectedUpdatedAt(null);await refresh(preferred);setStatusMessage("グループ名を変更しました。");setIsBusy(false);
   };
   const handleCreateAdditionalGroup=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();setIsBusy(true);setErrorMessage(null);

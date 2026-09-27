@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Membership = {
   groupId: string;
@@ -87,42 +88,47 @@ export function AuthStatus() {
   // The invitation-required screen is driven by /api/groups, so keep diagnostics visible for every non-admin user during #242 investigation even if /api/auth/me reports memberships.
   const showDiagnostics=auth.user.systemRole!=="admin";
   const diagnosticLines=[
-    `checkedAt: ${authCheckedAt??"unknown"}`,
-    `authResponseStatus: ${authResponseStatus??"unknown"}`,
-    "authenticated: true",
-    `displayMode: ${isStandalone?"standalone":"browser"}`,
-    `navigator.standalone: ${navigatorStandalone===undefined?"undefined":String(navigatorStandalone)}`,
     `userId: ${auth.user.id}`,
     `displayName: ${auth.user.displayName??"null"}`,
-    `systemRole: ${auth.user.systemRole}`,
     `memberships.count: ${auth.memberships.length}`,
     `memberships: ${JSON.stringify(auth.memberships.map(item=>({groupId:item.groupId,groupName:item.groupName,role:item.role,playerId:item.playerId,playerDisplayName:item.playerDisplayName})))}`,
+    `displayMode: ${isStandalone?"standalone":"browser"}`,
+    `navigator.standalone: ${navigatorStandalone===undefined?"undefined":String(navigatorStandalone)}`,
+    `systemRole: ${auth.user.systemRole}`,
+    `authResponseStatus: ${authResponseStatus??"unknown"}`,
+    `checkedAt: ${authCheckedAt??"unknown"}`,
     `origin: ${window.location.origin}`,
     `pathname: ${window.location.pathname}`,
     `referrer: ${document.referrer||"(empty)"}`,
-    `userAgent: ${navigator.userAgent}`,
   ];
 
-  return <div className="auth-status">
-    <details className="account-menu">
-      <summary className="account-menu__summary">
-        <span className="account-menu__name">{auth.user.displayName??"LINEユーザー"}</span>
-        <span className="account-menu__chevron" aria-hidden="true">⌄</span>
-      </summary>
-      <div className="account-menu__panel">
-        <div className="account-menu__meta">
-          <strong>{auth.user.displayName??"LINEユーザー"}</strong>
-          <span>{roleLabel}</span>
+  const diagnostics=showDiagnostics?createPortal(
+    <details open style={{position:"fixed",zIndex:9999,left:"8px",right:"8px",top:"calc(env(safe-area-inset-top, 0px) + 72px)",bottom:"calc(env(safe-area-inset-bottom, 0px) + 8px)",maxWidth:"728px",margin:"0 auto",overflow:"auto",padding:"12px 14px",border:"1px solid rgba(110,231,183,.45)",borderRadius:"12px",background:"rgba(17,24,39,.97)",color:"#d1fae5",boxShadow:"0 16px 48px rgba(0,0,0,.38)",fontSize:"12px",lineHeight:1.6,textAlign:"left"}}>
+      <summary style={{position:"sticky",top:0,cursor:"pointer",fontWeight:800,letterSpacing:".08em",background:"rgba(17,24,39,.97)",paddingBottom:"8px"}}>AUTH DIAGNOSTICS #242</summary>
+      <pre style={{margin:"0",whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontFamily:"ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"}}>{diagnosticLines.join("\n")}</pre>
+    </details>,
+    document.body,
+  ):null;
+
+  return <>
+    <div className="auth-status">
+      <details className="account-menu">
+        <summary className="account-menu__summary">
+          <span className="account-menu__name">{auth.user.displayName??"LINEユーザー"}</span>
+          <span className="account-menu__chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div className="account-menu__panel">
+          <div className="account-menu__meta">
+            <strong>{auth.user.displayName??"LINEユーザー"}</strong>
+            <span>{roleLabel}</span>
+          </div>
+          {auth.canBootstrapAdmin?<button type="button" disabled={busy} onClick={()=>void bootstrap()}>初期管理者に設定</button>:null}
+          {auth.user.systemRole==="admin"&&hasLegacyData?<button type="button" disabled={busy} onClick={()=>void migrateToD1()}>D1へ移行</button>:null}
+          <button type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
+          {error?<span className="auth-status__error">{error}</span>:null}
         </div>
-        {auth.canBootstrapAdmin?<button type="button" disabled={busy} onClick={()=>void bootstrap()}>初期管理者に設定</button>:null}
-        {auth.user.systemRole==="admin"&&hasLegacyData?<button type="button" disabled={busy} onClick={()=>void migrateToD1()}>D1へ移行</button>:null}
-        <button type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
-        {error?<span className="auth-status__error">{error}</span>:null}
-      </div>
-    </details>
-    {showDiagnostics?<details open style={{position:"fixed",zIndex:90,left:"16px",right:"16px",bottom:"16px",maxWidth:"728px",margin:"0 auto",maxHeight:"46vh",overflow:"auto",padding:"10px 12px",border:"1px solid rgba(23,107,87,.35)",borderRadius:"10px",background:"rgba(17,24,39,.96)",color:"#d1fae5",boxShadow:"0 12px 36px rgba(0,0,0,.28)",fontSize:"11px",lineHeight:1.55,textAlign:"left"}}>
-      <summary style={{cursor:"pointer",fontWeight:800,letterSpacing:".08em"}}>AUTH DIAGNOSTICS #242</summary>
-      <pre style={{margin:"8px 0 0",whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontFamily:"ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"}}>{diagnosticLines.join("\n")}</pre>
-    </details>:null}
-  </div>;
+      </details>
+    </div>
+    {diagnostics}
+  </>;
 }

@@ -93,9 +93,9 @@ export function MemberAccessManagement({group,players}:Props){
     if(!window.confirm(`${player.displayName}さんのLINE連携を解除しますか？一般メンバーの場合は、このグループへの参加も解除されます。`))return;
     setBusyPlayerId(player.id);setInvite(null);setNotice(null);setError(null);
     try{
-      const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/players/${encodeURIComponent(player.id)}/link`,{method:"DELETE",credentials:"same-origin"});
+      const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/players/${encodeURIComponent(player.id)}/link?expectedUserId=${encodeURIComponent(cloudPlayer(player.id)?.userId??"")}`,{method:"DELETE",credentials:"same-origin"});
       const payload=await response.json() as {ok?:boolean;error?:{message?:string}};
-      if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"unlink");
+      if(!response.ok||!payload.ok){if(response.status===409){await load();setError("他の端末で連携状態が更新されました。最新状態を確認して再操作してください。");setBusyPlayerId(null);return;}throw new Error(payload.error?.message??"unlink");}
       setNotice(`${player.displayName}さんのLINE連携を解除しました。`);
       await load();
     }catch{setError("LINE連携を解除できませんでした。");}
@@ -108,10 +108,10 @@ export function MemberAccessManagement({group,players}:Props){
     try{
       const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/users/${encodeURIComponent(userId)}`,{
         method:"PATCH",headers:{"content-type":"application/json"},credentials:"same-origin",
-        body:JSON.stringify({role,playerId:player.id}),
+        body:JSON.stringify({role,playerId:player.id,expectedRole:users.find(u=>u.id===userId)?.groupRole??null,expectedPlayerId:users.find(u=>u.id===userId)?.playerId??null}),
       });
       const payload=await response.json() as {ok?:boolean;error?:{message?:string}};
-      if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"link");
+      if(!response.ok||!payload.ok){if(response.status===409){await load();setError("他の端末でUser/Player状態が更新されました。最新状態を確認して再操作してください。");setBusyPlayerId(null);return;}throw new Error(payload.error?.message??"link");}
       setNotice(`${player.displayName}さんにUserを紐付けました。`);
       setLinkingPlayerId(null);setSelectedUserId("");
       await load();
@@ -125,10 +125,10 @@ export function MemberAccessManagement({group,players}:Props){
     try{
       const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/users/${encodeURIComponent(cp.userId)}`,{
         method:"PATCH",headers:{"content-type":"application/json"},credentials:"same-origin",
-        body:JSON.stringify({role,playerId:player.id}),
+        body:JSON.stringify({role,playerId:player.id,expectedRole:cp.groupRole??null,expectedPlayerId:player.id}),
       });
       const payload=await response.json() as {ok?:boolean;error?:{message?:string}};
-      if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"role");
+      if(!response.ok||!payload.ok){if(response.status===409){await load();setError("他の端末でグループ権限が更新されました。最新状態を確認して再操作してください。");setBusyPlayerId(null);return;}throw new Error(payload.error?.message??"role");}
       setNotice(`${player.displayName}さんの権限を更新しました。`);
       await load();
     }catch{setError("グループ権限を更新できませんでした。");}

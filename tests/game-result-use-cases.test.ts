@@ -11,6 +11,8 @@ import {
   ListGamesBySessionUseCase,
   UpdateGameUseCase,
   DeleteSessionUseCase,
+  DeleteGameUseCase,
+  UpdateSessionDetailsUseCase,
 } from "../src/application/use-cases";
 import type {
   Game,
@@ -72,7 +74,9 @@ class FakeGameRepository implements GameRepository {
     for (let i=this.games.length-1;i>=0;i-=1) if(this.games[i]?.sessionId===sessionId)this.games.splice(i,1);
     return Promise.resolve(ok(undefined));
   }
-  remove(id: GameId): Promise<Result<void>> {
+  removedGameVersion: number | undefined;
+  remove(id: GameId, expectedVersion?: number): Promise<Result<void>> {
+    this.removedGameVersion = expectedVersion;
     const index = this.games.findIndex((item) => item.id === id);
     if (index >= 0) this.games.splice(index, 1);
     return Promise.resolve(ok(undefined));
@@ -192,4 +196,23 @@ test("history Session delete uses the version observed in the History list", asy
   assert.equal(result.ok, true);
   assert.equal(sessions.findByIdCalls, 0);
   assert.equal(sessions.removedVersion, 3);
+});
+
+
+test("game delete uses the version observed in the score sheet", async () => {
+  const games = new FakeGameRepository();
+  const result = await new DeleteGameUseCase(games).execute("g1", 4);
+  assert.equal(result.ok, true);
+  assert.equal(games.removedGameVersion, 4);
+});
+
+test("session details preserve the version observed before editing", async () => {
+  const sessions = new FakeSessionRepository();
+  let saved: Session | null = null;
+  sessions.save = (value: Session) => { saved = value; return Promise.resolve(ok(undefined)); };
+  const result = await new UpdateSessionDetailsUseCase(sessions).execute({
+    sessionId: "s1", expectedVersion: 7, note: "memo", participantNotes: [], chipResults: [],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(saved?.version, 7);
 });

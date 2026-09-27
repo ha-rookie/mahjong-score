@@ -8,7 +8,7 @@ export class CancelEmptySessionUseCase {
     private readonly games: GameRepository,
   ) {}
 
-  async execute(sessionId: SessionId): Promise<Result<void>> {
+  async execute(sessionId: SessionId, expectedVersion?: number): Promise<Result<void>> {
     const found = await this.sessions.findById(sessionId);
     if (!found.ok) return found;
     if (found.value === null) {
@@ -36,6 +36,6 @@ export class CancelEmptySessionUseCase {
       }));
     }
 
-    return this.sessions.cancelEmpty(sessionId, found.value.version);
+    return this.sessions.cancelEmpty(sessionId, expectedVersion ?? found.value.version);
   }
 }

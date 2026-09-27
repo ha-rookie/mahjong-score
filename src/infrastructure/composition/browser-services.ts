@@ -39,30 +39,30 @@ import {
 export const PERSISTENCE_MODE_KEY = "mahjong-score:persistence-mode";
 export type PersistenceMode = "local" | "d1";
 
-export const getBrowserPersistenceMode = ():PersistenceMode => {
-  const explicit=window.localStorage.getItem(PERSISTENCE_MODE_KEY);
-  if(explicit==="local")return "local";
-  // The production application is D1-backed. A Home Screen Web App can start
-  // with a copied authenticated cookie but without the browser context's
-  // historical `d1` marker, so a missing marker must not silently select the
-  // legacy local repository and hide the user's cloud groups.
+export const resolvePersistenceMode = (explicit: string | null): PersistenceMode => {
+  if (explicit === "local") return "local";
+  // The production application is D1-backed. Missing, current `d1`, and
+  // unrecognized markers must not silently fall back to the legacy local store.
   return "d1";
 };
+
+export const getBrowserPersistenceMode = (): PersistenceMode =>
+  resolvePersistenceMode(window.localStorage.getItem(PERSISTENCE_MODE_KEY));
 
 export const createBrowserServices = () => {
   const keyValueStore = new WebStorageKeyValueStore(window.localStorage);
   const store = new LocalStorageAppDataStore(keyValueStore);
-  const mode=getBrowserPersistenceMode();
-  const api=new WorkerApiClient();
-  const groups = mode==="d1" ? new ApiGroupRepository(api) : new LocalStorageGroupRepository(store);
-  const players = mode==="d1" ? new ApiPlayerRepository(api) : new LocalStoragePlayerRepository(store);
-  const sessions = mode==="d1" ? new ApiSessionRepository(api) : new LocalStorageSessionRepository(store);
-  const games = mode==="d1" ? new ApiGameRepository(api) : new LocalStorageGameRepository(store);
+  const mode = getBrowserPersistenceMode();
+  const api = new WorkerApiClient();
+  const groups = mode === "d1" ? new ApiGroupRepository(api) : new LocalStorageGroupRepository(store);
+  const players = mode === "d1" ? new ApiPlayerRepository(api) : new LocalStoragePlayerRepository(store);
+  const sessions = mode === "d1" ? new ApiSessionRepository(api) : new LocalStorageSessionRepository(store);
+  const games = mode === "d1" ? new ApiGameRepository(api) : new LocalStorageGameRepository(store);
   const ids = new CryptoIdGenerator();
   const clock = new SystemClock();
 
   return {
-    persistenceMode:mode,
+    persistenceMode: mode,
     createGroup: new CreateGroupUseCase(groups, ids, clock),
     updateGroupName: new UpdateGroupNameUseCase(groups, clock),
     addPlayerToGroup: new AddPlayerToGroupUseCase(players, ids, clock),

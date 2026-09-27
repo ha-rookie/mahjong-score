@@ -1,2 +1,4 @@
 Performance D1 seed trigger.
 Update this file only when an intentional one-time Performance seed run is required.
+
+Run request: 5-year Performance fixture after PR #270.

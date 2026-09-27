@@ -66,7 +66,7 @@ export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   const url=new URL(request.url),inviteToken=url.searchParams.get("invite"),responseMode=url.searchParams.get("response");
   if(inviteToken&&!validInviteToken(inviteToken)){auditAuth(request,"line_login_failure","failure",{reason:"invalid_invitation_format"});return new Response("Invalid invitation",{status:400});}
   const invitation=inviteToken?await activeInvitation(env,inviteToken):null;
-  if(inviteToken&&!invitation){auditAuth(request,"line_login_failure","failure",{reason:"invitation_invalid_or_expired"});return new Response("Invalid invitation",{status:410});}
+  if(inviteToken&&!invitation){auditAuth(request,"line_login_failure","failure",{reason:"invitation_invalid_or_expired"});return new Response("Invitation is invalid or expired",{status:410});}
   const state=random(),nonce=random(),now=new Date(),expires=new Date(now.getTime()+10*60*1000),stateHash=await hashToken(state);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM line_login_states WHERE expires_at<? OR used_at IS NOT NULL").bind(now.toISOString()),

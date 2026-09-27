@@ -40,9 +40,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Validate PWA build artifact
-        run: npm run validate:pwa
-
       - name: Validate static security headers artifact
         run: |
           set -eu

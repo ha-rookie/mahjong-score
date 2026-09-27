@@ -21,12 +21,15 @@ Phase 2完了監査はIssue #145で管理する。
 
 ### Supported client policy
 
-- Desktop / mobile browser: supported
-- Android installable PWA: supported as an optional client
-- iPhone / iPad: Safari browser is the supported client
-- iOS standalone Home Screen Web App ("Webアプリとして開く" ON): unsupported
+Mahjong Score is a browser-based Web application. PWA installation is not supported.
 
-iOS standalone and Safari have separate web-data contexts, and the current LINE OAuth flow could not establish and retain the application session reliably in real-device acceptance. The project therefore treats PWA as an optional enhancement rather than a release requirement. See #160 and #232.
+- Desktop browser: supported
+- Mobile browser: supported
+- iPhone / iPad: Safari is the supported client
+- Android: browser use is supported
+- Home Screen standalone / installable PWA: unsupported
+
+The Web App Manifest, Service Worker, and PWA-specific runtime/validation were removed after real-device LINE Login acceptance exposed platform-specific session behavior. See #160 and #232.
 
 ## Development
 

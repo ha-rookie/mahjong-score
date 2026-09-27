@@ -84,7 +84,8 @@ export function AuthStatus() {
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";
   const navigatorStandalone=(navigator as NavigatorWithStandalone).standalone;
   const isStandalone=window.matchMedia("(display-mode: standalone)").matches||navigatorStandalone===true;
-  const showDiagnostics=auth.user.systemRole!=="admin"&&auth.memberships.length===0;
+  // The invitation-required screen is driven by /api/groups, so keep diagnostics visible for every non-admin user during #242 investigation even if /api/auth/me reports memberships.
+  const showDiagnostics=auth.user.systemRole!=="admin";
   const diagnosticLines=[
     `checkedAt: ${authCheckedAt??"unknown"}`,
     `authResponseStatus: ${authResponseStatus??"unknown"}`,

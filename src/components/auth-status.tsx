@@ -84,7 +84,7 @@ export function AuthStatus() {
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";
   const navigatorStandalone=(navigator as NavigatorWithStandalone).standalone;
   const isStandalone=window.matchMedia("(display-mode: standalone)").matches||navigatorStandalone===true;
-  const showDiagnostics=auth.user.systemRole!=="admin"&&auth.memberships.length===0;
+  const showDiagnostics=auth.user.systemRole!=="admin";
   const diagnosticLines=[
     `checkedAt: ${authCheckedAt??"unknown"}`,
     `authResponseStatus: ${authResponseStatus??"unknown"}`,

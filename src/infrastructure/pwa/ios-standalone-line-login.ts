@@ -1,4 +1,6 @@
 const LINE_LOGIN_PATH = "/api/auth/line/start";
+const LINE_LOGIN_URL_PATH = "/api/auth/line/start?response=json";
+const LINE_LOGIN_ORIGIN = "https://access.line.me";
 const LOGIN_BUTTON_SELECTOR = "button.login-gate__button";
 const LOGIN_WINDOW_NAME = "mahjong-line-oauth";
 const LOGIN_COMPLETE_MESSAGE = "mahjong:line-login-complete";
@@ -10,6 +12,10 @@ type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 
 type LoginCompletePayload = {
   type: typeof LOGIN_COMPLETE_MESSAGE;
+};
+
+type AuthorizationUrlPayload = {
+  authorizationUrl?: string;
 };
 
 let installed = false;
@@ -74,22 +80,55 @@ const watchPopupClose = (popup: Window) => {
   }, POPUP_CHECK_TIMEOUT_MS);
 };
 
+const loadDirectAuthorizationUrl = async (popup: Window) => {
+  try {
+    const response = await fetch(LINE_LOGIN_URL_PATH, {
+      credentials: "same-origin",
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("LINE login start failed");
+    const payload = (await response.json()) as AuthorizationUrlPayload;
+    if (!payload.authorizationUrl) throw new Error("LINE authorize URL missing");
+    const authorizationUrl = new URL(payload.authorizationUrl);
+    if (authorizationUrl.origin !== LINE_LOGIN_ORIGIN) {
+      throw new Error("Unexpected LINE authorize origin");
+    }
+    if (popup.closed) return;
+
+    // The user gesture creates the Web App window synchronously. Only after
+    // that do we fetch the state-bound authorize URL and navigate this existing
+    // Web App window directly to LINE. This avoids relying on a server-side 302
+    // from an in-scope URL to the out-of-scope OAuth provider.
+    popup.location.href = authorizationUrl.toString();
+  } catch {
+    clearPopupTimers();
+    activePopup = null;
+    try { popup.close(); } catch { /* no-op */ }
+    // Preserve the existing login path as a last-resort fallback. Normal
+    // Safari and Android never enter this iOS standalone-only branch.
+    window.location.assign(LINE_LOGIN_PATH);
+  }
+};
+
 const openLineLoginInsideWebApp = () => {
   if (activePopup && !activePopup.closed) {
     activePopup.focus();
     return;
   }
 
-  const popup = window.open(LINE_LOGIN_PATH, LOGIN_WINDOW_NAME);
+  // Open synchronously from the tap before any async work. iOS can block a
+  // window created after an awaited fetch, and we specifically need the OAuth
+  // browsing context to originate from the standalone Web App.
+  const popup = window.open("about:blank", LOGIN_WINDOW_NAME);
   if (!popup) {
-    // Keep the fallback on window.open as well. Apple documents window.open as
-    // the mechanism that keeps out-of-scope OAuth navigation in the Web App.
-    window.open(LINE_LOGIN_PATH, "_self");
+    window.location.assign(LINE_LOGIN_PATH);
     return;
   }
 
   activePopup = popup;
   watchPopupClose(popup);
+  void loadDirectAuthorizationUrl(popup);
 };
 
 const isLoginCompletePayload = (value: unknown): value is LoginCompletePayload =>

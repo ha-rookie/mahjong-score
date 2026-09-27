@@ -1,0 +1,11 @@
+@media (max-width: 420px) {
+  .confirm-dialog__actions {
+    grid-template-columns: minmax(70px, 0.65fr) minmax(0, 1.35fr);
+  }
+
+  .confirm-dialog__actions .button {
+    padding-inline: 10px;
+    font-size: 0.92rem;
+    white-space: nowrap;
+  }
+}

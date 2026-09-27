@@ -15,17 +15,22 @@ type AuthPayload = {
   canBootstrapAdmin: boolean;
 };
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
 export function AuthStatus() {
   const [auth,setAuth]=useState<AuthPayload|null>(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [hasLegacyData,setHasLegacyData]=useState(false);
+  const [authResponseStatus,setAuthResponseStatus]=useState<number|null>(null);
+  const [authCheckedAt,setAuthCheckedAt]=useState<string|null>(null);
 
   const load=async()=>{
     setLoading(true);setError(null);
     try{
       const response=await fetch("/api/auth/me",{credentials:"same-origin"});
+      setAuthResponseStatus(response.status);setAuthCheckedAt(new Date().toISOString());
       if(response.status===401){setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:null}));setLoading(false);return;}
       if(!response.ok)throw new Error("auth status");
       const payload=await response.json() as AuthPayload;setAuth(payload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:payload}));
@@ -77,6 +82,25 @@ export function AuthStatus() {
 
   const membership=auth.memberships[0]??null;
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";
+  const navigatorStandalone=(navigator as NavigatorWithStandalone).standalone;
+  const isStandalone=window.matchMedia("(display-mode: standalone)").matches||navigatorStandalone===true;
+  const showDiagnostics=auth.user.systemRole!=="admin"&&auth.memberships.length===0;
+  const diagnosticLines=[
+    `checkedAt: ${authCheckedAt??"unknown"}`,
+    `authResponseStatus: ${authResponseStatus??"unknown"}`,
+    "authenticated: true",
+    `displayMode: ${isStandalone?"standalone":"browser"}`,
+    `navigator.standalone: ${navigatorStandalone===undefined?"undefined":String(navigatorStandalone)}`,
+    `userId: ${auth.user.id}`,
+    `displayName: ${auth.user.displayName??"null"}`,
+    `systemRole: ${auth.user.systemRole}`,
+    `memberships.count: ${auth.memberships.length}`,
+    `memberships: ${JSON.stringify(auth.memberships.map(item=>({groupId:item.groupId,groupName:item.groupName,role:item.role,playerId:item.playerId,playerDisplayName:item.playerDisplayName})))}`,
+    `origin: ${window.location.origin}`,
+    `pathname: ${window.location.pathname}`,
+    `referrer: ${document.referrer||"(empty)"}`,
+    `userAgent: ${navigator.userAgent}`,
+  ];
 
   return <div className="auth-status">
     <details className="account-menu">
@@ -95,5 +119,9 @@ export function AuthStatus() {
         {error?<span className="auth-status__error">{error}</span>:null}
       </div>
     </details>
+    {showDiagnostics?<details open style={{position:"fixed",zIndex:90,left:"16px",right:"16px",bottom:"16px",maxWidth:"728px",margin:"0 auto",maxHeight:"46vh",overflow:"auto",padding:"10px 12px",border:"1px solid rgba(23,107,87,.35)",borderRadius:"10px",background:"rgba(17,24,39,.96)",color:"#d1fae5",boxShadow:"0 12px 36px rgba(0,0,0,.28)",fontSize:"11px",lineHeight:1.55,textAlign:"left"}}>
+      <summary style={{cursor:"pointer",fontWeight:800,letterSpacing:".08em"}}>AUTH DIAGNOSTICS #242</summary>
+      <pre style={{margin:"8px 0 0",whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontFamily:"ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"}}>{diagnosticLines.join("\n")}</pre>
+    </details>:null}
   </div>;
 }

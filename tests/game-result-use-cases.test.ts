@@ -10,6 +10,7 @@ import {
   AddGameResultUseCase,
   ListGamesBySessionUseCase,
   UpdateGameUseCase,
+  DeleteSessionUseCase,
 } from "../src/application/use-cases";
 import type {
   Game,
@@ -32,7 +33,10 @@ const segment: ParticipantSegment = {
 };
 
 class FakeSessionRepository implements SessionRepository {
+  findByIdCalls = 0;
+  removedVersion: number | undefined;
   findById(id: SessionId): Promise<Result<Session | null>> {
+    this.findByIdCalls += 1;
     return Promise.resolve(ok(id === session.id ? session : null));
   }
   listSegments(): Promise<Result<readonly ParticipantSegment[]>> {
@@ -42,7 +46,7 @@ class FakeSessionRepository implements SessionRepository {
   findActiveByGroup(): Promise<Result<{session:Session;participantPlayerIds:readonly string[]}|null>> { return Promise.resolve(ok({session,participantPlayerIds:segment.participantPlayerIds})); }
   createWithInitialSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   save(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
-  remove(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
+  remove(_id: SessionId, expectedVersion?: number): Promise<Result<void>> { this.removedVersion = expectedVersion; return Promise.resolve(ok(undefined)); }
   cancelEmpty(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   saveSegment(): Promise<Result<void>> { return Promise.resolve(ok(undefined)); }
   findSegmentById(id: SegmentId): Promise<Result<ParticipantSegment | null>> {
@@ -176,4 +180,16 @@ test("update game preserves the version observed when editing started", async ()
     { playerId: "p2", scorePoint: -5 },
     { playerId: "p3", scorePoint: -3 },
   ]);
+});
+
+
+test("history Session delete uses the version observed in the History list", async () => {
+  const sessions = new FakeSessionRepository();
+  const games = new FakeGameRepository();
+
+  const result = await new DeleteSessionUseCase(sessions, games).execute("s1", 3);
+
+  assert.equal(result.ok, true);
+  assert.equal(sessions.findByIdCalls, 0);
+  assert.equal(sessions.removedVersion, 3);
 });

@@ -17,7 +17,16 @@ Phase 1の端末内PoCを経て、元の4 Phase roadmap上のPhase 2（D1/API/�
 - Recovery: D1 Time Travel
 - Deploy: GitHub Actions + Wrangler
 
-Phase 2完了監査はIssue #145で管理する。PWAはPhase 3以降へDeferredし、Issue #160で再検討する。
+Phase 2完了監査はIssue #145で管理する。
+
+### Supported client policy
+
+- Desktop / mobile browser: supported
+- Android installable PWA: supported as an optional client
+- iPhone / iPad: Safari browser is the supported client
+- iOS standalone Home Screen Web App ("Webアプリとして開く" ON): unsupported
+
+iOS standalone and Safari have separate web-data contexts, and the current LINE OAuth flow could not establish and retain the application session reliably in real-device acceptance. The project therefore treats PWA as an optional enhancement rather than a release requirement. See #160 and #232.
 
 ## Development
 

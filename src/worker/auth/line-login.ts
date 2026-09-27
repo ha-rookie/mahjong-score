@@ -63,22 +63,18 @@ export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await reso
 
 export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID)return new Response("LINE Login is not configured",{status:503});
-  const url=new URL(request.url),inviteToken=url.searchParams.get("invite"),responseMode=url.searchParams.get("response"),handoffMode=url.searchParams.get("handoff")==="1";
+  const url=new URL(request.url),inviteToken=url.searchParams.get("invite"),responseMode=url.searchParams.get("response");
   if(inviteToken&&!validInviteToken(inviteToken)){auditAuth(request,"line_login_failure","failure",{reason:"invalid_invitation_format"});return new Response("Invalid invitation",{status:400});}
   const invitation=inviteToken?await activeInvitation(env,inviteToken):null;
   if(inviteToken&&!invitation){auditAuth(request,"line_login_failure","failure",{reason:"invitation_invalid_or_expired"});return new Response("Invitation is invalid or expired",{status:410});}
   const state=random(),nonce=random(),now=new Date(),expires=new Date(now.getTime()+10*60*1000),stateHash=await hashToken(state);
-  const handoffToken=handoffMode?random():null,handoffHash=handoffToken?await hashToken(handoffToken):null;
-  const startStatements=[
+  await env.DB.batch([
     env.DB.prepare("DELETE FROM line_login_states WHERE expires_at<? OR used_at IS NOT NULL").bind(now.toISOString()),
-    env.DB.prepare("DELETE FROM ios_pwa_auth_handoffs WHERE expires_at<? OR redeemed_at IS NOT NULL").bind(now.toISOString()),
     env.DB.prepare("INSERT INTO line_login_states(state_hash,nonce,invitation_id,expires_at,created_at) VALUES(?,?,?,?,?)").bind(stateHash,nonce,invitation?.id??null,expires.toISOString(),now.toISOString()),
-  ];
-  if(handoffHash)startStatements.push(env.DB.prepare("INSERT INTO ios_pwa_auth_handoffs(handoff_hash,state_hash,expires_at,created_at) VALUES(?,?,?,?)").bind(handoffHash,stateHash,expires.toISOString(),now.toISOString()));
-  await env.DB.batch(startStatements);
+  ]);
   const callback=new URL("/api/auth/line/callback",url.origin).toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
   to.search=new URLSearchParams({response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callback,state,scope:"profile openid",nonce}).toString();
-  if(responseMode==="json")return new Response(JSON.stringify({authorizationUrl:to.toString(),...(handoffToken?{handoffToken}: {})}),{headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
+  if(responseMode==="json")return new Response(JSON.stringify({authorizationUrl:to.toString()}),{headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
   return new Response(null,{status:302,headers:{location:to.toString()}});
 };
 
@@ -123,33 +119,12 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   }
 
   const inviteResult=loginState.invitationId?await redeemInvitationById(env,loginState.invitationId,row.userId):null;
-  const handoff=await env.DB.prepare("SELECT handoff_hash AS handoffHash FROM ios_pwa_auth_handoffs WHERE state_hash=? AND user_id IS NULL AND redeemed_at IS NULL AND expires_at>?").bind(stateHash,now).first<{handoffHash:string}>();
-  if(handoff){
-    await env.DB.prepare("UPDATE ios_pwa_auth_handoffs SET user_id=? WHERE handoff_hash=? AND user_id IS NULL AND redeemed_at IS NULL").bind(row.userId,handoff.handoffHash).run();
-    auditAuth(request,"line_login_success","success",{userId:row.userId,resourceType:"pwa_auth_handoff",resourceId:loginState.invitationId});
-    return new Response("<!doctype html><html lang=\"ja\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>LINE認証完了</title><body><main style=\"font-family:system-ui;padding:32px 20px;max-width:520px;margin:auto\"><h1>LINE認証が完了しました</h1><p>三麻スコアのWebアプリに戻ってください。</p></main></body></html>",{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}});
-  }
   const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET);
   const destination=new URL("/",url.origin);
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
   auditAuth(request,"line_login_success","success",{userId:row.userId,resourceType:"authentication",resourceId:loginState.invitationId});
   return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"}});
-};
-
-export const redeemIosPwaAuthHandoff=async(request:Request,env:AuthEnv)=>{
-  if(!env.AUTH_SESSION_SECRET)return new Response("Authentication is not configured",{status:503});
-  let payload:{handoffToken?:unknown}={};try{payload=await request.json() as {handoffToken?:unknown};}catch{return new Response(JSON.stringify({error:{code:"invalid_handoff",message:"Invalid handoff"}}),{status:400,headers:{"content-type":"application/json; charset=utf-8"}});}
-  const token=typeof payload.handoffToken==="string"?payload.handoffToken:"";
-  if(!/^[A-Za-z0-9_-]{43}$/.test(token))return new Response(JSON.stringify({ready:false}),{status:404,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
-  const handoffHash=await hashToken(token),now=new Date().toISOString();
-  const row=await env.DB.prepare("SELECT user_id AS userId FROM ios_pwa_auth_handoffs WHERE handoff_hash=? AND redeemed_at IS NULL AND expires_at>?").bind(handoffHash,now).first<{userId:string|null}>();
-  if(!row||!row.userId)return new Response(JSON.stringify({ready:false}),{status:202,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
-  const redeemed=await env.DB.prepare("UPDATE ios_pwa_auth_handoffs SET redeemed_at=? WHERE handoff_hash=? AND redeemed_at IS NULL AND user_id=?").bind(now,handoffHash,row.userId).run();
-  if(redeemed.meta.changes!==1)return new Response(JSON.stringify({ready:false}),{status:409,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
-  const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET);
-  auditAuth(request,"pwa_auth_handoff_redeemed","success",{userId:row.userId,resourceType:"pwa_auth_handoff"});
-  return new Response(JSON.stringify({authenticated:true}),{headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"}});
 };
 
 export const authMe=async(request:Request,env:AuthEnv)=>{

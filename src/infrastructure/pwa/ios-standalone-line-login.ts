@@ -1,212 +1,95 @@
-const LINE_LOGIN_PATH = "/api/auth/line/start";
-const LINE_LOGIN_URL_PATH = "/api/auth/line/start?response=json";
+const LINE_LOGIN_URL_PATH = "/api/auth/line/start?response=json&handoff=1";
 const LINE_LOGIN_ORIGIN = "https://access.line.me";
+const HANDOFF_REDEEM_PATH = "/api/auth/pwa-handoff/redeem";
 const LOGIN_BUTTON_SELECTOR = "button.login-gate__button";
-const LOGIN_WINDOW_NAME = "mahjong-line-oauth";
-const LOGIN_COMPLETE_MESSAGE = "mahjong:line-login-complete";
-const LOGIN_CHANNEL_NAME = "mahjong-line-login";
-const POPUP_CHECK_INTERVAL_MS = 250;
-const POPUP_CHECK_TIMEOUT_MS = 2 * 60 * 1000;
+const HANDOFF_STORAGE_KEY = "mahjong_ios_pwa_auth_handoff";
 
 type NavigatorWithStandalone = Navigator & { standalone?: boolean };
-
-type LoginCompletePayload = {
-  type: typeof LOGIN_COMPLETE_MESSAGE;
-};
-
-type AuthorizationUrlPayload = {
-  authorizationUrl?: string;
-};
+type AuthorizationUrlPayload = { authorizationUrl?: string; handoffToken?: string };
 
 let installed = false;
-let activePopup: Window | null = null;
-let popupCheckTimer: number | null = null;
-let popupTimeoutTimer: number | null = null;
-let reloading = false;
+let redeeming = false;
 
-export const isAppleMobilePlatform = (
-  userAgent: string,
-  platform: string,
-  maxTouchPoints: number,
-) =>
-  /iPad|iPhone|iPod/i.test(userAgent) ||
-  (platform === "MacIntel" && maxTouchPoints > 1);
+export const isAppleMobilePlatform = (userAgent:string,platform:string,maxTouchPoints:number) =>
+  /iPad|iPhone|iPod/i.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
 
-export const isStandaloneDisplayMode = (
-  displayModeStandalone: boolean,
-  navigatorStandalone?: boolean,
-) => displayModeStandalone || navigatorStandalone === true;
+export const isStandaloneDisplayMode = (displayModeStandalone:boolean,navigatorStandalone?:boolean) =>
+  displayModeStandalone || navigatorStandalone === true;
 
-const isIosStandaloneWebApp = () => {
-  const ios = isAppleMobilePlatform(
-    navigator.userAgent,
-    navigator.platform,
-    navigator.maxTouchPoints,
-  );
-  const standalone = isStandaloneDisplayMode(
-    window.matchMedia("(display-mode: standalone)").matches,
-    (navigator as NavigatorWithStandalone).standalone,
-  );
-  return ios && standalone;
-};
+const isIosStandaloneWebApp = () =>
+  isAppleMobilePlatform(navigator.userAgent,navigator.platform,navigator.maxTouchPoints) &&
+  isStandaloneDisplayMode(window.matchMedia("(display-mode: standalone)").matches,(navigator as NavigatorWithStandalone).standalone);
 
-const clearPopupTimers = () => {
-  if (popupCheckTimer !== null) {
-    window.clearInterval(popupCheckTimer);
-    popupCheckTimer = null;
-  }
-  if (popupTimeoutTimer !== null) {
-    window.clearTimeout(popupTimeoutTimer);
-    popupTimeoutTimer = null;
-  }
-};
+const clearHandoff = () => { try { sessionStorage.removeItem(HANDOFF_STORAGE_KEY); } catch { /* no-op */ } };
+const saveHandoff = (token:string) => { try { sessionStorage.setItem(HANDOFF_STORAGE_KEY,token); } catch { /* no-op */ } };
+const readHandoff = () => { try { return sessionStorage.getItem(HANDOFF_STORAGE_KEY); } catch { return null; } };
 
-const reloadAfterLogin = () => {
-  if (reloading) return;
-  reloading = true;
-  clearPopupTimers();
-  activePopup = null;
-  window.location.reload();
-};
-
-const watchPopupClose = (popup: Window) => {
-  clearPopupTimers();
-  popupCheckTimer = window.setInterval(() => {
-    if (popup.closed) reloadAfterLogin();
-  }, POPUP_CHECK_INTERVAL_MS);
-  popupTimeoutTimer = window.setTimeout(() => {
-    clearPopupTimers();
-    activePopup = null;
-  }, POPUP_CHECK_TIMEOUT_MS);
-};
-
-const loadDirectAuthorizationUrl = async (popup: Window) => {
+const redeemHandoff = async () => {
+  if (redeeming) return;
+  const handoffToken=readHandoff();
+  if(!handoffToken) return;
+  redeeming=true;
   try {
-    const response = await fetch(LINE_LOGIN_URL_PATH, {
-      credentials: "same-origin",
-      headers: { accept: "application/json" },
-      cache: "no-store",
+    const response=await fetch(HANDOFF_REDEEM_PATH,{
+      method:"POST",
+      credentials:"same-origin",
+      cache:"no-store",
+      headers:{"content-type":"application/json","accept":"application/json"},
+      body:JSON.stringify({handoffToken}),
     });
-    if (!response.ok) throw new Error("LINE login start failed");
-    const payload = (await response.json()) as AuthorizationUrlPayload;
-    if (!payload.authorizationUrl) throw new Error("LINE authorize URL missing");
-    const authorizationUrl = new URL(payload.authorizationUrl);
-    if (authorizationUrl.origin !== LINE_LOGIN_ORIGIN) {
-      throw new Error("Unexpected LINE authorize origin");
+    if(response.ok){
+      clearHandoff();
+      window.location.reload();
+      return;
     }
-    if (popup.closed) return;
-
-    // The user gesture creates the Web App window synchronously. Only after
-    // that do we fetch the state-bound authorize URL and navigate this existing
-    // Web App window directly to LINE. This avoids relying on a server-side 302
-    // from an in-scope URL to the out-of-scope OAuth provider.
-    popup.location.href = authorizationUrl.toString();
-  } catch {
-    clearPopupTimers();
-    activePopup = null;
-    try { popup.close(); } catch { /* no-op */ }
-    // Preserve the existing login path as a last-resort fallback. Normal
-    // Safari and Android never enter this iOS standalone-only branch.
-    window.location.assign(LINE_LOGIN_PATH);
+    // 202 means LINE has not completed yet. Keep the one-time token for the
+    // next focus/visibility event; do not poll D1 continuously.
+    if(response.status!==202) clearHandoff();
+  } finally {
+    redeeming=false;
   }
 };
 
-const openLineLoginInsideWebApp = () => {
-  if (activePopup && !activePopup.closed) {
-    activePopup.focus();
-    return;
-  }
-
-  // Open synchronously from the tap before any async work. iOS can block a
-  // window created after an awaited fetch, and we specifically need the OAuth
-  // browsing context to originate from the standalone Web App.
-  const popup = window.open("about:blank", LOGIN_WINDOW_NAME);
-  if (!popup) {
-    window.location.assign(LINE_LOGIN_PATH);
-    return;
-  }
-
-  activePopup = popup;
-  watchPopupClose(popup);
-  void loadDirectAuthorizationUrl(popup);
-};
-
-const isLoginCompletePayload = (value: unknown): value is LoginCompletePayload =>
-  typeof value === "object" &&
-  value !== null &&
-  (value as { type?: unknown }).type === LOGIN_COMPLETE_MESSAGE;
-
-export const notifyLineLoginCompletion = () => {
-  const url = new URL(window.location.href);
-  if (url.searchParams.get("login") !== "success") return false;
-
-  const payload: LoginCompletePayload = { type: LOGIN_COMPLETE_MESSAGE };
-
+const startLineLoginWithServerHandoff = async () => {
+  // The OAuth provider may open Safari on iOS. That is now intentional: Safari
+  // only completes LINE identity verification. It does not receive the app
+  // session. The standalone PWA redeems a one-time server handoff afterward.
   try {
-    if (window.opener && window.opener !== window) {
-      window.opener.postMessage(payload, window.location.origin);
-    }
+    const response=await fetch(LINE_LOGIN_URL_PATH,{credentials:"same-origin",cache:"no-store",headers:{accept:"application/json"}});
+    if(!response.ok) throw new Error("LINE login start failed");
+    const payload=await response.json() as AuthorizationUrlPayload;
+    if(!payload.authorizationUrl||!payload.handoffToken) throw new Error("LINE handoff missing");
+    const authorizationUrl=new URL(payload.authorizationUrl);
+    if(authorizationUrl.origin!==LINE_LOGIN_ORIGIN) throw new Error("Unexpected LINE authorize origin");
+    saveHandoff(payload.handoffToken);
+    window.location.assign(authorizationUrl.toString());
   } catch {
-    // The OAuth provider may sever opener linkage; BroadcastChannel below is
-    // the same-origin fallback once the callback has returned to the Web App.
+    clearHandoff();
+    window.location.assign("/api/auth/line/start");
   }
-
-  if (typeof BroadcastChannel !== "undefined") {
-    try {
-      const channel = new BroadcastChannel(LOGIN_CHANNEL_NAME);
-      channel.postMessage(payload);
-      channel.close();
-    } catch {
-      // Closing the script-opened OAuth window is still sufficient for the
-      // parent watcher to reload and re-read /api/auth/me once.
-    }
-  }
-
-  try {
-    // This succeeds for a script-opened OAuth window. In a normal same-tab
-    // browser login it is ignored, so the existing Safari flow remains intact.
-    window.close();
-  } catch {
-    // No action required. The authenticated page can continue rendering.
-  }
-
-  return true;
 };
+
+// Kept for existing bootstrap integration. Server-handoff callbacks no longer
+// redirect here, but normal Safari login still can.
+export const notifyLineLoginCompletion = () => new URL(window.location.href).searchParams.get("login")==="success";
 
 export const installIosStandaloneLineLoginBridge = () => {
-  if (installed || !isIosStandaloneWebApp()) return;
-  installed = true;
+  if(installed||!isIosStandaloneWebApp()) return;
+  installed=true;
 
-  const onClick = (event: MouseEvent) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const button = target.closest(LOGIN_BUTTON_SELECTOR);
-    if (!(button instanceof HTMLButtonElement)) return;
-
-    // Capture before React's onClick. The existing normal-browser handler uses
-    // location.assign(), which can move iOS standalone OAuth into Safari.
+  document.addEventListener("click",(event:MouseEvent)=>{
+    const target=event.target;
+    if(!(target instanceof Element)) return;
+    const button=target.closest(LOGIN_BUTTON_SELECTOR);
+    if(!(button instanceof HTMLButtonElement)) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    openLineLoginInsideWebApp();
-  };
+    void startLineLoginWithServerHandoff();
+  },true);
 
-  const onMessage = (event: MessageEvent<unknown>) => {
-    if (event.origin !== window.location.origin) return;
-    if (isLoginCompletePayload(event.data)) reloadAfterLogin();
-  };
-
-  document.addEventListener("click", onClick, true);
-  window.addEventListener("message", onMessage);
-
-  if (typeof BroadcastChannel !== "undefined") {
-    try {
-      const channel = new BroadcastChannel(LOGIN_CHANNEL_NAME);
-      channel.addEventListener("message", (event: MessageEvent<unknown>) => {
-        if (isLoginCompletePayload(event.data)) reloadAfterLogin();
-      });
-    } catch {
-      // opener + popup.closed remain available as fallbacks.
-    }
-  }
+  // No interval polling: one D1 read only when the user returns to the PWA.
+  window.addEventListener("focus",()=>void redeemHandoff());
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void redeemHandoff();});
+  void redeemHandoff();
 };

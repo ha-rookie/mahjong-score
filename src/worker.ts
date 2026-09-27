@@ -151,17 +151,19 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
  const unlinkPlayer=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)\/players\/([^/]+)\/link$/);
  if(request.method==="DELETE"&&unlinkPlayer){
    if(!await isSystemAdmin(env,authUserId))return deny("System admin role required");
-   const groupId=decodeURIComponent(unlinkPlayer[1]),playerId=decodeURIComponent(unlinkPlayer[2]);
+   const groupId=decodeURIComponent(unlinkPlayer[1]),playerId=decodeURIComponent(unlinkPlayer[2]),expectedUserId=url.searchParams.get("expectedUserId");
+   if(!expectedUserId)return bad("invalid_expected_state","expectedUserId is required");
    const link=await env.DB.prepare("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=? AND active=1").bind(groupId,playerId).first<{userId:string|null}>();
    if(!link)return bad("player_not_found","Active Player not found in Group",404);
-   if(!link.userId)return json({ok:true,alreadyUnlinked:true});
+   if(link.userId!==expectedUserId)return bad("stale_update","Player link was updated by another client",409);
    const userId=link.userId,now=new Date().toISOString();
    try{
-     await env.DB.batch([
+     const rs=await env.DB.batch([
        env.DB.prepare("UPDATE group_players SET user_id=NULL WHERE group_id=? AND player_id=? AND user_id=?").bind(groupId,playerId,userId),
        env.DB.prepare("DELETE FROM group_memberships WHERE group_id=? AND user_id=? AND role='member'").bind(groupId,userId),
        env.DB.prepare("UPDATE invitations SET revoked_at=? WHERE group_id=? AND player_id=? AND used_at IS NULL AND revoked_at IS NULL").bind(now,groupId,playerId),
      ]);
+     if((rs[0]?.meta.changes??0)!==1)return bad("stale_update","Player link was updated by another client",409);
      auditSuccess("player_user_unlinked",{groupId,resourceType:"player",resourceId:playerId});return json({ok:true,userId});
    }catch{return bad("player_unlink_failed","Player link could not be removed",409);}
  }
@@ -209,8 +211,11 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
  if(request.method==="PATCH"&&manage){
    if(!await isSystemAdmin(env,authUserId))return deny("System admin role required");
    const groupId=decodeURIComponent(manage[1]),userId=decodeURIComponent(manage[2]),b=await body(request);
-   const role=b?.role==="group_admin"||b?.role==="member"?b.role:null,playerId=b?.playerId===null?null:textValue(b?.playerId),now=new Date().toISOString();
-   if(!role)return bad("invalid_role","role must be group_admin or member");
+   const role=b?.role==="group_admin"||b?.role==="member"?b.role:null,playerId=b?.playerId===null?null:textValue(b?.playerId),expectedRole=b?.expectedRole===null?null:(b?.expectedRole==="group_admin"||b?.expectedRole==="member"?b.expectedRole:undefined),expectedPlayerId=b?.expectedPlayerId===null?null:textValue(b?.expectedPlayerId),now=new Date().toISOString();
+   if(!role||expectedRole===undefined)return bad("invalid_role","role and expectedRole are required");
+   const current=await env.DB.prepare("SELECT gm.role AS groupRole,gp.player_id AS playerId FROM users u LEFT JOIN group_memberships gm ON gm.user_id=u.id AND gm.group_id=? LEFT JOIN group_players gp ON gp.user_id=u.id AND gp.group_id=? WHERE u.id=?").bind(groupId,groupId,userId).first<{groupRole:string|null;playerId:string|null}>();
+   if(!current)return bad("not_found","User not found",404);
+   if((current.groupRole??null)!==expectedRole||(current.playerId??null)!==(expectedPlayerId??null))return bad("stale_update","Membership or Player link was updated by another client",409);
    const groupExists=await env.DB.prepare("SELECT 1 AS ok FROM groups WHERE id=?").bind(groupId).first();
    const userExists=await env.DB.prepare("SELECT 1 AS ok FROM users WHERE id=?").bind(userId).first();
    if(!groupExists||!userExists)return bad("not_found","Group or User not found",404);

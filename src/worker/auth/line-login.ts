@@ -42,16 +42,24 @@ export const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:s
   }catch{return "conflict";}
 };
 
-export const authenticatedUserId=async(request:Request,env:AuthEnv)=>{
-  if(!env.AUTH_SESSION_SECRET)return null;
-  const raw=cookie(request,"mahjong_session"),[payload,sig]=raw?.split(".")??[];
-  if(!payload||!sig||!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return null;
+type SessionResolution={userId:string|null;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"valid"};
+const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolution>=>{
+  if(!env.AUTH_SESSION_SECRET)return {userId:null,status:"secret_missing"};
+  const raw=cookie(request,"mahjong_session");
+  if(!raw)return {userId:null,status:"cookie_missing"};
+  const [payload,sig,...extra]=raw.split(".");
+  if(!payload||!sig||extra.length)return {userId:null,status:"malformed"};
+  if(!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return {userId:null,status:"bad_signature"};
   try{
     const padded=payload.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(payload.length/4)*4,"=");
     const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0)))) as {userId?:string;exp?:number};
-    return data.userId&&data.exp&&data.exp>Math.floor(Date.now()/1000)?data.userId:null;
-  }catch{return null;}
+    if(!data.userId||!data.exp)return {userId:null,status:"invalid_payload"};
+    if(data.exp<=Math.floor(Date.now()/1000))return {userId:null,status:"expired"};
+    return {userId:data.userId,status:"valid"};
+  }catch{return {userId:null,status:"invalid_payload"};}
 };
+
+export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await resolveSession(request,env)).userId;
 
 export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID)return new Response("LINE Login is not configured",{status:503});
@@ -119,8 +127,11 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
 };
 
 export const authMe=async(request:Request,env:AuthEnv)=>{
-  const userId=await authenticatedUserId(request,env);
-  if(!userId)return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});
+  const session=await resolveSession(request,env),userId=session.userId;
+  if(!userId){
+    auditAuth(request,"auth_session_resolved","failure",{resourceType:"authentication",reason:"session_"+session.status});
+    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});
+  }
   const user=await env.DB.prepare("SELECT id,display_name AS displayName,system_role AS systemRole FROM users WHERE id=?").bind(userId).first();
   const memberships=await env.DB.prepare("SELECT gm.group_id AS groupId,g.name AS groupName,gm.role,gp.player_id AS playerId,p.display_name AS playerDisplayName FROM group_memberships gm JOIN groups g ON g.id=gm.group_id LEFT JOIN group_players gp ON gp.group_id=gm.group_id AND gp.user_id=gm.user_id LEFT JOIN players p ON p.id=gp.player_id WHERE gm.user_id=? ORDER BY gm.created_at,gm.group_id").bind(userId).all();
   auditAuth(request,"auth_session_resolved","success",{userId,resourceType:"authentication",reason:"membership_count="+memberships.results.length});

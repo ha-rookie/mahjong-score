@@ -34,14 +34,14 @@ class Games implements GameRepository {
 
 test("finalize session records status and endedAt and removes it from active query",async()=>{
  const repo=new Repo();
- const result=await new FinalizeSessionUseCase(repo,new Games(),{now:()=>"2026-09-23T09:30:00.000Z"}).execute("s1");
+ const result=await new FinalizeSessionUseCase(repo,new Games(),{now:()=>"2026-09-23T09:30:00.000Z"}).execute(base);
  assert.equal(result.ok,true);assert.equal(repo.session.status,"finalized");assert.equal(repo.session.endedAt,"2026-09-23T09:30:00.000Z");
  const active=await new GetActiveSessionUseCase(repo).execute("g1");assert.equal(active.ok,true);if(active.ok)assert.equal(active.value,null);
 });
 
 test("zero-game Session cannot be finalized",async()=>{
  const repo=new Repo();
- const result=await new FinalizeSessionUseCase(repo,new Games([]),{now:()=>"2026-09-23T09:30:00.000Z"}).execute("s1");
+ const result=await new FinalizeSessionUseCase(repo,new Games([]),{now:()=>"2026-09-23T09:30:00.000Z"}).execute(base);
  assert.equal(result.ok,false);
  if(!result.ok)assert.equal(result.error.code,"session_empty");
  assert.equal(repo.session.status,"active");

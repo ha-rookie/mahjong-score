@@ -180,7 +180,7 @@ test("multi-group member still cannot read an unjoined third group",async()=>{
 
 test("group admin cannot rename a group",async()=>{
   const db=new FakeDb({admin:{memberships:{g1:"group_admin"}}});
-  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"Renamed",updatedAt:"2026-01-02"})},"admin"),env(db));
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"Renamed",updatedAt:"2026-01-02",expectedUpdatedAt:"2026-01-01"})},"admin"),env(db));
   assert.equal(response.status,403);
 });
 
@@ -190,7 +190,7 @@ test("system admin can rename a group without changing its id",async()=>{
     {},false,{}, {},{},false,null,{}, {},
     {g1:{name:"Before",createdAt:"2026-01-01"}}
   );
-  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"After",updatedAt:"2026-01-02"})},"admin"),env(db));
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"After",updatedAt:"2026-01-02",expectedUpdatedAt:"2026-01-01"})},"admin"),env(db));
   assert.equal(response.status,200);
   const payload=await response.json() as {group:{id:string;name:string;createdAt:string;updatedAt:string}};
   assert.deepEqual(payload.group,{id:"g1",name:"After",createdAt:"2026-01-01",updatedAt:"2026-01-02"});
@@ -247,13 +247,13 @@ test("system admin can create a group",async()=>{
 
 test("member cannot rename a group",async()=>{
   const db=new FakeDb({member:{memberships:{g1:"member"}}});
-  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"Renamed",updatedAt:"2026-01-02"})},"member"),env(db));
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"Renamed",updatedAt:"2026-01-02",expectedUpdatedAt:"2026-01-01"})},"member"),env(db));
   assert.equal(response.status,403);
 });
 
 test("system admin API rejects an oversized renamed group name",async()=>{
   const db=new FakeDb({admin:{systemAdmin:true}});
-  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"G".repeat(41),updatedAt:"2026-01-02"})},"admin"),env(db));
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"G".repeat(41),updatedAt:"2026-01-02",expectedUpdatedAt:"2026-01-01"})},"admin"),env(db));
   assert.equal(response.status,400);
   assert.equal(await errorCode(response),"group_name_too_long");
 });
@@ -571,10 +571,10 @@ test("group admin can update own Group Mahjong defaults",async()=>{
   const response=await worker.fetch(await request("/api/groups/g1/rules",{
     method:"PATCH",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27"})
+    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27",expectedUpdatedAt:"2026-01-01"})
   },"admin"),env(db));
   assert.equal(response.status,200);
-  assert.deepEqual(await response.json(),{rules:{startingPoints:30000,returnPoints:35000,chipRate:10}});
+  assert.deepEqual(await response.json(),{rules:{startingPoints:30000,returnPoints:35000,chipRate:10},updatedAt:"2026-09-27"});
 });
 
 test("member cannot update Group Mahjong defaults",async()=>{
@@ -586,7 +586,7 @@ test("member cannot update Group Mahjong defaults",async()=>{
   const response=await worker.fetch(await request("/api/groups/g1/rules",{
     method:"PATCH",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27"})
+    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27",expectedUpdatedAt:"2026-01-01"})
   },"member"),env(db));
   assert.equal(response.status,403);
   assert.equal(await errorCode(response),"forbidden");
@@ -601,7 +601,7 @@ test("group admin cannot update another Group Mahjong defaults",async()=>{
   const response=await worker.fetch(await request("/api/groups/g2/rules",{
     method:"PATCH",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27"})
+    body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-09-27",expectedUpdatedAt:"2026-01-01"})
   },"admin"),env(db));
   assert.equal(response.status,403);
 });
@@ -675,4 +675,51 @@ test("performance aggregation uses each Session chip rate",async()=>{
   const sql=db.preparedSql.find(value=>value.includes("AS finalPoint"))??"";
   assert.match(sql,/cr\.chip_count,0\)\*s\.chip_rate AS finalPoint/);
   assert.doesNotMatch(sql,/cr\.chip_count,0\)\*[0-9]+ AS finalPoint/);
+});
+
+
+test("stale Group rename returns 409",async()=>{
+  const db=new FakeDb({admin:{systemAdmin:true}}, {},true,{}, {},{},false,null,{}, {}, {g1:{name:"Before",createdAt:"2026-01-01",updatedAt:"2026-01-02"}});
+  const response=await worker.fetch(await request("/api/groups/g1",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({name:"After",updatedAt:"2026-01-03",expectedUpdatedAt:"2026-01-01"})},"admin"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"stale_update");
+});
+
+test("stale Group Mahjong rules update returns 409",async()=>{
+  const db=new FakeDb({admin:{memberships:{g1:"group_admin"}}}, {},true,{}, {},{},false,null,{}, {}, {g1:{name:"One",updatedAt:"2026-01-02",startingPoints:35000,returnPoints:40000,chipRate:5}});
+  const response=await worker.fetch(await request("/api/groups/g1/rules",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({startingPoints:30000,returnPoints:35000,chipRate:10,updatedAt:"2026-01-03",expectedUpdatedAt:"2026-01-01"})},"admin"),env(db));
+  assert.equal(response.status,409);
+  assert.equal(await errorCode(response),"stale_update");
+});
+
+
+test("Game mutations advance the Session aggregate version",async()=>{
+  const createDb=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:1,status:"active"}},false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}}
+  );
+  const created=await worker.fetch(await request("/api/sessions/s1/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"game-new",segmentId:"seg1",sequence:1,playedAt:"2026-09-27T12:00:00Z",results:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]})},"member"),env(createDb));
+  assert.equal(created.status,201);
+  assert.ok(createDb.preparedSql.some(sql=>sql.includes("UPDATE sessions SET version=version+1")));
+
+  const updateDb=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:2,status:"active"}},false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:1,groupId:"g1",status:"active"}}
+  );
+  const updated=await worker.fetch(await request("/api/games/game1",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({segmentId:"seg1",sequence:1,playedAt:"2026-09-27T12:00:00Z",expectedVersion:1,results:[{playerId:"p1",scorePoint:8},{playerId:"p2",scorePoint:-3},{playerId:"p3",scorePoint:-5}],tags:[]})},"member"),env(updateDb));
+  assert.equal(updated.status,200);
+  assert.ok(updateDb.preparedSql.some(sql=>sql.includes("UPDATE sessions SET version=version+1")));
+
+  const deleteDb=new FakeDb(
+    {member:{memberships:{g1:"member"}}},
+    {s1:{groupId:"g1",version:3,status:"active"}},false,
+    {seg1:{sessionId:"s1",players:["p1","p2","p3"]}},
+    {game1:{sessionId:"s1",segmentId:"seg1",version:2,groupId:"g1",status:"active"}}
+  );
+  const deleted=await worker.fetch(await request("/api/games/game1?version=2",{method:"DELETE"},"member"),env(deleteDb));
+  assert.equal(deleted.status,204);
+  assert.ok(deleteDb.preparedSql.some(sql=>sql.includes("UPDATE sessions SET version=version+1")));
 });

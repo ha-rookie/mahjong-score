@@ -21,3 +21,13 @@
     grid-template-columns: 42px repeat(4, minmax(0, 1fr));
   }
 }
+
+
+/* iOS/WebKit can zoom the page when a focused form control renders below 16px. */
+@media (max-width: 520px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

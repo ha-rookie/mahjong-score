@@ -8,4 +8,16 @@
     font-size: 0.92rem;
     white-space: nowrap;
   }
+
+  .score-sheet__corner,
+  .score-sheet__label {
+    white-space: nowrap;
+    word-break: keep-all;
+  }
+}
+
+@media (max-width: 380px) {
+  .score-sheet--4 {
+    grid-template-columns: 42px repeat(4, minmax(0, 1fr));
+  }
 }

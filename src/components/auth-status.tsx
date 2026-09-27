@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Membership = {
   groupId: string;
@@ -21,6 +21,7 @@ export function AuthStatus() {
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [hasLegacyData,setHasLegacyData]=useState(false);
+  const accountMenuRef=useRef<HTMLDetailsElement>(null);
 
   const load=async()=>{
     setLoading(true);setError(null);
@@ -54,6 +55,16 @@ export function AuthStatus() {
     }
   },[]);
 
+  useEffect(()=>{
+    const handlePointerDown=(event:PointerEvent)=>{
+      const menu=accountMenuRef.current;
+      if(!menu?.open||!(event.target instanceof Node)||menu.contains(event.target))return;
+      menu.open=false;
+    };
+    document.addEventListener("pointerdown",handlePointerDown);
+    return()=>document.removeEventListener("pointerdown",handlePointerDown);
+  },[]);
+
   const logout=async()=>{setBusy(true);setError(null);try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"});setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:null}));}catch{setError("ログアウトできませんでした。");}setBusy(false);};
   const bootstrap=async()=>{setBusy(true);setError(null);try{const response=await fetch("/api/auth/bootstrap-admin",{method:"POST",credentials:"same-origin"});if(!response.ok){const payload=await response.json() as {error?:{message?:string}};throw new Error(payload.error?.message??"bootstrap");}const payload=await response.json() as AuthPayload;setAuth(payload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:payload}));}catch{setError("管理者の初期設定に失敗しました。");}setBusy(false);};
   const migrateToD1=async()=>{
@@ -79,7 +90,7 @@ export function AuthStatus() {
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";
 
   return <div className="auth-status">
-    <details className="account-menu">
+    <details ref={accountMenuRef} className="account-menu">
       <summary className="account-menu__summary">
         <span className="account-menu__name">{auth.user.displayName??"LINEユーザー"}</span>
         <span className="account-menu__chevron" aria-hidden="true">⌄</span>

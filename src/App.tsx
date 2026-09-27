@@ -64,7 +64,8 @@ function App() {
   const [ruleReturnPoints,setRuleReturnPoints]=useState(40000);
   const [ruleChipRate,setRuleChipRate]=useState(5);
   const [scoreInputs,setScoreInputs]=useState<Record<string,string>>({});
-  const [editingGameId,setEditingGameId]=useState<string|null>(null);\n  const [editingGameVersion,setEditingGameVersion]=useState<number|undefined>(undefined);
+  const [editingGameId,setEditingGameId]=useState<string|null>(null);
+  const [editingGameVersion,setEditingGameVersion]=useState<number|undefined>(undefined);
   const [chipInputs,setChipInputs]=useState<Record<string,string>>({});
   const [sessionNote,setSessionNote]=useState("");
   const [isLoading,setIsLoading]=useState(true);

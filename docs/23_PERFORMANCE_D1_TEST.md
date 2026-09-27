@@ -31,7 +31,7 @@ The base fixture is retained. Do not clean it up after a test. The two smaller G
 ## Layers
 1. CI local D1: generate, insert and validate the realistic fixture. No Cloudflare quota.
 2. CI local benchmark: 5y/10y query regression benchmark. No Cloudflare quota.
-3. Remote Performance D1: one-time 5y seed after daily quota availability is confirmed.
+3. Remote Performance D1: one-time multi-group 5y seed after daily quota availability is confirmed.
 4. Smartphone: real Worker/API/React and LINE authentication.
 
 ## D1 read-cost regression rules
@@ -72,8 +72,11 @@ CLI wall time is not an application latency metric because each local benchmark 
 - Do not run migration or seed while the account is D1 quota-limited.
 - Pull-request CI validates migrations locally and must not apply migrations to remote Preview D1.
 
+## Performance System Admin setup
+Do not copy LINE credentials, session cookies, channel secrets, or a LINE user identifier into the public repository. After the Performance Worker is deployed and its callback URL is registered, sign in to the Performance Worker with the same owner LINE account used for validation. Because Performance D1 is isolated, use the existing one-time bootstrap-admin flow while no System Admin exists in Performance D1. This creates/updates the authenticated User in Performance D1 and assigns the Performance-local System Admin role without copying authentication secrets from Preview or Production.
+
 ## Smartphone CRUD scenario
-After the base fixture exists:
+After the multi-group fixture exists and the owner account is System Admin:
 1. Sign in with LINE to the Performance Worker.
 2. Confirm all expected Performance Groups are visible for System Admin, switch between them, and verify history/statistics/Players never leak across the selected Group.
 3. Rename a secondary Group and confirm its existing history/statistics remain attached to the same Group ID.

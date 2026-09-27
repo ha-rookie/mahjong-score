@@ -10,8 +10,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "mahjong-score-prod",
-      "database_id": "95a84e69-692e-45f1-9762-0b71b298199b",
+      "database_name": "mahjong-score-performance",
+      "database_id": "37b05ca8-9f6e-46b4-92be-7e02513cf044",
       "preview_database_id": "2494979f-57d5-4ba5-bde7-bc5ec674b8eb"
     }
   ],

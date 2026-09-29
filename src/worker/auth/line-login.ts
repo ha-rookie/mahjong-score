@@ -16,7 +16,8 @@ const cookie=(request:Request,name:string)=>request.headers.get("cookie")?.match
 const sign=async(value:string,secret:string)=>{const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,enc.encode(value))));};
 const safeEqual=(a:string,b:string)=>{if(a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;};
 const makeSession=async(userId:string,secret:string)=>{const payload=base64url(enc.encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+86400})));return payload+"."+await sign(payload,secret);};
-const lineFailure=async(request:Request,response:Response,stage:string)=>{let details:LineError={};try{details=await response.json() as LineError;}catch{details={};}auditAuth(request,"line_login_failure","failure",{reason:stage});return new Response(JSON.stringify({error:{code:"line_"+stage+"_failed",message:details.error_description??details.error??"LINE request failed",lineStatus:response.status}}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});};
+const lineFailure=async(request:Request,response:Response,stage:string)=>{let details:LineError={};try{details=await response.json() as LineError;}catch{details={};}auditAuth(request,"line_login_failure","failure",{reason:stage});return new Response(JSON.stringify({error:{code:"line_"+stage+"_failed",message:details.error_description??details.error??"LINE request failed",lineStatus:response.status}}),{status:401,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});};
+const loginGateRedirect=(url:URL)=>{const destination=new URL("/",url.origin);destination.searchParams.set("login","failed");return new Response(null,{status:302,headers:{location:destination.toString(),"cache-control":"no-store"}});};
 
 const activeInvitation=async(env:AuthEnv,token:string)=>{
   const tokenHash=await hashToken(token);
@@ -63,42 +64,57 @@ export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await reso
 
 export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID)return new Response("LINE Login is not configured",{status:503});
-  const url=new URL(request.url),inviteToken=url.searchParams.get("invite"),responseMode=url.searchParams.get("response");
-  if(inviteToken&&!validInviteToken(inviteToken)){auditAuth(request,"line_login_failure","failure",{reason:"invalid_invitation_format"});return new Response("Invalid invitation",{status:400});}
+  const url=new URL(request.url),inviteToken=url.searchParams.get("invite"),responseMode=url.searchParams.get("response"),manualRetry=url.searchParams.get("disable_auto_login")==="true";
+  if(inviteToken&&!validInviteToken(inviteToken)){auditAuth(request,"line_login_failure","failure",{reason:"invalid_invitation_format"});return new Response("Invalid invitation",{status:400,headers:{"cache-control":"no-store"}});}
   const invitation=inviteToken?await activeInvitation(env,inviteToken):null;
-  if(inviteToken&&!invitation){auditAuth(request,"line_login_failure","failure",{reason:"invitation_invalid_or_expired"});return new Response("Invitation is invalid or expired",{status:410});}
+  if(inviteToken&&!invitation){auditAuth(request,"line_login_failure","failure",{reason:"invitation_invalid_or_expired"});return new Response("Invitation is invalid or expired",{status:410,headers:{"cache-control":"no-store"}});}
+  const disableAutoLogin=manualRetry||Boolean(invitation);
   const state=random(),nonce=random(),now=new Date(),expires=new Date(now.getTime()+10*60*1000),stateHash=await hashToken(state);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM line_login_states WHERE expires_at<? OR used_at IS NOT NULL").bind(now.toISOString()),
     env.DB.prepare("INSERT INTO line_login_states(state_hash,nonce,invitation_id,expires_at,created_at) VALUES(?,?,?,?,?)").bind(stateHash,nonce,invitation?.id??null,expires.toISOString(),now.toISOString()),
   ]);
-  const callback=new URL("/api/auth/line/callback",url.origin).toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
-  to.search=new URLSearchParams({response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callback,state,scope:"profile openid",nonce}).toString();
+  const callbackUrl=new URL("/api/auth/line/callback",url.origin);
+  if(disableAutoLogin)callbackUrl.searchParams.set("line_retry","1");
+  const callback=callbackUrl.toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
+  const authorizationParams=new URLSearchParams({response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callback,state,scope:"profile openid",nonce});
+  if(disableAutoLogin)authorizationParams.set("disable_auto_login","true");
+  to.search=authorizationParams.toString();
   if(responseMode==="json")return new Response(JSON.stringify({authorizationUrl:to.toString()}),{headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
-  return new Response(null,{status:302,headers:{location:to.toString()}});
+  return new Response(null,{status:302,headers:{location:to.toString(),"cache-control":"no-store"}});
 };
 
 export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
-  if(!env.LINE_CHANNEL_ID||!env.LINE_CHANNEL_SECRET||!env.AUTH_SESSION_SECRET)return new Response("LINE Login is not configured",{status:503});
-  const url=new URL(request.url);
-  if(url.searchParams.get("error")){auditAuth(request,"line_login_failure","failure",{reason:"cancelled"});return new Response("LINE Login was cancelled",{status:401});}
+  if(!env.LINE_CHANNEL_ID||!env.LINE_CHANNEL_SECRET||!env.AUTH_SESSION_SECRET)return new Response("LINE Login is not configured",{status:503,headers:{"cache-control":"no-store"}});
+  const url=new URL(request.url),retryMode=url.searchParams.get("line_retry")==="1";
+  if(url.searchParams.get("error")){auditAuth(request,"line_login_failure","failure",{reason:"cancelled"});return loginGateRedirect(url);}
   const code=url.searchParams.get("code"),state=url.searchParams.get("state");
-  if(!code||!state){auditAuth(request,"line_login_failure","failure",{reason:"missing_code_or_state"});return new Response("Invalid LINE Login state",{status:400});}
+  if(!code||!state){auditAuth(request,"line_login_failure","failure",{reason:"missing_code_or_state"});return loginGateRedirect(url);}
   const stateHash=await hashToken(state),now=new Date().toISOString();
   const loginState=await env.DB.prepare("SELECT nonce,invitation_id AS invitationId FROM line_login_states WHERE state_hash=? AND used_at IS NULL AND expires_at>?").bind(stateHash,now).first<LoginStateRow>();
-  if(!loginState){auditAuth(request,"line_login_failure","failure",{reason:"state_invalid_or_expired"});return new Response("Invalid LINE Login state",{status:400});}
+  if(!loginState){
+    auditAuth(request,"line_login_failure","failure",{reason:retryMode?"state_invalid_or_expired_after_manual_retry":"state_invalid_or_expired"});
+    if(!retryMode){
+      const retryUrl=new URL("/api/auth/line/start",url.origin);
+      retryUrl.searchParams.set("disable_auto_login","true");
+      return startLineLogin(new Request(retryUrl.toString()),env);
+    }
+    return loginGateRedirect(url);
+  }
   const consumed=await env.DB.prepare("UPDATE line_login_states SET used_at=? WHERE state_hash=? AND used_at IS NULL").bind(now,stateHash).run();
-  if(consumed.meta.changes!==1){auditAuth(request,"line_login_failure","failure",{reason:"state_already_consumed"});return new Response("Invalid LINE Login state",{status:400});}
+  if(consumed.meta.changes!==1){auditAuth(request,"line_login_failure","failure",{reason:"state_already_consumed"});return loginGateRedirect(url);}
 
-  const redirectUri=new URL("/api/auth/line/callback",url.origin).toString();
+  const redirectUrl=new URL("/api/auth/line/callback",url.origin);
+  if(retryMode)redirectUrl.searchParams.set("line_retry","1");
+  const redirectUri=redirectUrl.toString();
   const tokenResponse=await fetch("https://api.line.me/oauth2/v2.1/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:redirectUri,client_id:env.LINE_CHANNEL_ID,client_secret:env.LINE_CHANNEL_SECRET})});
   if(!tokenResponse.ok)return lineFailure(request,tokenResponse,"token_exchange");
   const token=await tokenResponse.json() as LineToken;
-  if(!token.id_token){auditAuth(request,"line_login_failure","failure",{reason:"id_token_missing"});return new Response("LINE ID token missing",{status:401});}
+  if(!token.id_token){auditAuth(request,"line_login_failure","failure",{reason:"id_token_missing"});return new Response("LINE ID token missing",{status:401,headers:{"cache-control":"no-store"}});}
   const verifyResponse=await fetch("https://api.line.me/oauth2/v2.1/verify",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({id_token:token.id_token,client_id:env.LINE_CHANNEL_ID,nonce:loginState.nonce})});
   if(!verifyResponse.ok)return lineFailure(request,verifyResponse,"id_token_verification");
   const identity=await verifyResponse.json() as LineIdentity;
-  if(!identity.sub){auditAuth(request,"line_login_failure","failure",{reason:"subject_missing"});return new Response("LINE subject missing",{status:401});}
+  if(!identity.sub){auditAuth(request,"line_login_failure","failure",{reason:"subject_missing"});return new Response("LINE subject missing",{status:401,headers:{"cache-control":"no-store"}});}
 
   let row=await env.DB.prepare("SELECT user_id AS userId FROM external_identities WHERE provider='line' AND provider_subject=?").bind(identity.sub).first<{userId:string}>();
   const updatedAt=new Date().toISOString();
@@ -112,7 +128,7 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
       row={userId};
     }catch{
       row=await env.DB.prepare("SELECT user_id AS userId FROM external_identities WHERE provider='line' AND provider_subject=?").bind(identity.sub).first<{userId:string}>();
-      if(!row)return new Response("User registration failed",{status:500});
+      if(!row)return new Response("User registration failed",{status:500,headers:{"cache-control":"no-store"}});
     }
   }else if(identity.name){
     await env.DB.prepare("UPDATE users SET display_name=?,updated_at=? WHERE id=?").bind(identity.name,updatedAt,row.userId).run();
@@ -124,7 +140,7 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
   auditAuth(request,"line_login_success","success",{userId:row.userId,resourceType:"authentication",resourceId:loginState.invitationId});
-  return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"}});
+  return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400","cache-control":"no-store"}});
 };
 
 export const authMe=async(request:Request,env:AuthEnv)=>{

@@ -100,16 +100,50 @@ Phase 2ではTime TravelをPrimary recovery mechanismとし、Production SQL exp
 - GitHub artifactをlong-term data vaultとして扱わない
 - Time Travel retentionを超える長期archiveが必要になった時点で、private storage（例: Cloudflare R2等）へのencrypted exportを別Issueで設計する
 
-## 8. Migration recovery
+## 8. Migration recovery / preflight
+
+Production D1へ実dataが入った後は、schema migration前に「戻れる点」を確認してから適用する。
+
+通常のProduction workflowではmigration直前に次を実行し、GitHub Actions logへrecovery pointを残す。
+
+```bash
+npx wrangler d1 time-travel info DB --json
+```
+
+この取得が失敗した場合はProduction migrationへ進まない。
+
+通常migrationの原則:
+- Production適用済みmigration fileを書き換えない
+- additive / non-destructive migrationをdefaultとする
+- reset / recreate / cleanしない
+- `DROP TABLE` / `DROP COLUMN` / `DELETE FROM` / data消失を伴うtable rebuildを通常deployに含めない
+- fixture / seedでProduction実dataを置き換えない
+- local existing-data regressionで代表data保持を確認してからProductionへ進む
 
 Migration直後に問題が起きた場合:
-
 - application code rollbackだけでschema compatibilityが戻るか確認
 - data/schema rollbackが必要ならmigration前bookmarkへTime Travel restore
 - restore後にmigration historyとschemaを確認
-- Production smokeを通す
+- Session / Game / Result / Chip / Memo / Group / User / Membership / Player linkの代表dataを確認
+- History / Performance / AuthenticationのProduction smokeを通す
 
 Migration failureそのものはD1 migration transaction rollbackを前提とするが、migration成功後のlogical defectはTime Travelで扱う。
+
+### 8.1 Destructive migration exception
+
+破壊的schema変更が不可避な場合は通常deployから分離し、以下をすべて満たす。
+
+1. 別Issueへ目的・影響範囲・対象tableを記録
+2. 旧schemaから新schemaへのcopy/backfill手順を用意
+3. local/Previewでexisting-data migration testを実施
+4. 適用前後の件数・整合性verification queryを定義
+5. migration直前のProduction Time Travel recovery pointを確認
+6. rollback / restore手順を確認
+7. HumanがProduction適用を明示承認
+8. 適用後に件数・整合性・主要画面を確認
+9. EvidenceをIssueへ残す
+
+Human approvalのないdestructive migrationはProductionへ適用しない。
 
 ## 9. Evidence
 
@@ -126,6 +160,14 @@ Production restoreを実施した場合は最低限:
 
 を残す。
 
+Production migrationを実施した場合は最低限:
+- migration file / PR
+- pre-migration recovery point取得結果
+- local migration guard / existing-data regression結果
+- Production migration result
+- post-migration smoke result
+
+をEvidenceとして追跡する。
 
 ## 10. Phase 2 recovery rehearsal evidence
 

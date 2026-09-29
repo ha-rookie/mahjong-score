@@ -89,7 +89,10 @@ Phase 2でRequest / Correlation IDを導入する。
 - Workerはrequest headerの `CF-Ray` を優先してrequestIdとして利用する
 - `CF-Ray` がないlocal/previewではUUIDへfallbackする
 - 同一requestに起因するAudit Logは同じrequestIdで検索できる
-- token / Cookie / request bodyはcorrelation keyとして利用しない
+- raw token / Cookie / request bodyはcorrelation keyとして利用しない
+- LINE OAuthの断続的不具合調査では、raw `state` をLogへ出さず、server-sideで既に算出しているSHA-256 hashの先頭12文字だけを `oauthFlowId` として利用できる
+- `oauthFlowId` は診断用の一時的な相関IDであり、認証判定・replay許可・user識別には利用しない
+- 同一OAuth transactionの `line_login_started` / `line_login_success` / `line_login_failure` は同じ `oauthFlowId` で検索できる
 
 ## 8. Production Evidence
 
@@ -110,9 +113,10 @@ Phase 2で実装済み:
 - Session削除、Invitation、unlink、Membership変更、Admin bootstrap、migration等の重要操作を記録
 - requestIdはCF-Ray優先、fallbackはUUID
 - Secret / token / Cookie / request body / Memo本文 / displayName等の不要なPIIは記録しない
+- LINE OAuth transactionはraw stateを記録せず `oauthFlowId` でstart/callbackを相関できる
 
-Implementation: `src/worker/audit.ts`
-Evidence: #154 / PR #155
+Implementation: `src/worker/audit.ts`, `src/worker/auth/line-login.ts`
+Evidence: #154 / PR #155 / #278
 
 未導入:
 - business KPI向けCustom Analytics

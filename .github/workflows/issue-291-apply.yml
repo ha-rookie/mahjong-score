@@ -1,0 +1,86 @@
+name: Apply issue 291 source transform
+
+on:
+  push:
+    branches:
+      - ux/291-session-end-flow
+    paths:
+      - .github/workflows/issue-291-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ux/291-session-end-flow
+      - name: Apply verified source transformation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          path = Path("src/App.tsx")
+          source = path.read_text()
+
+          def git_blob_sha(text: str) -> str:
+              data = text.encode()
+              payload = b"blob " + str(len(data)).encode() + b"\0" + data
+              return hashlib.sha1(payload).hexdigest()
+
+          expected_before = "c1940425637077224dc9d2b980b268d9ae252410"
+          expected_after = "2d3548e987ef7c8a2adc6a1a8c417bd37c9c0c32"
+          actual_before = git_blob_sha(source)
+          if actual_before != expected_before:
+              raise SystemExit(f"Unexpected App.tsx before transform: {actual_before}")
+
+          replacements = [
+              (
+                  '  const [showFinalizeConfirm,setShowFinalizeConfirm]=useState(false);\n',
+                  '',
+              ),
+              (
+                  '  const saveSessionDetails=async()=>{if(!activeSession||!group||!canSaveChip)return;const chips=participantIds.map(id=>({playerId:id,chipCount:chipValue(id)}));setIsBusy(true);const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,expectedVersion:activeSession.session.version,note:sessionNote.trim()||null,participantNotes:activeSession.session.participantNotes,chipResults:chips});if(!r.ok){if(r.error.code==="stale_update"||r.error.code==="session_not_found"||r.error.code==="session_not_active"){await refresh(group.id,false);setErrorMessage("最新状態に更新したので、内容を確認して再操作してください。");}else setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");}else{await refresh(group.id,false);setStatusMessage("チップとメモを保存しました。");}setIsBusy(false);};\n',
+                  '''  const normalizedSessionNote=sessionNote.trim()||null;\n  const savedSessionNote=activeSession?.session.note?.trim()||null;\n  const hasUnsavedChipInput=Boolean(activeSession&&participantIds.some(id=>{\n    const saved=activeSession.session.chipResults.find(x=>x.playerId===id);\n    return (chipInputs[id]?.trim()??"")!==(saved===undefined?"":String(saved.chipCount));\n  }));\n  const hasUnsavedSettlementInput=Boolean(activeSession&&(normalizedSessionNote!==savedSessionNote||hasUnsavedChipInput));\n  const saveSessionDetails=async(options:{forReview?:boolean}={}):Promise<boolean>=>{\n    if(!activeSession||!group)return false;\n    if(!hasUnsavedSettlementInput)return true;\n    if(hasUnsavedChipInput&&!canSaveChip){setErrorMessage("チップの入力を確認してから保存してください。");return false;}\n    const chips=hasUnsavedChipInput?participantIds.map(id=>({playerId:id,chipCount:chipValue(id)})):activeSession.session.chipResults;\n    setIsBusy(true);setErrorMessage(null);setStatusMessage(null);\n    const r=await services.updateSessionDetails.execute({sessionId:activeSession.session.id,expectedVersion:activeSession.session.version,note:normalizedSessionNote,participantNotes:activeSession.session.participantNotes,chipResults:chips});\n    if(!r.ok){\n      if(r.error.code==="stale_update"||r.error.code==="session_not_found"||r.error.code==="session_not_active"){await refresh(group.id,false);setErrorMessage("最新状態に更新したので、内容を確認して再操作してください。");}\n      else setErrorMessage(r.error.userMessage??"精算情報を保存できませんでした。");\n      setIsBusy(false);return false;\n    }\n    await refresh(group.id,false);\n    if(!options.forReview)setStatusMessage("チップとメモを保存しました。");\n    setIsBusy(false);return true;\n  };\n''',
+              ),
+              (
+                  '  const handleReviewSession=async()=>{if(!activeSession)return;setResultsBackView("home");setShowFinalizeConfirm(false);setIsBusy(true);setErrorMessage(null);const result=await services.getSessionResults.execute(activeSession.session.id);if(!result.ok||!result.value)setErrorMessage(result.ok?"結果を読み込めませんでした。":result.error.userMessage??"結果を読み込めませんでした。");else{setSessionResults(result.value);setStatusMessage(null);setView("results");}setIsBusy(false);};\n',
+                  '''  const handleReviewSession=async()=>{\n    if(!activeSession||!group)return;\n    if(editingGameId||Object.values(scoreInputs).some(value=>value.trim()!=="")){setErrorMessage("未保存の半荘入力があります。先に保存するか入力を取り消してください。");return;}\n    const sessionId=activeSession.session.id;\n    if(hasUnsavedSettlementInput){\n      const saved=await saveSessionDetails({forReview:true});\n      if(!saved)return;\n    }\n    setResultsBackView("home");setIsBusy(true);setErrorMessage(null);setStatusMessage(null);\n    const result=await services.getSessionResults.execute(sessionId);\n    if(!result.ok||!result.value)setErrorMessage(result.ok?"結果を読み込めませんでした。":result.error.userMessage??"結果を読み込めませんでした。");\n    else{setSessionResults(result.value);setView("results");}\n    setIsBusy(false);\n  };\n''',
+              ),
+              (
+                  '<Button block disabled={!canSaveChip||isBusy} onClick={()=>void saveSessionDetails()}>チップ・メモを保存</Button>',
+                  '<Button block variant="secondary" disabled={isBusy||!hasUnsavedSettlementInput||(hasUnsavedChipInput&&!canSaveChip)} onClick={()=>void saveSessionDetails()}>{isBusy?"保存しています…":"チップ・メモを保存"}</Button>',
+              ),
+              (
+                  '<section className="session-end">{games.length===0?<Button block variant="quiet" disabled={isBusy} onClick={()=>setShowCancelEmptySessionConfirm(true)}>Sessionを取り消す</Button>:<Button block variant="quiet" disabled={isBusy} onClick={()=>setShowFinalizeConfirm(true)}>Sessionを終了</Button>}</section>',
+                  '<section className="session-end">{games.length===0?<Button block variant="quiet" disabled={isBusy} onClick={()=>setShowCancelEmptySessionConfirm(true)}>Sessionを取り消す</Button>:<><div className="session-end__copy"><h2>Sessionを終える</h2><p>すべての結果を確認してから終了します。</p></div><Button block disabled={isBusy} onClick={()=>void handleReviewSession()}>{isBusy?"確認画面を開いています…":"Session終了へ進む"}</Button></>}</section>',
+              ),
+              (
+                  '{showFinalizeConfirm?<div className="confirm-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setShowFinalizeConfirm(false);}}><div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="finalize-dialog-title"><div className="confirm-dialog__icon" aria-hidden="true">↪</div><h2 id="finalize-dialog-title">このSessionを終了しますか？</h2><p>終了すると、このSessionの結果画面へ移動します。</p><div className="confirm-dialog__actions"><Button variant="secondary" disabled={isBusy} onClick={()=>setShowFinalizeConfirm(false)}>キャンセル</Button><Button disabled={isBusy} onClick={()=>void handleReviewSession()}>{isBusy?"読み込んでいます…":"結果を確認"}</Button></div></div></div>:null}',
+                  '',
+              ),
+          ]
+
+          for index, (old, new) in enumerate(replacements, 1):
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"Replacement {index} expected once, found {count}")
+              source = source.replace(old, new)
+
+          actual_after = git_blob_sha(source)
+          if actual_after != expected_after:
+              raise SystemExit(f"Unexpected App.tsx after transform: {actual_after}")
+
+          path.write_text(source)
+          PY
+
+          rm .github/workflows/issue-291-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: clarify Session completion flow (#291)"
+          git push origin HEAD:ux/291-session-end-flow

@@ -80,6 +80,30 @@ Phase 2:
 
 詳細手順は `21_D1_RECOVERY_RUNBOOK.md` を正本とする。
 
+### 6.1 Production D1 migration guardrail
+
+Production D1は実利用データのSource of Truthであり、schema変更のためにreset / recreate / cleanしない。
+
+通常のmigrationは次をdefault ruleとする。
+- additive / non-destructiveな前進migration
+- Productionへ適用済みのmigration fileはimmutable
+- `CREATE TABLE` / `CREATE INDEX` / 既存dataと互換性のあるcolumn追加 / safe default / backfillを優先
+- `DROP TABLE` / `DROP COLUMN` / `DELETE FROM` / data消失を伴うtable rebuildを通常migrationへ入れない
+- Production deploy経路からfixture / seedで実dataを置換しない
+- Production / Preview / Performance D1のdatabase IDを分離する
+
+PR CIでは以下をProduction操作なしで確認する。
+1. Production適用済みmigration fileが書き換えられていない
+2. 新規migrationに代表的なdestructive SQL patternがない
+3. Production deploy workflowにraw D1 execute / fixture投入がない
+4. Production / Preview / Performance D1 IDが異なる
+5. Production相当の既存Session / Game / Result / Chip / Memo / User / Membership / Player linkをlocal D1へ投入し、新規migration後も保持される
+6. History / Performance相当queryがmigration後も成立する
+
+Production migration直前にはD1 Time Travel recovery pointを取得し、migration失敗またはlogical defect時に戻れる点を確認する。
+
+破壊的schema変更が不可避な場合は通常deployへ直接含めない。別Issueで影響範囲、copy/backfill、件数・整合性verification、rollback / Time Travel手順を定義し、local/Preview検証とHuman approval後に個別適用する。
+
 ## 7. Post-release
 
 - Search Consoleの後日index観測

@@ -99,7 +99,7 @@ Production実機レビューで紙の麻雀得点記録表を操作モデルと�
 - 保存済みGame行は鉛筆アイコンから編集する。削除は訂正中だけゴミ箱アイコンを表示し、実行前に確認を要求する
 - Game入力時に役満を直接ボタンで選択でき、対象Player選択は行わない
 - ChipはPlayer固定列でN-1入力、残り1人を合計0で自動計算し、換算（1枚=5pt）と最終合計を表示する。保存済みChipは全員分を再表示・再編集でき、合計0なら何度でも更新保存できる
-- Session memoはActive Session内で編集・保存する。Participant memo UIはPhase 1対象外とし、将来の本人識別・認可導入後に自分のmemoだけを表示・編集する
+- Session memoはActive Session内で編集・保存する。finalized後のmemo編集はHistory Results側で扱う。Participant memo UIはPhase 1対象外とし、将来の本人識別・認可導入後に自分のmemoだけを表示・編集する
 - 4人回し三麻は4固定列で実装済み。Productionスマホ実機確認はMerge後Evidenceとして残す
 
 ### Phase 1の参加者変更運用
@@ -166,12 +166,15 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - Session終了操作後、finalize前の確認画面として表示する
 - Active SessionのResultsでは「修正する」「終了を確定」を表示する
 - 「修正する」はActive Sessionへ戻し、「終了を確定」で初めてfinalizedにする
-- finalized済みの過去Resultsはread-onlyで表示する
+- finalized済みの過去ResultsではGame / Chip / statusをread-onlyで表示する
 - Score Sheetと同じPlayer固定列を使う
 - 行は半荘、小計、チップ、換算、合計、順位
 - Homeへ戻る操作を提供する
-- finalized Sessionの訂正は行わない
-- Session memoが保存されている場合は、日付・対局概要の下、Score Sheetの前に表示する。空の場合は表示しない
+- finalized SessionのGame / Chip / status訂正は行わない
+- Historyから開いたfinalized ResultsではSession memoをtextareaで表示し、対象GroupのMember / Group Admin / System Adminが保存できる。memoが空でも入力欄を表示する
+- Session memo保存成功後はその場のResultsとHistory一覧用stateへ即時反映する
+- stale update時は対象Sessionを再取得し、最新memo/versionを表示して再操作を促す
+- Session削除操作は既存どおりSystem Admin / Group Adminだけに表示する
 
 
 ### HISTORY / Results再表示
@@ -179,7 +182,8 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - finalized Sessionを新しい順で表示
 - 選択するとResults画面を再利用する
 - Results表は上端と下端の両方にPlayer名を表示する
-- 過去Session一覧は各Sessionを1行にまとめ、「日付 / N半荘 / Session memo / 削除」を横並び表示する。memoが長い場合は一覧では省略し、全文はResultsで確認する
+- 過去Session一覧は各Sessionを1行にまとめ、「日付 / N半荘 / Session memo」を表示する。memoが長い場合は一覧では省略し、全文はResultsで確認する
+- Session削除ボタンは一覧へ置かず、対象SessionのResults明細でSystem Admin / Group Adminだけに表示する
 
 
 ### Game Tag UI Phase 1対象外

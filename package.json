@@ -10,6 +10,8 @@
     "test": "tsc -p tsconfig.test.json && node scripts/run-compiled-tests.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
+    "db:migrations:guard": "node scripts/check-migration-safety.mjs",
+    "db:migrate:regression": "node scripts/test-existing-data-migration.mjs",
     "db:migrations:list:preview": "wrangler d1 migrations list DB --remote --preview",
     "db:migrate:preview": "wrangler d1 migrations apply DB --remote --preview",
     "db:migrations:list:prod": "wrangler d1 migrations list DB --remote",

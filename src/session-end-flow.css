@@ -1,0 +1,32 @@
+/* Issue #291: make Session completion the primary end-of-session path. */
+.session-end {
+  display: grid;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.session-end__copy h2 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.session-end__copy p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.session-end > .button--primary {
+  min-height: 54px;
+  font-weight: 850;
+}
+
+@media (max-width: 520px) {
+  .session-end {
+    margin-top: 32px;
+    padding-top: 22px;
+  }
+}

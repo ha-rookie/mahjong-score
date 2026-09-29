@@ -9,6 +9,7 @@ export interface AuditEvent {
   readonly resourceType?: string;
   readonly resourceId?: string | null;
   readonly reason?: string;
+  readonly oauthFlowId?: string;
 }
 
 export const requestCorrelationId = (request: Request) =>

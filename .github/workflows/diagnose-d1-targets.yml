@@ -27,7 +27,9 @@ jobs:
         run: |
           set -euo pipefail
           npm run build
-          node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync("dist/mahjong_score/wrangler.json","utf8")); console.log(JSON.stringify(c.d1_databases,null,2));'
+          node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync("dist/mahjong_score/wrangler.json","utf8")); console.log(JSON.stringify({d1_databases:c.d1_databases,previews:c.previews},null,2));'
+          echo "=== Wrangler deploy redirect config ==="
+          cat .wrangler/deploy/config.json
 
       - name: Compare Production and Preview D1 counts (read-only)
         shell: bash
@@ -46,3 +48,16 @@ jobs:
 
           echo "=== Preview D1 counts ==="
           npx wrangler d1 execute DB --remote --preview --command "$query" --json
+
+      - name: Inspect active Production deployment (read-only)
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          echo "=== Current deployment ==="
+          npx wrangler deployments status --name mahjong-score --json | tee /tmp/deployment.json
+          version_id="$(node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/deployment.json","utf8")); const versions=x.versions ?? x; const v=Array.isArray(versions) ? versions[0] : versions?.versions?.[0]; const id=v?.version_id ?? v?.versionId ?? v?.id; if(!id) process.exit(2); process.stdout.write(id);')"
+          echo "=== Active version: $version_id ==="
+          npx wrangler versions view "$version_id" --name mahjong-score --json

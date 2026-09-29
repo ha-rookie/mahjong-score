@@ -75,7 +75,7 @@ export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   const callback=new URL("/api/auth/line/callback",url.origin).toString(),to=new URL("https://access.line.me/oauth2/v2.1/authorize");
   to.search=new URLSearchParams({response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callback,state,scope:"profile openid",nonce}).toString();
   if(responseMode==="json")return new Response(JSON.stringify({authorizationUrl:to.toString()}),{headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
-  return new Response(null,{status:302,headers:{location:to.toString()}});
+  return new Response(null,{status:302,headers:{location:to.toString(),"cache-control":"no-store"}});
 };
 
 export const finishLineLogin=async(request:Request,env:AuthEnv)=>{

@@ -28,10 +28,20 @@ test("iOS PWA mode can receive the LINE authorize URL without a redirect",async(
   assert.ok(url.searchParams.get("nonce"));
 });
 
-test("normal browser mode keeps the existing 302 LINE Login flow",async()=>{
+test("normal browser mode keeps the existing 302 LINE Login flow without caching the one-time authorization transaction",async()=>{
   const response=await startLineLogin(new Request("https://mahjong.example/api/auth/line/start"),env());
   assert.equal(response.status,302);
+  assert.equal(response.headers.get("cache-control"),"no-store");
   const location=response.headers.get("location");
   assert.ok(location);
   assert.equal(new URL(location).origin,"https://access.line.me");
+});
+
+test("each LINE Login start request creates a distinct state and nonce",async()=>{
+  const first=await startLineLogin(new Request("https://mahjong.example/api/auth/line/start"),env());
+  const second=await startLineLogin(new Request("https://mahjong.example/api/auth/line/start"),env());
+  const firstUrl=new URL(first.headers.get("location")!);
+  const secondUrl=new URL(second.headers.get("location")!);
+  assert.notEqual(firstUrl.searchParams.get("state"),secondUrl.searchParams.get("state"));
+  assert.notEqual(firstUrl.searchParams.get("nonce"),secondUrl.searchParams.get("nonce"));
 });

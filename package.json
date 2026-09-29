@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "db:migrations:guard": "node scripts/check-migration-safety.mjs",
+    "db:binding:guard": "node scripts/check-production-d1-binding.mjs build",
+    "db:binding:verify-deployed": "node scripts/check-production-d1-binding.mjs deployment /tmp/production-worker-version.json",
     "db:migrate:regression": "node scripts/test-existing-data-migration.mjs",
     "db:migrations:list:preview": "wrangler d1 migrations list DB --remote --preview",
     "db:migrate:preview": "wrangler d1 migrations apply DB --remote --preview",

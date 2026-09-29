@@ -1,0 +1,83 @@
+name: Diagnose LINE OAuth logs
+
+on:
+  push:
+    branches:
+      - diag-278-oauth-logs
+    paths:
+      - .github/workflows/diag-278-oauth-logs.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query Cloudflare Workers Observability
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+          cat > query.json <<'JSON'
+          {
+            "queryId": "diag-278-20260929-1530-jst",
+            "timeframe": {
+              "from": 1790663340000,
+              "to": 1790663519000
+            },
+            "view": "events",
+            "datasets": ["cloudflare-workers"],
+            "filterCombination": "and",
+            "filters": [
+              {
+                "key": "$metadata.service",
+                "operation": "eq",
+                "type": "string",
+                "value": "mahjong-score"
+              }
+            ],
+            "needle": {
+              "value": "line_login",
+              "isRegex": false,
+              "matchCase": false
+            },
+            "limit": 200
+          }
+          JSON
+
+          http_code="$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data @query.json \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/observability/telemetry/query")"
+
+          echo "Cloudflare Observability HTTP status: $http_code"
+          if [[ "$http_code" != "200" ]]; then
+            jq '{success, errors, messages}' response.json 2>/dev/null || cat response.json
+            exit 1
+          fi
+
+          echo 'Sanitized LINE OAuth audit events:'
+          count=0
+          while IFS= read -r candidate; do
+            parsed="$(printf '%s' "$candidate" | jq -c 'fromjson? | select(.kind == "audit" and (.event | startswith("line_login_"))) | {timestamp,event,outcome,reason,oauthFlowId,requestId,path}' 2>/dev/null || true)"
+            if [[ -n "$parsed" ]]; then
+              printf '%s\n' "$parsed"
+              count=$((count+1))
+            fi
+          done < <(jq -r '.. | strings | select(contains("line_login"))' response.json)
+          echo "Sanitized event count: $count"
+
+          if [[ "$count" -eq 0 ]]; then
+            echo 'No matching sanitized audit events were found in the requested window.'
+            echo 'Telemetry summary:'
+            jq '{success, result: {events: (.result.events.count // null), run: (.result.run.id // null)}}' response.json 2>/dev/null || true
+          fi

@@ -31,7 +31,7 @@ jobs:
 
           echo 'Starting unfiltered live tail; only sanitized LINE OAuth audit fields will be printed.'
           set +e
-          timeout 240s npx --yes wrangler@latest tail mahjong-score --format json --sampling-rate 1 > raw-tail.log 2>tail-stderr.log
+          timeout 240s npx --yes wrangler@latest tail mahjong-score --format json > raw-tail.log 2>tail-stderr.log
           rc=$?
           set -e
 

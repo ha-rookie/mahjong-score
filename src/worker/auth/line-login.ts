@@ -60,6 +60,14 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
   }catch{return {userId:null,status:"invalid_payload"};}
 };
 
+const duplicateLineCallbackResponse=async(request:Request,env:AuthEnv,url:URL,oauthFlowId:string)=>{
+  const session=await resolveSession(request,env);
+  const destination=new URL("/",url.origin);
+  if(session.userId)destination.searchParams.set("login","success");
+  auditAuth(request,"line_login_duplicate_callback","success",{userId:session.userId,resourceType:"authentication",reason:session.userId?"session_preserved":"session_missing",oauthFlowId});
+  return new Response(null,{status:302,headers:{location:destination.toString(),"cache-control":"no-store"}});
+};
+
 export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await resolveSession(request,env)).userId;
 
 export const startLineLogin=async(request:Request,env:AuthEnv)=>{
@@ -88,9 +96,19 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!code||!state||!stateHash){auditAuth(request,"line_login_failure","failure",{reason:"missing_code_or_state",oauthFlowId});return new Response("Invalid LINE Login state",{status:400});}
   const now=new Date().toISOString();
   const loginState=await env.DB.prepare("SELECT nonce,invitation_id AS invitationId FROM line_login_states WHERE state_hash=? AND used_at IS NULL AND expires_at>?").bind(stateHash,now).first<LoginStateRow>();
-  if(!loginState){auditAuth(request,"line_login_failure","failure",{reason:"state_invalid_or_expired",oauthFlowId});return new Response("Invalid LINE Login state",{status:400});}
+  if(!loginState){
+    const consumedState=await env.DB.prepare("SELECT used_at AS usedAt FROM line_login_states WHERE state_hash=? AND used_at IS NOT NULL AND expires_at>?").bind(stateHash,now).first<{usedAt:string}>();
+    if(consumedState)return duplicateLineCallbackResponse(request,env,url,oauthFlowId!);
+    auditAuth(request,"line_login_failure","failure",{reason:"state_invalid_or_expired",oauthFlowId});
+    return new Response("Invalid LINE Login state",{status:400});
+  }
   const consumed=await env.DB.prepare("UPDATE line_login_states SET used_at=? WHERE state_hash=? AND used_at IS NULL").bind(now,stateHash).run();
-  if(consumed.meta.changes!==1){auditAuth(request,"line_login_failure","failure",{reason:"state_already_consumed",oauthFlowId});return new Response("Invalid LINE Login state",{status:400});}
+  if(consumed.meta.changes!==1){
+    const consumedState=await env.DB.prepare("SELECT used_at AS usedAt FROM line_login_states WHERE state_hash=? AND used_at IS NOT NULL AND expires_at>?").bind(stateHash,now).first<{usedAt:string}>();
+    if(consumedState)return duplicateLineCallbackResponse(request,env,url,oauthFlowId!);
+    auditAuth(request,"line_login_failure","failure",{reason:"state_already_consumed",oauthFlowId});
+    return new Response("Invalid LINE Login state",{status:400});
+  }
 
   const redirectUri=new URL("/api/auth/line/callback",url.origin).toString();
   const tokenResponse=await fetch("https://api.line.me/oauth2/v2.1/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:redirectUri,client_id:env.LINE_CHANNEL_ID,client_secret:env.LINE_CHANNEL_SECRET})});

@@ -79,7 +79,8 @@ The write baseline exists for repository/API integration work but is **not yet w
 | --- | --- | --- |
 | POST | /api/groups/:groupId/sessions | Create active Session + initial participant segment |
 | POST | /api/sessions/:sessionId/games | Add a game result to an active Session |
-| PATCH | /api/sessions/:sessionId | Update memo/status/end time |
+| PATCH | /api/sessions/:sessionId | Update active Session memo/status/end time/details |
+| PATCH | /api/sessions/:sessionId/note | Update only Session Memo of a finalized Session |
 | POST | /api/sessions/:sessionId/cancel | Cancel active Session only when it has zero Games; requires expectedVersion |
 
 Worker-side validation protects basic invariants (3/4 unique participants, active group membership, integer game points totaling zero, active Session on game creation). The browser UI remains localStorage-backed until authentication/authorization is enforced.
@@ -87,7 +88,29 @@ Worker-side validation protects basic invariants (3/4 unique participants, activ
 
 ## 10. Session details and API client baseline
 
-`PATCH /api/sessions/:sessionId` now replaces participant notes and chip results together with Session metadata. Chip counts must be integers totaling zero. The Worker uses a D1 batch so the aggregate update is submitted as one grouped operation.
+`PATCH /api/sessions/:sessionId` replaces participant notes and chip results together with active Session metadata. Chip counts must be integers totaling zero. The Worker uses a D1 batch so the aggregate update is submitted as one grouped operation. `finalized` Session remains rejected by this broad update endpoint so it cannot be reopened or have Chip / Participant Memo changed through the active-session contract.
+
+`PATCH /api/sessions/:sessionId/note` is a narrow finalized-Session memo-only contract.
+
+Request:
+```json
+{
+  "note": "optional string or null",
+  "updatedAt": "ISO-8601 timestamp",
+  "expectedVersion": 3
+}
+```
+
+Rules:
+- target Session must be `finalized`
+- authenticated User must be System Admin or a Member / Group Admin of the owning Group
+- `expectedVersion` is required and stale updates return HTTP 409 `stale_update`
+- note length uses the same `SESSION_NOTE_MAX_LENGTH` limit as active Session memo
+- update changes only `sessions.note`, `sessions.updated_at`, and increments `sessions.version`
+- Game / Chip / Participant Memo / status / endedAt are not mutated
+- memo content is not written to Audit Log
+
+Response returns the new `version` and `updatedAt` so the browser can continue optimistic concurrency without an immediate full reload.
 
 `WorkerApiClient` is the browser-side HTTP boundary. It maps non-2xx responses and network failures to the existing `Result<AppError>` convention. It is deliberately not composed into `createBrowserServices` yet; localStorage remains active until authentication and server-side authorization are available.
 

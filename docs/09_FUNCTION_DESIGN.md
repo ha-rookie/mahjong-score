@@ -16,6 +16,7 @@
 | FUNC-007 | Backup export/import | 1 | Application active / UI pending |
 | FUNC-008 | 認証・認可 | 2-3 | Deferred |
 | FUNC-009 | 0半荘Session取り消し | 3 RC | Active |
+| FUNC-010 | finalized Session Memo編集 | 3 User Test | Active |
 
 ## 3. FUNC-003 半荘結果入力
 
@@ -53,7 +54,7 @@ Issue #25でProduction実機レビューを反映する。
 - 負数はスマホで`-`を直接入力せず、各入力セルの`±`で符号反転できる
 - GameTag UIはPhase 1対象外とする。現行Domain contractの互換性は維持するが、新規/訂正では空配列を保存し、利用方法を再定義するまでUIへ再導入しない
 - SessionのChipは任意N-1人を整数入力し残り1人を合計0で自動計算、1枚=5ptで麻雀小計へ加算して合計を表示する
-- Session memoはPhase 1で保存できる。participant memoは本人識別・認可がないためPhase 1対象外とし、Domain互換のみ維持する。将来はログインUserに紐づく自分のmemoだけ表示・編集する
+- Session memoはActive Sessionで保存できる。finalized SessionはHistory明細からSession memoだけを編集可能とし、Game / Chip / status / Participant memoは変更しない。participant memoは本人識別・認可がないためPhase 1対象外とし、Domain互換のみ維持する
 - Phase 1ではSession途中の参加者変更を行わない。参加者が離脱する場合は現在のSessionをチップ精算して終了・確定し、残った3人または4人で新しいSessionを開始する
 
 ## 6. Implementation Acceptance Criteria
@@ -93,7 +94,7 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Resultsの「修正する」でActive Sessionへ戻り、既存の半荘・チップ・メモ編集を利用する
 - Resultsの「終了を確定」でstatusを`finalized`、endedAtを終了時刻に更新する
 - 終了後はHomeへ戻り、次の3人/4人Sessionを開始できる
-- finalized Sessionの再開・再編集はPhase 1対象外とし、将来仕様として検討する
+- finalized SessionではGame / Chip / status等の確定結果を再編集しない。Session memoのみFUNC-010としてHistory明細から編集できる
 
 
 ### Session Results
@@ -106,7 +107,9 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 ### Session History
 - Homeからcurrent Groupのfinalized Session一覧を開ける
 - 選択したSessionは既存Session Results read modelで再表示する
-- 履歴はread-only。訂正・削除は別仕様とする
+- Game / Chip / status等の確定結果はread-onlyとする
+- Session memoは対象GroupのMember / Group Admin / System AdminがHistory明細から編集できる
+- Session削除は既存どおりSystem Admin / Group Adminのみとする
 
 
 ### Player Performance Aggregates
@@ -129,3 +132,12 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Group Memberは対象Groupの空Sessionを取り消せる
 - 既存の履歴Session削除はSystem Admin / Group Adminのみのままとし、権限境界を混同しない
 - 0半荘Sessionのfinalizeは禁止する
+
+## FUNC-010 finalized Session Memo編集
+- 対象は `finalized` Sessionの `Session.note` のみ
+- Historyから対象SessionのResults明細を開き、現在のmemoを編集して保存できる
+- 対象GroupのMember / Group Admin / System Adminに許可する
+- 専用のmemo-only APIを使用し、Game / Chip / Participant memo / status / endedAtを変更しない
+- `expectedVersion` を必須とし、競合時は409 `stale_update`としてsilent overwriteしない
+- stale時は対象Sessionを再取得して最新memo/versionへ更新し、Userに再確認を促す
+- memo本文はAudit Logへ出さない

@@ -81,7 +81,7 @@ AとBのScore Pointが同じでも、入力順によりA=1位、B=2位
 | REQ-008 | ChipはSession終了時にPlayer別net枚数を入力し合計0を必須とする | Must | balance validation | Active |
 | REQ-009 | 1 Chip = 5pointとしてOverall Scoreへ反映 | Must | calculation test | Active |
 | REQ-010 | GameTag | Deferred | Phase 1 UIから除外。利用方法を再定義してから再検討 | Deferred |
-| REQ-011 | Session Memoを保持 | Should | Session単位のoptional memoを保存できる。Player別Memo UIは本人識別・認可導入まで延期 | Active |
+| REQ-011 | Session Memoを保持 | Should | Session単位のoptional memoを保存できる。finalized後も対象GroupのMember以上はHistory明細からSession Memoだけを編集でき、他のSession結果・Chip・statusは変更しない。Player別Memo UIは本人識別・認可導入まで延期 | Active |
 | REQ-012 | JSON Backup/Restore | Must | 管理者のみ利用可能。schema version付きexport/import。復元前に確認し、不正ファイルでは既存Dataを変更しない | Active |
 | REQ-013 | 0半荘のactive Sessionは終了ではなく取り消せる | Must | Game 0件ではSessionを削除して履歴へ残さず、Game 1件以上は取り消し不可。0半荘finalizeも拒否する | Active |
 
@@ -141,6 +141,7 @@ Phase 1:
 - Group作成、Backup / RestoreはAdminのみ実行できる
 - Worker API / D1で複数端末からGroup dataを共有する
 - stale updateを検知し、競合を黙って上書きしない
+- finalized SessionのSession Memo更新は対象GroupのMember以上へ許可し、専用のmemo-only更新でScore / Chip / status / Participant Memoへ波及させない
 - 認証失敗・認可失敗・重要操作をserver側で監査可能にする
 
 ### Phase 2 Deferred
@@ -154,7 +155,7 @@ Phase 1:
 | --- | --- | --- | --- |
 | TBD-001 | 100点単位の端数処理 | Human | Resolved: 符計算なし。100点単位は扱わず、1point=1,000点の整数入力 |
 | TBD-002 | 同点Top / rank処理 | Human | Resolved: 入力順を順位として保持 |
-| TBD-003 | 確定Sessionの再編集/訂正 | Human | Resolved: Phase 1は確定前ResultsからActiveへ戻して訂正可能。finalized後の訂正は将来検討 |
+| TBD-003 | 確定Sessionの再編集/訂正 | Human | Resolved: 確定前ResultsからActiveへ戻して訂正可能。finalized後はHistory明細からSession MemoだけをMember以上が編集可能とし、Game / Chip / status等の確定結果はread-onlyを維持する |
 | TBD-004 | 離脱PlayerのChip精算運用 | Human | Resolved: Phase 1は同一Session内で離脱を扱わず、現Sessionを精算・終了後に残ったメンバーで新Sessionを開始 |
 | TBD-005 | 複数Groupを扱うUI | Human | Resolved: 複数Group所属時のみHomeに切替UIを表示。Group作成はSystem Adminに限定し、Worker APIでも認可する |
 

@@ -104,6 +104,26 @@ Production migration直前にはD1 Time Travel recovery pointを取得し、migr
 
 破壊的schema変更が不可避な場合は通常deployへ直接含めない。別Issueで影響範囲、copy/backfill、件数・整合性verification、rollback / Time Travel手順を定義し、local/Preview検証とHuman approval後に個別適用する。
 
+### 6.2 Production D1 binding guardrail
+
+Production Workerが参照するD1とmigration対象D1のずれを防ぐため、D1 bindingはschema migrationとは別に検証する。
+
+Production反映前:
+1. `wrangler.jsonc` のtop-level `database_id`をintended Production D1とする
+2. `preview_database_id`および`previews.d1_databases`はProductionと異なるPreview D1とする
+3. Vite build後の `dist/mahjong_score/wrangler.json` を機械検査し、生成されたProduction / Preview bindingがsource設定と一致することを確認する
+4. ProductionとPreviewが同じdatabase IDになった場合はdeploy前にfailする
+
+Production deploy後:
+1. `wrangler deployments status` から100% activeなWorker versionを取得する
+2. `wrangler versions view <version>` のversion metadataから実際のD1 binding `DB`を取得する
+3. active WorkerのD1 IDがintended Production D1と一致することを自動assertする
+4. Preview D1へbindされていた場合はProduction verificationをfailする
+
+Deploy時のconsole表示だけをruntime bindingの正本とはしない。CLI表示とversion metadataが食い違う場合は、実際にactiveなWorker versionへ保存されたbinding metadataをruntime evidenceとして扱い、Production / Preview D1をread-onlyで確認してから接続先変更を判断する。
+
+DB接続先の不一致が疑われても、実データ所在を確認する前にrepoint / reset / clean / seedを実行しない。
+
 ## 7. Post-release
 
 - Search Consoleの後日index観測

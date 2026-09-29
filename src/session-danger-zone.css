@@ -1,0 +1,56 @@
+/* Issue #290: keep destructive Session deletion away from the normal History navigation path. */
+.result-review-actions:has(> .button--danger) {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.result-review-actions:has(> .button--danger) > .button:not(.button--danger) {
+  order: 1;
+}
+
+.result-review-actions:has(> .button--danger)::before {
+  content: "危険な操作";
+  order: 2;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.result-review-actions:has(> .button--danger)::after {
+  content: "Sessionを削除すると、半荘結果も削除されます。";
+  order: 3;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.65;
+}
+
+.result-review-actions:has(> .button--danger) > .button--danger {
+  order: 4;
+  justify-self: start;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 9px 13px;
+  border: 1px solid rgb(156 63 50 / 24%);
+  color: var(--danger);
+  background: rgb(255 255 252 / 58%);
+  font-size: 0.78rem;
+}
+
+.result-review-actions:has(> .button--danger) > .button--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+@media (max-width: 520px) {
+  .result-review-actions:has(> .button--danger)::before {
+    margin-top: 34px;
+  }
+
+  .result-review-actions:has(> .button--danger) > .button--danger {
+    min-height: 46px;
+  }
+}

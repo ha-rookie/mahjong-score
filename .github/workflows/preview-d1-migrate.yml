@@ -1,0 +1,71 @@
+name: Preview D1 migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type MIGRATE-PREVIEW-D1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-preview-d1:
+    if: ${{ inputs.confirmation == 'MIGRATE-PREVIEW-D1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Guard migration safety
+        run: npm run db:migrations:guard
+
+      - name: Guard Preview D1 target
+        shell: bash
+        run: |
+          set -eu
+          grep -q '"database_name": "mahjong-score-preview"' wrangler.jsonc
+          grep -q '"preview_database_id": "2494979f-57d5-4ba5-bde7-bc5ec674b8eb"' wrangler.jsonc
+          ! grep -q '37b05ca8-9f6e-46b4-92be-7e02513cf044' wrangler.jsonc
+
+      - name: Capture Preview gameplay row counts
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute DB --remote --preview --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS sessions,(SELECT COUNT(*) FROM games) AS games,(SELECT COUNT(*) FROM game_results) AS results;" > /tmp/preview-before.json
+
+      - name: Apply migrations to Preview D1
+        run: npm run db:migrate:preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify Preview placement backfill and row preservation
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute DB --remote --preview --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS sessions,(SELECT COUNT(*) FROM games) AS games,(SELECT COUNT(*) FROM game_results) AS results,(SELECT COUNT(*) FROM game_results WHERE placement IS NULL) AS nullPlacements,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN placement=1 THEN 1 ELSE 0 END)<>1)) AS badFirsts,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN is_last=1 THEN 1 ELSE 0 END)<1)) AS badLasts;" > /tmp/preview-after.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const rows=(path)=>{const data=JSON.parse(fs.readFileSync(path,'utf8'));return (Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0]??{};};
+          const before=rows('/tmp/preview-before.json'),after=rows('/tmp/preview-after.json');
+          for(const key of ['sessions','games','results'])if(Number(before[key])!==Number(after[key])){console.error('Preview row count changed',key,before,after);process.exit(1);}
+          for(const key of ['nullPlacements','badFirsts','badLasts'])if(Number(after[key])!==0){console.error('Preview placement invariant failed',key,after);process.exit(1);}
+          console.log('Preview D1 placement migration/backfill verified', {before,after});
+          NODE

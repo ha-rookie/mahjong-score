@@ -256,3 +256,12 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - active Session中の更新操作はsticky app headerに配置し、SCORE SHEETをスクロールしても常時操作可能にする
 - 見出し内には更新ボタンを重複表示しない
 - 画面幅が極端に狭い場合は「更新」文字を隠し、更新アイコンのみ残す
+
+## 確定済み半荘結果の訂正（System Admin）
+- 過去の麻雀のSession結果では、System Adminにだけ各半荘の編集アイコンを表示する
+- 編集アイコン選択後、対象半荘の現在Score Pointを入力欄へ復元する
+- 合計0・整数・値域の条件を満たし、かつ値が変更された場合のみ保存可能とする
+- 保存直前に「確定済みの過去データを修正する」確認を表示する
+- 保存成功後はSession結果を再取得し、集計表示を最新値へ更新する
+- Group Admin / Memberには編集導線を表示しない
+

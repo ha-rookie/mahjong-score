@@ -9,12 +9,12 @@
 }
 
 .result-review-actions:has(> .button--danger)::before {
-  content: "危険な操作";
+  content: "⚠️ 注意";
   order: 2;
   margin-top: 30px;
   padding-top: 20px;
   border-top: 1px solid var(--line);
-  color: var(--danger);
+  color: var(--muted);
   font-size: 0.78rem;
   font-weight: 850;
   letter-spacing: 0.02em;

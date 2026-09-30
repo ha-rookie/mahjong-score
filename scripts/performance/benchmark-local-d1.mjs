@@ -48,12 +48,14 @@ SELECT s.id FROM sessions s WHERE s.group_id=${quote(groupId)} AND s.status='fin
 SELECT DISTINCT ps.session_id,sp.player_id FROM participant_segments ps
 JOIN segment_players sp ON sp.segment_id=ps.id JOIN selected sel ON sel.id=ps.session_id
 ), game_stats AS (
-SELECT g.session_id,gr.player_id,COUNT(*) AS gameCount,SUM(gr.score_point) AS mahjongPointTotal
+SELECT g.session_id,gr.player_id,COUNT(*) AS gameCount,SUM(gr.score_point) AS mahjongPointTotal,
+SUM(CASE WHEN gr.placement=1 THEN 1 ELSE 0 END) AS gameFirstPlaceCount
 FROM games g JOIN game_results gr ON gr.game_id=g.id JOIN selected sel ON sel.id=g.session_id
 GROUP BY g.session_id,gr.player_id
 ), session_scores AS (
 SELECT p.session_id,p.player_id,COALESCE(gs.gameCount,0) AS gameCount,
-COALESCE(gs.mahjongPointTotal,0) AS mahjongPointTotal,COALESCE(cr.chip_count,0) AS chipCount,
+COALESCE(gs.mahjongPointTotal,0) AS mahjongPointTotal,COALESCE(gs.gameFirstPlaceCount,0) AS gameFirstPlaceCount,
+COALESCE(cr.chip_count,0) AS chipCount,
 COALESCE(gs.mahjongPointTotal,0)+COALESCE(cr.chip_count,0)*5 AS finalPoint
 FROM participants p LEFT JOIN game_stats gs ON gs.session_id=p.session_id AND gs.player_id=p.player_id
 LEFT JOIN chip_results cr ON cr.session_id=p.session_id AND cr.player_id=p.player_id
@@ -62,7 +64,8 @@ SELECT *,MAX(finalPoint) OVER(PARTITION BY session_id) AS best FROM session_scor
 )
 SELECT player_id AS playerId,COUNT(*) AS sessionCount,SUM(gameCount) AS gameCount,
 SUM(mahjongPointTotal) AS mahjongPointTotal,SUM(finalPoint) AS finalPointTotal,
-SUM(CASE WHEN finalPoint=best THEN 1 ELSE 0 END) AS firstPlaceCount
+SUM(gameFirstPlaceCount) AS gameFirstPlaceCount,
+SUM(CASE WHEN finalPoint=best THEN 1 ELSE 0 END) AS sessionFirstPlaceCount
 FROM ranked GROUP BY player_id ORDER BY finalPointTotal DESC`;
 
 const results=[];

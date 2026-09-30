@@ -28,6 +28,12 @@ const rows=(table,columns,items,chunk=100)=>{
   return out;
 };
 const addDays=(iso,days)=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+const ensureUniqueFirst=(scores)=>{
+  const values=[...scores],highest=Math.max(...values),top=values.map((v,i)=>v===highest?i:-1).filter(i=>i>=0);
+  if(top.length>1){values[top[0]]+=1;values[top[1]]-=1;}
+  return values;
+};
+const placements=(scores)=>{const lowest=Math.min(...scores);return scores.map(score=>({placement:1+scores.filter(other=>other>score).length,isLast:score===lowest?1:0}));};
 const startDate=addDays(END_DATE,-7*(SESSION_COUNT-1));
 const createdAt=startDate+"T09:00:00Z";
 const sql=[];
@@ -76,11 +82,11 @@ for(let s=0;s<SESSION_COUNT;s++){
     // Deterministic, asymmetric scores; player rotation prevents identical long-term graphs.
     let a=Math.round((rnd()-.5)*100),b=Math.round((rnd()-.5)*80);
     if((s+g)%29===0)a=(s%2===0?75:-75);
-    const vals=[a,b,-a-b];
+    const vals=ensureUniqueFirst([a,b,-a-b]),derived=placements(vals);
     minScore=Math.min(minScore,...vals);maxScore=Math.max(maxScore,...vals);
     const ranked=participants.map(([id],i)=>({id,score:vals[i]})).sort((x,y)=>y.score-x.score||x.id.localeCompare(y.id));
     const rank=new Map(ranked.map((x,i)=>[x.id,i+1]));
-    participants.forEach(([id],i)=>results.push([gid,id,rank.get(id),vals[i]]));
+    participants.forEach(([id],i)=>results.push([gid,id,rank.get(id),vals[i],derived[i].placement,derived[i].isLast]));
   }
 }
 
@@ -100,10 +106,10 @@ for(const secondary of SECONDARY_GROUPS){
     for(let g=0;g<8;g++){
       const gid=`${sid}-g${String(g+1).padStart(2,"0")}`;
       games.push([gid,sid,seg,g+1,`${date}T${String(10+Math.floor(g/3)).padStart(2,"0")}:${String((g%3)*20).padStart(2,"0")}:00Z`,1]);
-      const a=((s+g)%41)-20,b=((s*2+g)%31)-15,vals=[a,b,-a-b];
+      const a=((s+g)%41)-20,b=((s*2+g)%31)-15,vals=ensureUniqueFirst([a,b,-a-b]),derived=placements(vals);
       const ranked=participantIds.map((id,i)=>({id,score:vals[i]})).sort((x,y)=>y.score-x.score||x.id.localeCompare(y.id));
       const rank=new Map(ranked.map((x,i)=>[x.id,i+1]));
-      participantIds.forEach((id,i)=>results.push([gid,id,rank.get(id),vals[i]]));
+      participantIds.forEach((id,i)=>results.push([gid,id,rank.get(id),vals[i],derived[i].placement,derived[i].isLast]));
     }
   }
 }
@@ -111,9 +117,8 @@ sql.push(...rows("sessions",["id","group_id","session_date","started_at","ended_
 sql.push(...rows("participant_segments",["id","session_id","sequence"],segments));
 sql.push(...rows("segment_players",["segment_id","player_id","seat_order"],segmentPlayers));
 sql.push(...rows("games",["id","session_id","segment_id","sequence","played_at","version"],games));
-sql.push(...rows("game_results",["game_id","player_id","rank","score_point"],results));
+sql.push(...rows("game_results",["game_id","player_id","rank","score_point","placement","is_last"],results));
 sql.push(...rows("chip_results",["session_id","player_id","chip_count"],chips));
-
 
 const meta={
   seed:SEED,groupId:GROUP_ID,startDate,endDate:END_DATE,secondaryGroups:SECONDARY_GROUPS.map(g=>({id:g.id,name:g.name,sessions:g.sessionCount,players:g.playerIndexes.map(i=>PLAYERS[i][0])})),
@@ -126,6 +131,7 @@ const meta={
     everyGameHasThreeResults:results.length===games.length*3,
     fourPlayersRotate:true,
     baseFixtureFinalizedOnly:true,
+    placementPersisted:results.every(r=>Number.isInteger(r[4])&&(r[5]===0||r[5]===1)),
     crudDataIncluded:false
   }
 };

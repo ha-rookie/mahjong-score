@@ -12,9 +12,9 @@
 | FUNC-003 | 半荘結果入力 | 1 | Active: UI connected |
 | FUNC-004 | 同一Session内の参加者変更 | Future | Deferred |
 | FUNC-005 | Chip精算 | 1 | Active: UI connected |
-| FUNC-006 | 成績集計 | 1 | Planned |
+| FUNC-006 | 成績集計 | 1 | Active: D1 aggregate / UI connected |
 | FUNC-007 | Backup export/import | 1 | Application active / UI pending |
-| FUNC-008 | 認証・認可 | 2-3 | Deferred |
+| FUNC-008 | 認証・認可 | 2-3 | Active |
 | FUNC-009 | 0半荘Session取り消し | 3 RC | Active |
 | FUNC-010 | finalized Session Memo編集 | 3 User Test | Active |
 
@@ -30,20 +30,30 @@ Score Sheet入力:
 - 負値を許可
 - 保存済みGameはPlayer列に対応させて表示し、既存Game data shapeを維持
 
+Issue #299以降、保存時はWorkerがScore Pointから実順位を算出し、D1 `game_results.placement` / `is_last`へ保存する。clientが順位を送信してauthoritativeにすることはしない。
+
+実順位ルール:
+- `placement = 自分よりScore Pointが高いPlayer数 + 1`
+- 最高Score Pointは必ず1人とし、1位同点は保存時に拒否する
+- 下位同点は同順位を許可する（例: `1,2,2` / `1,2,3,3`）
+- 最小Score Pointの全Playerを`is_last=1`とし、最下位同点を表現する
+- Game訂正時は全Resultの`placement` / `is_last`を再計算して置換する
+- legacy `game_results.rank`は入力/固定列順の互換列として残し、実順位には使用しない
+
 ## 4. Runtime Domain / Persistence
 
-Issue #20で以下を実装する。
+Runtime Model:
 
 - `GameResult = { playerId, scorePoint }`
-- `createRankedGameResults` が順位順Player IDと2位以下の整数Score Pointから1位を自動計算
 - `validateGameResults` が3/4人、重複、整数、合計0を検証
 - `validateGameParticipants` がParticipantSegmentとのPlayer集合一致を検証
-- `LocalStorageGameRepository` がSession / Segment整合性を確認して保存
-- Score値からrankを再計算せず、`Game.results` 順序をそのまま保持
+- `deriveGameResultPlacements` が保存用の`placement` / `isLast`を算出する
+- `LocalStorageGameRepository` は既存Runtime shapeを維持する
+- D1 Worker write pathはScore Pointからplacementをserver-sideで算出する
+
+D1の既存`rank`列は`Game.results`のlegacy orderを保持する。Issue #299では意味を変更しない。
 
 ## 5. Application / UI Connection
-
-Issue #25でProduction実機レビューを反映する。
 
 - Active Session自体をScore Sheetとして表示
 - Playerを固定列、Gameを行として表示
@@ -61,13 +71,14 @@ Issue #25でProduction実機レビューを反映する。
 
 - 3人Gameは3人Result、4人回しGameは4人Result
 - Result Player集合がParticipantSegmentと一致
-- result orderを保持
-- 1位Scoreのmanual input不要
+- legacy result orderを保持
 - Score Pointを整数として扱う
 - 1Game合計0
 - duplicate Player拒否
 - missing / extra Player拒否
-- Unit Testで3人/4人/同Score/負値/整数を確認
+- 最高Score Pointは1人だけ
+- 3人/4人、下位同点、最下位同点でplacement/isLastが正しく算出される
+- Unit Testで3人/4人/下位同点/最下位同点/1位同点拒否/負値/整数を確認
 
 ## 7. Phase 1 Vertical Slice
 
@@ -86,7 +97,6 @@ Home
 Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Result -> UI
 ```
 
-
 ## Session終了
 - Gameが1件以上あるActive Sessionから「Sessionを終了」を実行できる
 - Game 0件では終了操作を表示せず、FUNC-009の「Sessionを取り消す」を表示する
@@ -96,19 +106,17 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - 終了後はHomeへ戻り、次の3人/4人Sessionを開始できる
 - finalized SessionではGame / Chip / status等の確定結果を再編集しない。Session memoのみFUNC-010としてHistory明細から編集できる
 
-
 ### Session Results
 - Session終了成功後、そのSessionをread modelで再取得して結果画面を表示する
-- 半荘別Score Point、小計、chip枚数、chip換算（1枚=5pt）、最終合計、順位を表示する
-- 同点は同順位。Participant列順は変更しない
-- Issue #297として、PlayerごとにSession内の平均スコアと勝率を表示する
+- 半荘別Score Point、小計、chip枚数、chip換算、最終合計、順位を表示する
+- Participant列順は変更しない
+- PlayerごとにSession内の平均スコアと勝率を表示する
 - 平均スコアは `Session内のscorePoint合計 ÷ Session内のGame数` とし、chip換算を含めず小数1桁で表示する
-- 勝率は `そのGameで最高scorePointになった回数 ÷ Session内のGame数 × 100` とし、小数1桁で表示する。最高scorePointが同点の場合は同点Player全員を1位として数える
+- 勝率は `そのGameで最高scorePointになった回数 ÷ Session内のGame数 × 100` とし、小数1桁で表示する
+- 現行D1では1位同点をvalid writeとして許可しない。Session Resultsの既存read helperはlegacy/defensive readとして同点最高を複数1位扱いできるが、新規/訂正データでは発生しない
 - 勝率には `4/6` のように1位回数 / Game数を併記する
 - 平均スコア・勝率は既存のSession Results read modelに含まれるGameから導出し、D1へ集計値を保存しない
 - Active Sessionの終了前ResultsとHistoryから開いたfinalized Resultsで同じ導出ロジックを使う
-- 過去Session一覧は別Issueとする
-
 
 ### Session History
 - Homeからcurrent Groupのfinalized Session一覧を開ける
@@ -117,18 +125,27 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Session memoは対象GroupのMember / Group Admin / System AdminがHistory明細から編集できる
 - Session削除は既存どおりSystem Admin / Group Adminのみとする
 
-
 ### Player Performance Aggregates
 - finalized Sessionのみを対象にPlayer別通算成績をread-only集計する
-- Session数、半荘数、麻雀pt、chip換算込み最終pt、1位回数を集計する
+- 期間指定なし=通算、year指定=年間、year+month指定=月間
 - 3人/4人Sessionを混在可能とする
-- 同点最高ptは双方を1位として数える
-
+- ranking/graphの並びは従来どおりchip換算込み`finalPointTotal`降順とする
+- Performance cardは次の値を表示する
+  - 最終pt: chip換算込み合計
+  - 麻雀pt / チップpt内訳
+  - 平均: `mahjongPointTotal / gameCount`。chipを含めず小数1桁
+  - 半荘勝率: `gameFirstPlaceCount / gameCount × 100`。`placement=1`件数を分子とし、`4/12`のように件数も併記
+  - Session勝率: `sessionFirstPlaceCount / sessionCount × 100`。Session最終pt（chip込み）が最大だった回数を分子とし、`1/2`のように件数も併記
+- `gameFirstPlaceCount`はD1に保存済みの`game_results.placement=1`をaggregateする
+- `sessionFirstPlaceCount`はSession単位のfinalPoint最大値から既存ロジックでaggregateする。Session最終pt同点は双方をSession 1位として数える
+- 平均/勝率の率そのものはD1へ保存しない。分子・分母のraw aggregateからUIで算出する
+- Performance APIは1回のaggregate queryで返し、Game単位の追加N+1 queryを発生させない
+- 5年/10年Local D1 benchmarkで既存Performance read budgetを継続検証する
 
 ### Performance Period Filter
 - Player成績集計は期間指定なし=通算、year指定=年間、year+month指定=月間とする
 - 期間判定はSession.sessionDateを使い、finalized Sessionのみ対象とする
-
+- 平均・半荘勝率・Session勝率も同じ期間filterを適用する
 
 ## FUNC-009 0半荘Session取り消し
 - 対象は `active` かつGame 0件のSessionのみ
@@ -147,3 +164,5 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - `expectedVersion` を必須とし、競合時は409 `stale_update`としてsilent overwriteしない
 - stale時は対象Sessionを再取得して最新memo/versionへ更新し、Userに再確認を促す
 - memo本文はAudit Logへ出さない
+
+関連Decision: `adr/ADR-0001-game-result-placement.md`

@@ -27,6 +27,17 @@ const badGameTotals=one(`SELECT COUNT(*) bad FROM (
  WHERE s.group_id=${q(group)}
  GROUP BY g.id HAVING n<>3 OR total<>0)`).bad;
 
+const badPlacement=one(`SELECT COUNT(*) bad FROM (
+ SELECT g.id,
+   SUM(CASE WHEN r.placement=1 THEN 1 ELSE 0 END) firsts,
+   SUM(CASE WHEN r.is_last=1 THEN 1 ELSE 0 END) lasts,
+   SUM(CASE WHEN r.placement IS NULL THEN 1 ELSE 0 END) nulls
+ FROM games g JOIN sessions s ON s.id=g.session_id
+ JOIN game_results r ON r.game_id=g.id
+ WHERE s.group_id=${q(group)}
+ GROUP BY g.id
+ HAVING firsts<>1 OR lasts<1 OR nulls<>0)`).bad;
+
 const badChipTotals=one(`SELECT COUNT(*) bad FROM (
  SELECT c.session_id,COUNT(*) n,SUM(c.chip_count) total
  FROM chip_results c JOIN sessions s ON s.id=c.session_id
@@ -59,6 +70,7 @@ if(Number(counts.games)!==3120)failures.push("games");
 if(Number(counts.gameResults)!==9360)failures.push("gameResults");
 if(Number(counts.players)!==4)failures.push("players");
 if(Number(badGameTotals)!==0)failures.push("game score totals");
+if(Number(badPlacement)!==0)failures.push("game placement invariants");
 if(Number(badChipTotals)!==0)failures.push("chip totals");
 if(Number(active)!==0)failures.push("base fixture status");
 if(Number(range.minGames)!==6||Number(range.maxGames)!==18)failures.push("game count range");
@@ -66,7 +78,7 @@ if(participation.length!==4)failures.push("participation");
 if(groupCounts.length!==expectedGroups.size||unexpectedGroups.length||badGroupCounts.length)failures.push("multi-group session counts");
 if(secondaryIsolation.some(x=>JSON.stringify(x.expectedPlayers)!==JSON.stringify(x.actualPlayers)))failures.push("multi-group player isolation");
 
-const evidence={counts,badGameTotals,badChipTotals,active,range,participation,groupCounts,secondaryIsolation,failures};
+const evidence={counts,badGameTotals,badPlacement,badChipTotals,active,range,participation,groupCounts,secondaryIsolation,failures};
 fs.writeFileSync("performance-output/performance-5y-local-validation.json",JSON.stringify(evidence,null,2));
 console.log(JSON.stringify(evidence,null,2));
 if(failures.length)process.exit(1);

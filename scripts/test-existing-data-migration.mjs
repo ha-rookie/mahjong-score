@@ -108,6 +108,13 @@ SELECT
   (SELECT note FROM sessions WHERE id='guard-session') AS session_note,
   (SELECT COUNT(*) FROM games WHERE id='guard-game' AND session_id='guard-session') AS games_count,
   (SELECT COUNT(*) FROM game_results WHERE game_id='guard-game') AS results_count,
+  (SELECT COUNT(*) FROM game_results WHERE game_id='guard-game' AND placement IS NULL) AS null_placement_count,
+  (SELECT COUNT(*) FROM game_results WHERE game_id='guard-game' AND placement=1) AS first_place_count,
+  (SELECT COUNT(*) FROM game_results WHERE game_id='guard-game' AND is_last=1) AS last_place_count,
+  (SELECT placement FROM game_results WHERE game_id='guard-game' AND player_id='guard-player-1') AS player_1_placement,
+  (SELECT placement FROM game_results WHERE game_id='guard-game' AND player_id='guard-player-2') AS player_2_placement,
+  (SELECT placement FROM game_results WHERE game_id='guard-game' AND player_id='guard-player-3') AS player_3_placement,
+  (SELECT is_last FROM game_results WHERE game_id='guard-game' AND player_id='guard-player-3') AS player_3_is_last,
   (SELECT COUNT(*) FROM chip_results WHERE session_id='guard-session') AS chips_count,
   (SELECT COUNT(*) FROM session_participant_notes WHERE session_id='guard-session') AS participant_notes_count,
   (SELECT COUNT(*) FROM sessions s LEFT JOIN games g ON g.session_id=s.id WHERE s.group_id='guard-group' AND s.status='finalized' GROUP BY s.id) AS history_game_count,
@@ -153,6 +160,13 @@ SELECT
     sessions_count: 1,
     games_count: 1,
     results_count: 3,
+    null_placement_count: 0,
+    first_place_count: 1,
+    last_place_count: 1,
+    player_1_placement: 1,
+    player_2_placement: 2,
+    player_3_placement: 3,
+    player_3_is_last: 1,
     chips_count: 3,
     participant_notes_count: 1,
     history_game_count: 1,
@@ -170,7 +184,7 @@ SELECT
   }
 
   console.log(
-    `Existing-data migration regression passed: representative Production-shaped data survived ${futureMigrations.length} future migration(s).`,
+    `Existing-data migration regression passed: representative Production-shaped data survived ${futureMigrations.length} future migration(s), including placement backfill invariants.`,
   );
 } finally {
   fs.rmSync(persistDir, { recursive: true, force: true });

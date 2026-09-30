@@ -40,22 +40,25 @@ jobs:
           ! grep -q 'mahjong-score-prod' wrangler.performance.jsonc
           ! grep -q 'mahjong-score-preview' wrangler.performance.jsonc
 
-      - name: Verify 5-year base fixture before migration
+      - name: Capture Performance D1 gameplay counts before migration
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS sessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS games,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS results;" > /tmp/performance-before.json
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS totalSessions,(SELECT COUNT(*) FROM games) AS totalGames,(SELECT COUNT(*) FROM game_results) AS totalResults,(SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS baseSessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseGames,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseResults;" > /tmp/performance-before.json
           node - <<'NODE'
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('/tmp/performance-before.json','utf8'));
           const row=(Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0];
-          if(!row||Number(row.sessions)!==260||Number(row.games)!==3120||Number(row.results)!==9360){
-            console.error('Expected retained 5-year Performance fixture before migration', row);
+          if(!row){console.error('Performance D1 count query returned no row');process.exit(1);}
+          const baseSessions=Number(row.baseSessions),baseGames=Number(row.baseGames),baseResults=Number(row.baseResults);
+          if(baseSessions<260||baseGames<3120||baseResults<9360||baseResults!==baseGames*3){
+            console.error('Expected retained 5-year Performance fixture baseline before migration', row);
             process.exit(1);
           }
+          console.log('Performance D1 pre-migration counts captured', row);
           NODE
 
       - name: Apply migrations to Performance D1
@@ -71,12 +74,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS sessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS games,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS results,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y' AND r.placement IS NULL) AS nullPlacements,(SELECT COUNT(*) FROM (SELECT g.id FROM games g JOIN sessions s ON s.id=g.session_id JOIN game_results r ON r.game_id=g.id WHERE s.group_id='perf-realistic-5y' GROUP BY g.id HAVING SUM(CASE WHEN r.placement=1 THEN 1 ELSE 0 END)<>1)) AS badFirsts,(SELECT COUNT(*) FROM (SELECT g.id FROM games g JOIN sessions s ON s.id=g.session_id JOIN game_results r ON r.game_id=g.id WHERE s.group_id='perf-realistic-5y' GROUP BY g.id HAVING SUM(CASE WHEN r.is_last=1 THEN 1 ELSE 0 END)<1)) AS badLasts;" > /tmp/performance-after.json
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS totalSessions,(SELECT COUNT(*) FROM games) AS totalGames,(SELECT COUNT(*) FROM game_results) AS totalResults,(SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS baseSessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseGames,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseResults,(SELECT COUNT(*) FROM game_results WHERE placement IS NULL) AS nullPlacements,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN placement=1 THEN 1 ELSE 0 END)<>1)) AS badFirsts,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN is_last=1 THEN 1 ELSE 0 END)<1)) AS badLasts;" > /tmp/performance-after.json
           node - <<'NODE'
           const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/performance-after.json','utf8'));
-          const row=(Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0];
-          const expected={sessions:260,games:3120,results:9360,nullPlacements:0,badFirsts:0,badLasts:0};
-          for(const [key,value] of Object.entries(expected))if(Number(row?.[key])!==value){console.error('Performance migration verification failed',key,row);process.exit(1);}
-          console.log('Performance D1 placement migration/backfill verified', row);
+          const rows=(path)=>{const data=JSON.parse(fs.readFileSync(path,'utf8'));return (Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0]??{};};
+          const before=rows('/tmp/performance-before.json'),after=rows('/tmp/performance-after.json');
+          for(const key of ['totalSessions','totalGames','totalResults','baseSessions','baseGames','baseResults']){
+            if(Number(before[key])!==Number(after[key])){console.error('Performance D1 row count changed',key,before,after);process.exit(1);}
+          }
+          for(const key of ['nullPlacements','badFirsts','badLasts']){
+            if(Number(after[key])!==0){console.error('Performance D1 placement invariant failed',key,after);process.exit(1);}
+          }
+          console.log('Performance D1 placement migration/backfill verified', {before,after});
           NODE

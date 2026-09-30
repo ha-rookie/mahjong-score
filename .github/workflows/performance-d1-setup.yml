@@ -61,6 +61,22 @@ jobs:
           console.log('Performance D1 pre-migration counts captured', row);
           NODE
 
+      - name: Guard against legacy first-place ties
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "WITH maxima AS (SELECT game_id,MAX(score_point) AS max_score FROM game_results GROUP BY game_id), bad AS (SELECT r.game_id,COUNT(*) AS top_count,GROUP_CONCAT(r.player_id || ':' || r.score_point, ',') AS result_values FROM game_results r JOIN maxima m ON m.game_id=r.game_id WHERE r.score_point=m.max_score GROUP BY r.game_id HAVING COUNT(*)<>1) SELECT game_id,top_count,result_values FROM bad ORDER BY game_id LIMIT 20;" > /tmp/performance-first-ties.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/performance-first-ties.json','utf8'));
+          const rows=Array.isArray(data)?data.flatMap(x=>x.results??[]):(data.results??[]);
+          if(rows.length){console.error('Performance D1 contains first-place ties; refusing migration',rows);process.exit(1);}
+          console.log('Performance D1 first-place tie guard passed');
+          NODE
+
       - name: Apply migrations to Performance D1
         run: npx wrangler d1 migrations apply mahjong-score-performance --remote --config wrangler.performance.jsonc
         env:

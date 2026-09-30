@@ -200,6 +200,12 @@ D1 migration 0002 introduces `users`, `external_identities`, and `group_membersh
 Required configuration: `LINE_CHANNEL_ID`. Required Worker Secrets: `LINE_CHANNEL_SECRET`, `AUTH_SESSION_SECRET`. Secret values must never be committed.
 
 
+### 14.1 Application session continuity
+
+LINE Login完了時のapplication sessionは24時間有効のsigned HttpOnly Cookieとして開始する。active use中に固定24時間で突然失効しないよう、Browserはprotected API操作時に最大1時間に1回`/api/auth/me`をpreflightし、Workerは残り12時間以下の有効sessionだけ24時間へ更新する。signed payloadの`exp`とCookie `Max-Age`は同時に更新し、毎requestのCookie再発行は行わない。
+
+24時間以上無操作でsessionが失効した場合、protected APIは401を返す。Browserは401を通信障害と区別し、現在のSPA stateを保持したまま再ログインDialogを表示する。再ログインは別WindowのLINE authorizationで行い、元Windowが同一originの`/api/auth/me`成功を確認した後に通常操作へ戻す。明示logoutと初期表示時のunauthenticated login gateは従来どおりとする。
+
 ## 15. Initial administrator and authorization
 
 Authorization is split into two scopes.

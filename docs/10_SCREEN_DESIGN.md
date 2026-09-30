@@ -169,6 +169,12 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - finalized済みの過去ResultsではGame / Chip / statusをread-onlyで表示する
 - Score Sheetと同じPlayer固定列を使う
 - 行は半荘、小計、チップ、換算、合計、順位
+- Results表の「順位」行の後、下端Player名の前に「平均」「勝率」行を追加し、各Player列へSession内指標を表示する
+- 平均スコアはchipを含まない `scorePoint` のSession内平均を小数1桁で表示する
+- 勝率は各Gameの最高 `scorePoint` を1位として `1位回数 / Game数` から算出し、小数1桁の百分率と `4/6` のような回数を併記する。同点最高scorePointは該当Player全員を1位として扱う
+- Session成績は既存Gameから画面表示時に導出し、保存用DataやD1 schemaを増やさない
+- 3人/4人とも既存Score Sheetと同じ列幅を使い、320px以上で横スクロールを発生させない
+- Active Sessionの終了前ResultsとHistoryのfinalized Resultsで同じ表示・算出を使う
 - Homeへ戻る操作を提供する
 - finalized SessionのGame / Chip / status訂正は行わない
 - Historyから開いたfinalized ResultsではSession memoをtextareaで表示し、対象GroupのMember / Group Admin / System Adminが保存できる。memoが空でも入力欄を表示する

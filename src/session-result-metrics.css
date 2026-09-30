@@ -1,0 +1,26 @@
+.session-result-metric__value {
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.session-result-metric__value > span {
+  font-variant-numeric: tabular-nums;
+}
+
+.session-result-metric__value > small {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 380px) {
+  .session-result-metric__value {
+    font-size: 0.78rem;
+  }
+
+  .session-result-metric__value > small {
+    font-size: 0.58rem;
+  }
+}

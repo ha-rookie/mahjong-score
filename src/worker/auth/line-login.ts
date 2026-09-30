@@ -16,7 +16,10 @@ const validInviteToken=(value:string|null):value is string=>Boolean(value&&/^[A-
 const cookie=(request:Request,name:string)=>request.headers.get("cookie")?.match(new RegExp("(?:^|; )"+name+"=([^;]+)"))?.[1];
 const sign=async(value:string,secret:string)=>{const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,enc.encode(value))));};
 const safeEqual=(a:string,b:string)=>{if(a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;};
-const makeSession=async(userId:string,secret:string)=>{const payload=base64url(enc.encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+86400})));return payload+"."+await sign(payload,secret);};
+export const AUTH_SESSION_TTL_SECONDS=24*60*60;
+export const AUTH_SESSION_RENEW_WINDOW_SECONDS=12*60*60;
+const sessionCookieValue=(value:string,maxAge=AUTH_SESSION_TTL_SECONDS)=>`mahjong_session=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+const makeSession=async(userId:string,secret:string,nowSeconds=Math.floor(Date.now()/1000))=>{const payload=base64url(enc.encode(JSON.stringify({userId,exp:nowSeconds+AUTH_SESSION_TTL_SECONDS})));return payload+"."+await sign(payload,secret);};
 const lineFailure=async(request:Request,response:Response,stage:string,oauthFlowId?:string)=>{let details:LineError={};try{details=await response.json() as LineError;}catch{details={};}auditAuth(request,"line_login_failure","failure",{reason:stage,oauthFlowId});return new Response(JSON.stringify({error:{code:"line_"+stage+"_failed",message:details.error_description??details.error??"LINE request failed",lineStatus:response.status}}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});};
 
 const activeInvitation=async(env:AuthEnv,token:string)=>{
@@ -43,21 +46,21 @@ export const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:s
   }catch{return "conflict";}
 };
 
-type SessionResolution={userId:string|null;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"valid"};
+type SessionResolution={userId:string|null;expiresAt:number|null;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"valid"};
 const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolution>=>{
-  if(!env.AUTH_SESSION_SECRET)return {userId:null,status:"secret_missing"};
+  if(!env.AUTH_SESSION_SECRET)return {userId:null,expiresAt:null,status:"secret_missing"};
   const raw=cookie(request,"mahjong_session");
-  if(!raw)return {userId:null,status:"cookie_missing"};
+  if(!raw)return {userId:null,expiresAt:null,status:"cookie_missing"};
   const [payload,sig,...extra]=raw.split(".");
-  if(!payload||!sig||extra.length)return {userId:null,status:"malformed"};
-  if(!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return {userId:null,status:"bad_signature"};
+  if(!payload||!sig||extra.length)return {userId:null,expiresAt:null,status:"malformed"};
+  if(!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return {userId:null,expiresAt:null,status:"bad_signature"};
   try{
     const padded=payload.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(payload.length/4)*4,"=");
     const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0)))) as {userId?:string;exp?:number};
-    if(!data.userId||!data.exp)return {userId:null,status:"invalid_payload"};
-    if(data.exp<=Math.floor(Date.now()/1000))return {userId:null,status:"expired"};
-    return {userId:data.userId,status:"valid"};
-  }catch{return {userId:null,status:"invalid_payload"};}
+    if(!data.userId||!data.exp)return {userId:null,expiresAt:null,status:"invalid_payload"};
+    if(data.exp<=Math.floor(Date.now()/1000))return {userId:null,expiresAt:data.exp,status:"expired"};
+    return {userId:data.userId,expiresAt:data.exp,status:"valid"};
+  }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
 };
 
 const duplicateLineCallbackResponse=async(request:Request,env:AuthEnv,url:URL,oauthFlowId:string)=>{
@@ -144,7 +147,7 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
   auditAuth(request,"line_login_success","success",{userId:row.userId,resourceType:"authentication",resourceId:loginState.invitationId,oauthFlowId});
-  return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":"mahjong_session="+session+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400"}});
+  return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":sessionCookieValue(session)}});
 };
 
 export const authMe=async(request:Request,env:AuthEnv)=>{
@@ -161,7 +164,14 @@ export const authMe=async(request:Request,env:AuthEnv)=>{
   const memberships=await env.DB.prepare("SELECT gm.group_id AS groupId,g.name AS groupName,gm.role,gp.player_id AS playerId,p.display_name AS playerDisplayName FROM group_memberships gm JOIN groups g ON g.id=gm.group_id LEFT JOIN group_players gp ON gp.group_id=gm.group_id AND gp.user_id=gm.user_id LEFT JOIN players p ON p.id=gp.player_id WHERE gm.user_id=? ORDER BY gm.created_at,gm.group_id").bind(userId).all();
   auditAuth(request,"auth_session_resolved","success",{userId,resourceType:"authentication",reason:"membership_count="+memberships.results.length});
   const anyAdmin=await env.DB.prepare("SELECT 1 AS ok FROM users WHERE system_role='admin' LIMIT 1").first();
-  return new Response(JSON.stringify({authenticated:true,user,memberships:memberships.results,canBootstrapAdmin:!anyAdmin}),{headers:{"content-type":"application/json; charset=utf-8"}});
+  const headers=new Headers({"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+  const nowSeconds=Math.floor(Date.now()/1000);
+  if(session.expiresAt!==null&&session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS&&env.AUTH_SESSION_SECRET){
+    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,nowSeconds);
+    headers.set("set-cookie",sessionCookieValue(renewed));
+    auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:"sliding_expiration"});
+  }
+  return new Response(JSON.stringify({authenticated:true,user,memberships:memberships.results,canBootstrapAdmin:!anyAdmin}),{headers});
 };
 
 export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{

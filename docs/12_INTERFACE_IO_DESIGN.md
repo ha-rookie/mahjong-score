@@ -49,7 +49,6 @@ Phase 2でWorker API / D1 / Authenticationを導入する。SQLはparameterized 
 
 初期Authentication providerはLINE Login。認証に必要な最小scopeを使用し、LINE側の具体設定・callback・token validationは公式仕様確認後に実装設計へ反映する。
 
-
 ## 7. Worker API baseline
 
 Phase 2 API is same-origin under `/api`. Static SPA requests continue through the Workers Static Assets binding.
@@ -60,8 +59,7 @@ Phase 2 API is same-origin under `/api`. Static SPA requests continue through th
 | GET | /api/groups | Group read baseline |
 | GET | /api/groups/:groupId/players | Active players in a Group |
 
-This first slice is intentionally read-only. Browser persistence remains localStorage until write API, migration/import, authentication, and server-side authorization are ready. SQL values use bind parameters.
-
+SQL values use bind parameters。
 
 ## 8. Worker API write baseline
 
@@ -70,21 +68,49 @@ This first slice is intentionally read-only. Browser persistence remains localSt
 | POST | /api/groups | Create Group in D1 |
 | POST | /api/groups/:groupId/players | Create Player and Group link atomically |
 
-The write baseline exists for repository/API integration work but is **not yet wired to the browser UI**. Until LINE Login and server-side Group authorization are implemented, Production UI remains on localStorage and does not call these write endpoints. IDs/timestamps are supplied by the application layer to preserve the existing domain contract. Duplicate/constraint failures return HTTP 409.
+IDs/timestamps are supplied by the application layer to preserve the existing domain contract. Duplicate/constraint failures return HTTP 409.
 
-
-## 9. Session and Game write baseline
+## 9. Session and Game write contract
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | POST | /api/groups/:groupId/sessions | Create active Session + initial participant segment |
-| POST | /api/sessions/:sessionId/games | Add a game result to an active Session |
+| POST | /api/sessions/:sessionId/games | Add a Game result to an active Session |
+| GET | /api/games/:gameId | Read one Game |
+| PUT | /api/games/:gameId | Correct one active-Session Game with optimistic locking |
+| DELETE | /api/games/:gameId?version=N | Delete one active-Session Game with optimistic locking |
 | PATCH | /api/sessions/:sessionId | Update active Session memo/status/end time/details |
 | PATCH | /api/sessions/:sessionId/note | Update only Session Memo of a finalized Session |
 | POST | /api/sessions/:sessionId/cancel | Cancel active Session only when it has zero Games; requires expectedVersion |
 
-Worker-side validation protects basic invariants (3/4 unique participants, active group membership, integer game points totaling zero, active Session on game creation). The browser UI remains localStorage-backed until authentication/authorization is enforced.
+Worker-side validation protects 3/4 unique participants, ParticipantSegment一致, integer Game points totaling zero, limits, and active Session state.
 
+Issue #299以降のGame writeでは、request bodyの`results`は従来どおり次のみを含む。
+
+```json
+{
+  "results": [
+    { "playerId": "player-id", "scorePoint": 42 }
+  ]
+}
+```
+
+`placement` / `isLast`はrequestから受け付けない。Workerがvalidated Score Pointから算出し、D1へ保存する。
+
+```text
+placement = 自分よりscorePointが高いPlayer数 + 1
+is_last   = 自分のscorePointがGame内最小値なら1
+```
+
+Rules:
+- 最高Score Pointは一意でなければならない
+- 最高Score Point同点はHTTP 400 `invalid_game_first_place_tie`
+- 下位同点は許可する
+- 最下位同点は複数Playerを`is_last=1`にする
+- PUT訂正時はResult置換と同時にplacement/is_lastを再計算・置換する
+- existing `game_results.rank`はlegacy orderとして維持し、actual placementには使用しない
+
+Game read payloadはIssue #299では既存shapeを維持し、`placement` / `isLast`を追加しない。Performance集計はserver-sideでD1列を利用する。
 
 ## 10. Session details and API client baseline
 
@@ -112,15 +138,51 @@ Rules:
 
 Response returns the new `version` and `updatedAt` so the browser can continue optimistic concurrency without an immediate full reload.
 
-`WorkerApiClient` is the browser-side HTTP boundary. It maps non-2xx responses and network failures to the existing `Result<AppError>` convention. It is deliberately not composed into `createBrowserServices` yet; localStorage remains active until authentication and server-side authorization are available.
+`WorkerApiClient` is the browser-side HTTP boundary. It maps non-2xx responses and network failures to the existing `Result<AppError>` convention.
 
+## 11. Performance summary API
 
-## 11. API repository adapter baseline
+`GET /api/groups/:groupId/performance-summary` returns finalized-Session Player aggregates for the selected Group.
 
-`ApiGroupRepository` and `ApiPlayerRepository` implement the existing application repository ports over `WorkerApiClient`. Supported operations map only to endpoints already implemented; unsupported Player lookup/update operations fail explicitly rather than silently falling back to localStorage. These adapters are not yet composed into the browser runtime.
+Query parameters:
+- no period params: all-time
+- `year=YYYY`: yearly
+- `year=YYYY&month=MM`: monthly
 
+Response item:
 
-## 12. LINE Login token/session flow
+```json
+{
+  "playerId": "player-id",
+  "sessionCount": 12,
+  "gameCount": 72,
+  "mahjongPointTotal": 406,
+  "finalPointTotal": 631,
+  "gameFirstPlaceCount": 28,
+  "sessionFirstPlaceCount": 5
+}
+```
+
+Semantics:
+- `sessionCount`: finalized Session参加数
+- `gameCount`: 対象期間のGame Result件数
+- `mahjongPointTotal`: chipを含まないScore Point合計
+- `finalPointTotal`: Sessionごとの`mahjongPointTotal + chipCount * chipRate`合計
+- `gameFirstPlaceCount`: `game_results.placement = 1`件数
+- `sessionFirstPlaceCount`: Session finalPoint最大だったSession件数。Session finalPoint同点は双方を1位として数える
+
+UI derived values:
+- 平均 = `mahjongPointTotal / gameCount`
+- 半荘勝率 = `gameFirstPlaceCount / gameCount * 100`
+- Session勝率 = `sessionFirstPlaceCount / sessionCount * 100`
+
+平均/率そのものはAPI/D1へ保存しない。Performance summaryは1回のaggregate queryで返し、GameごとのN+1 readを行わない。
+
+## 12. API repository adapter baseline
+
+`ApiGroupRepository` and `ApiPlayerRepository` implement the existing application repository ports over `WorkerApiClient`. Supported operations map only to endpoints already implemented; unsupported Player lookup/update operations fail explicitly rather than silently falling back to localStorage.
+
+## 13. LINE Login token/session flow
 
 The Worker completes the LINE Login v2.1 authorization-code flow server-side. The callback exchanges the authorization code for an ID token, verifies the ID token with LINE using the original nonce and Channel ID, upserts the LINE external identity/User in D1, and issues a 24-hour HttpOnly/Secure/SameSite=Lax application session cookie.
 
@@ -131,8 +193,7 @@ The Worker completes the LINE Login v2.1 authorization-code flow server-side. Th
 | GET | /api/auth/me | Return current authenticated User |
 | POST | /api/auth/logout | Clear application session |
 
-All mutation APIs now require a valid application session. Group-level Admin/Member authorization remains the next enforcement layer. `LINE_CHANNEL_ID` is non-secret configuration. `LINE_CHANNEL_SECRET` and `AUTH_SESSION_SECRET` must be Cloudflare Worker secrets and must never be committed or captured in screenshots.
-
+All mutation APIs require a valid application session. `LINE_CHANNEL_ID` is non-secret configuration. `LINE_CHANNEL_SECRET` and `AUTH_SESSION_SECRET` must be Cloudflare Worker secrets and must never be committed or captured in screenshots.
 
 ### Empty Session cancellation contract
 `POST /api/sessions/:sessionId/cancel` accepts `expectedVersion` and is available to authenticated Members of the owning Group.

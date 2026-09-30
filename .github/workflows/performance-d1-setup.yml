@@ -47,7 +47,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS totalSessions,(SELECT COUNT(*) FROM games) AS totalGames,(SELECT COUNT(*) FROM game_results) AS totalResults,(SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS baseSessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseGames,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseResults;" > /tmp/performance-before.json
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS totalSessions,(SELECT COUNT(*) FROM games) AS totalGames,(SELECT COUNT(*) FROM game_results) AS totalResults,(SELECT COALESCE(SUM(score_point),0) FROM game_results) AS totalScore,(SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS baseSessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseGames,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseResults;" > /tmp/performance-before.json
           node - <<'NODE'
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('/tmp/performance-before.json','utf8'));
@@ -61,14 +61,39 @@ jobs:
           console.log('Performance D1 pre-migration counts captured', row);
           NODE
 
-      - name: Guard against legacy first-place ties
+      - name: Normalize legacy deterministic Performance first-place ties
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "WITH maxima AS (SELECT game_id,MAX(score_point) AS max_score FROM game_results GROUP BY game_id), bad AS (SELECT r.game_id,COUNT(*) AS top_count,GROUP_CONCAT(r.player_id || ':' || r.score_point, ',') AS result_values FROM game_results r JOIN maxima m ON m.game_id=r.game_id WHERE r.score_point=m.max_score GROUP BY r.game_id HAVING COUNT(*)<>1) SELECT game_id,top_count,result_values FROM bad ORDER BY game_id LIMIT 20;" > /tmp/performance-first-ties.json
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "WITH maxima AS (SELECT game_id,MAX(score_point) AS max_score FROM game_results GROUP BY game_id),bad AS (SELECT r.game_id,m.max_score,COUNT(*) AS top_count FROM game_results r JOIN maxima m ON m.game_id=r.game_id WHERE r.score_point=m.max_score GROUP BY r.game_id,m.max_score HAVING COUNT(*)>1) SELECT COUNT(*) AS badTotal,SUM(CASE WHEN s.group_id NOT IN ('perf-realistic-5y','perf-realistic-club','perf-realistic-friends') THEN 1 ELSE 0 END) AS badOutsideSynthetic,SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM game_results r1 WHERE r1.game_id=bad.game_id AND r1.rank=1 AND r1.score_point=bad.max_score) THEN 1 ELSE 0 END) AS badRankOne FROM bad JOIN games g ON g.id=bad.game_id JOIN sessions s ON s.id=g.session_id;" > /tmp/performance-tie-precheck.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/performance-tie-precheck.json','utf8'));
+          const row=(Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0]??{};
+          if(Number(row.badOutsideSynthetic??0)!==0||Number(row.badRankOne??0)!==0){console.error('Refusing to normalize unexpected Performance data',row);process.exit(1);}
+          console.log('Legacy Performance first-place ties eligible for deterministic repair',row);
+          NODE
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --command "WITH maxima AS (SELECT game_id,MAX(score_point) AS max_score FROM game_results GROUP BY game_id),bad AS (SELECT r.game_id,m.max_score,COUNT(*) AS top_count FROM game_results r JOIN maxima m ON m.game_id=r.game_id WHERE r.score_point=m.max_score GROUP BY r.game_id,m.max_score HAVING COUNT(*)>1),demote AS (SELECT r.game_id,MIN(r.rank) AS demote_rank FROM game_results r JOIN bad b ON b.game_id=r.game_id WHERE r.score_point=b.max_score AND r.rank>1 GROUP BY r.game_id) UPDATE game_results SET score_point=score_point+CASE WHEN rank=1 THEN 1 WHEN rank=(SELECT d.demote_rank FROM demote d WHERE d.game_id=game_results.game_id) THEN -1 ELSE 0 END WHERE game_id IN (SELECT b.game_id FROM bad b JOIN games g ON g.id=b.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id IN ('perf-realistic-5y','perf-realistic-club','perf-realistic-friends'));"
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "WITH maxima AS (SELECT game_id,MAX(score_point) AS max_score FROM game_results GROUP BY game_id),bad AS (SELECT r.game_id FROM game_results r JOIN maxima m ON m.game_id=r.game_id WHERE r.score_point=m.max_score GROUP BY r.game_id HAVING COUNT(*)>1) SELECT (SELECT COUNT(*) FROM bad) AS remainingBad,(SELECT COALESCE(SUM(score_point),0) FROM game_results) AS totalScore;" > /tmp/performance-tie-postcheck.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const rows=(path)=>{const data=JSON.parse(fs.readFileSync(path,'utf8'));return (Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0]??{};};
+          const before=rows('/tmp/performance-before.json'),after=rows('/tmp/performance-tie-postcheck.json');
+          if(Number(after.remainingBad)!==0||Number(after.totalScore)!==Number(before.totalScore)){console.error('Performance tie normalization invariant failed',{before,after});process.exit(1);}
+          console.log('Legacy deterministic Performance first-place ties normalized without changing total score',{beforeTotalScore:before.totalScore,after});
+          NODE
+
+      - name: Guard against first-place ties
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "WITH maxima AS (SELECT game_id,MAX(score_point) AS max_score FROM game_results GROUP BY game_id),bad AS (SELECT r.game_id,COUNT(*) AS top_count,GROUP_CONCAT(r.player_id || ':' || r.score_point, ',') AS result_values FROM game_results r JOIN maxima m ON m.game_id=r.game_id WHERE r.score_point=m.max_score GROUP BY r.game_id HAVING COUNT(*)<>1) SELECT game_id,top_count,result_values FROM bad ORDER BY game_id LIMIT 20;" > /tmp/performance-first-ties.json
           node - <<'NODE'
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('/tmp/performance-first-ties.json','utf8'));
@@ -90,13 +115,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS totalSessions,(SELECT COUNT(*) FROM games) AS totalGames,(SELECT COUNT(*) FROM game_results) AS totalResults,(SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS baseSessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseGames,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseResults,(SELECT COUNT(*) FROM game_results WHERE placement IS NULL) AS nullPlacements,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN placement=1 THEN 1 ELSE 0 END)<>1)) AS badFirsts,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN is_last=1 THEN 1 ELSE 0 END)<1)) AS badLasts;" > /tmp/performance-after.json
+          npx wrangler d1 execute mahjong-score-performance --remote --config wrangler.performance.jsonc --json --command "SELECT (SELECT COUNT(*) FROM sessions) AS totalSessions,(SELECT COUNT(*) FROM games) AS totalGames,(SELECT COUNT(*) FROM game_results) AS totalResults,(SELECT COALESCE(SUM(score_point),0) FROM game_results) AS totalScore,(SELECT COUNT(*) FROM sessions WHERE group_id='perf-realistic-5y') AS baseSessions,(SELECT COUNT(*) FROM games g JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseGames,(SELECT COUNT(*) FROM game_results r JOIN games g ON g.id=r.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='perf-realistic-5y') AS baseResults,(SELECT COUNT(*) FROM game_results WHERE placement IS NULL) AS nullPlacements,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN placement=1 THEN 1 ELSE 0 END)<>1)) AS badFirsts,(SELECT COUNT(*) FROM (SELECT game_id FROM game_results GROUP BY game_id HAVING SUM(CASE WHEN is_last=1 THEN 1 ELSE 0 END)<1)) AS badLasts;" > /tmp/performance-after.json
           node - <<'NODE'
           const fs=require('fs');
           const rows=(path)=>{const data=JSON.parse(fs.readFileSync(path,'utf8'));return (Array.isArray(data)?data.flatMap(x=>x.results??[]):data.results??[])[0]??{};};
           const before=rows('/tmp/performance-before.json'),after=rows('/tmp/performance-after.json');
-          for(const key of ['totalSessions','totalGames','totalResults','baseSessions','baseGames','baseResults']){
-            if(Number(before[key])!==Number(after[key])){console.error('Performance D1 row count changed',key,before,after);process.exit(1);}
+          for(const key of ['totalSessions','totalGames','totalResults','totalScore','baseSessions','baseGames','baseResults']){
+            if(Number(before[key])!==Number(after[key])){console.error('Performance D1 row/score invariant changed',key,before,after);process.exit(1);}
           }
           for(const key of ['nullPlacements','badFirsts','badLasts']){
             if(Number(after[key])!==0){console.error('Performance D1 placement invariant failed',key,after);process.exit(1);}

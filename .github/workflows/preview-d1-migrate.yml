@@ -1,11 +1,6 @@
 name: Preview D1 migrate
 
 on:
-  push:
-    branches:
-      - feature/299-game-result-placement-performance-metrics
-    paths:
-      - .github/workflows/preview-d1-migrate.yml
   workflow_dispatch:
     inputs:
       confirmation:
@@ -18,7 +13,7 @@ permissions:
 
 jobs:
   migrate-preview-d1:
-    if: ${{ github.event_name == 'push' || inputs.confirmation == 'MIGRATE-PREVIEW-D1' }}
+    if: ${{ inputs.confirmation == 'MIGRATE-PREVIEW-D1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

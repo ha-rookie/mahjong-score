@@ -1,0 +1,25 @@
+name: Issue 299 dispatch Performance D1 setup
+
+on:
+  push:
+    branches:
+      - feature/299-game-result-placement-performance-metrics
+    paths:
+      - '.github/workflows/issue-299-dispatch-performance.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch guarded Performance D1 setup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run performance-d1-setup.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ github.ref_name }}" \
+            -f confirmation=SETUP-PERFORMANCE-D1

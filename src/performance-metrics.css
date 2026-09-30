@@ -1,0 +1,40 @@
+.performance-card dl {
+  grid-template-columns: 1.45fr repeat(3, minmax(0, 1fr));
+}
+
+.performance-card__metric dt {
+  white-space: nowrap;
+}
+
+.performance-card__metric dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.performance-card__metric small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+@media (max-width: 380px) {
+  .performance-card dl {
+    grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .performance-card dt,
+  .performance-card__metric dt {
+    font-size: 0.58rem;
+  }
+
+  .performance-card dd {
+    font-size: 0.78rem;
+  }
+
+  .performance-card__metric small {
+    font-size: 0.56rem;
+  }
+}

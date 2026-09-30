@@ -178,3 +178,13 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - memo本文はAudit Logへ出さない
 
 関連Decision: `adr/ADR-0001-game-result-placement.md`
+
+## FUNC-010 確定済み半荘結果の管理者訂正
+- 確定済みSessionのGameは通常ユーザーおよびGroup Adminには引き続きread-onlyとする
+- System AdminだけがHistoryのSession結果から半荘Score Pointを訂正できる
+- 訂正画面は現在値を初期表示し、保存前に確定済みデータ変更の確認を必須とする
+- Game削除、Session参加者、開催日、チップ、Sessionメモの変更は本機能の対象外とする
+- 保存時は既存Game validation、`expectedVersion`、参加者一致、Score Point合計0を維持する
+- `placement` / `is_last` は訂正後Score Pointから再計算して同時更新する
+- 成功・拒否・競合・更新失敗は `finalized_game_corrected` のaudit eventで追跡可能にする
+

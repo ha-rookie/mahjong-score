@@ -203,3 +203,13 @@ All mutation APIs require a valid application session. `LINE_CHANNEL_ID` is non-
 `POST /api/sessions/:sessionId/cancel` accepts `expectedVersion` and is available to authenticated Members of the owning Group.
 The Worker rejects finalized Sessions, Sessions with one or more Games, stale versions, and cross-Group access.
 This endpoint is distinct from administrative `DELETE /api/sessions/:sessionId`, whose System Admin / Group Admin authorization remains unchanged.
+
+### PUT /api/games/:gameId - finalized Game correction
+- active Sessionの既存Game更新仕様は維持する
+- Sessionが`finalized`の場合はSystem Adminだけ更新可能とし、Member / Group Adminには403を返す
+- `expectedVersion`によるoptimistic concurrencyを維持する
+- Score Point合計0、参加者一致、値域、Game Tag validationを既存更新と共通化する
+- 訂正後は`placement` / `is_last`を再計算し、GameResultとGame versionを同一更新単位で保存する
+- Session versionも更新し、Session詳細の競合検知を維持する
+- 監査ログ`finalized_game_corrected`にはuser、group、game、session識別情報とoutcomeを残し、Score値そのものは記録しない
+

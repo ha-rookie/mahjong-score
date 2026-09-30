@@ -147,6 +147,18 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - 期間判定はSession.sessionDateを使い、finalized Sessionのみ対象とする
 - 平均・半荘勝率・Session勝率も同じ期間filterを適用する
 
+## FUNC-008 認証セッション継続 / 401再ログイン
+- application sessionは発行時点から24時間を基本有効期限とする
+- `GET /api/auth/me` で有効なsessionを確認した際、残り有効時間が12時間以下ならsigned payloadの`exp`とHttpOnly Cookieの`Max-Age`を同時に24時間へ更新する
+- Browserは通常操作のたびにCookieを再発行させず、最後の認証確認から1時間以上経過したprotected API操作の直前だけ`/api/auth/me`を確認する
+- 24時間以上操作がなくsessionがexpiredした場合は従来どおり401とする
+- protected APIの401はnetwork failureと区別し、「ログインの有効期限が切れました。もう一度ログインしてください。」として扱う
+- runtime中の401ではApp本体をunauthenticatedへ初期化せず、再ログインDialogを重ねてScore / Chip / Session memo等のReact stateを保持する
+- 再ログインは別WindowでLINE authorizationを開始し、元Windowは`/api/auth/me`で復帰を確認する。成功後はDialogを閉じ、Userが失敗した保存操作を再実行できる
+- 初期表示時に既にsessionがexpiredしている場合は、未保存入力が存在しないため従来のlogin gateを使用する
+- 明示logoutは従来どおりsessionを破棄し、Appの認証状態をunauthenticatedへ遷移する
+- LINE Login / Invitation / logoutの既存flowを変更しない
+
 ## FUNC-009 0半荘Session取り消し
 - 対象は `active` かつGame 0件のSessionのみ
 - Score Sheetでは「Sessionを終了」の代わりに「Sessionを取り消す」を表示する

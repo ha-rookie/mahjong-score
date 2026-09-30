@@ -184,7 +184,11 @@ UI derived values:
 
 ## 13. LINE Login token/session flow
 
-The Worker completes the LINE Login v2.1 authorization-code flow server-side. The callback exchanges the authorization code for an ID token, verifies the ID token with LINE using the original nonce and Channel ID, upserts the LINE external identity/User in D1, and issues a 24-hour HttpOnly/Secure/SameSite=Lax application session cookie.
+The Worker completes the LINE Login v2.1 authorization-code flow server-side. The callback exchanges the authorization code for an ID token, verifies the ID token with LINE using the original nonce and Channel ID, upserts the LINE external identity/User in D1, and issues an HttpOnly/Secure/SameSite=Lax application session cookie with an initial 24-hour lifetime.
+
+Issue #301以降、application sessionはsliding expirationとする。`GET /api/auth/me`で有効なsessionを解決した時点でsigned payloadの残り有効時間が12時間以下なら、新しい`exp = now + 24h`を署名したsessionを発行し、Cookie `Max-Age=86400`も同時に更新する。残り12時間超ではCookieを再発行しない。Browserはprotected API操作の直前に最大1時間に1回だけ`/api/auth/me`をpreflightし、active use中のsessionを更新可能にする。24時間以上無操作ならsessionはexpiredし401になる。
+
+Runtime中のprotected API 401は、Browser側でnetwork errorと区別して`mahjong:auth-expired`として扱う。App本体はunmount/initializationせず、再ログインDialogを重ねることで入力途中のScore / Chip / Session memoを保持する。再ログインは`GET /api/auth/line/start?response=json`でauthorization URLを取得して別WindowでLINE Loginを行い、元Windowが`GET /api/auth/me`成功を確認して復帰する。401を受けた元mutationは自動再送せず、Userが内容を確認して再実行する。
 
 | Method | Path | Purpose |
 | --- | --- | --- |

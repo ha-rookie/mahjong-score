@@ -101,6 +101,12 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Session終了成功後、そのSessionをread modelで再取得して結果画面を表示する
 - 半荘別Score Point、小計、chip枚数、chip換算（1枚=5pt）、最終合計、順位を表示する
 - 同点は同順位。Participant列順は変更しない
+- Issue #297として、PlayerごとにSession内の平均スコアと勝率を表示する
+- 平均スコアは `Session内のscorePoint合計 ÷ Session内のGame数` とし、chip換算を含めず小数1桁で表示する
+- 勝率は `そのGameで最高scorePointになった回数 ÷ Session内のGame数 × 100` とし、小数1桁で表示する。最高scorePointが同点の場合は同点Player全員を1位として数える
+- 勝率には `4/6` のように1位回数 / Game数を併記する
+- 平均スコア・勝率は既存のSession Results read modelに含まれるGameから導出し、D1へ集計値を保存しない
+- Active Sessionの終了前ResultsとHistoryから開いたfinalized Resultsで同じ導出ロジックを使う
 - 過去Session一覧は別Issueとする
 
 

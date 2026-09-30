@@ -14,6 +14,12 @@ const rows=(table,columns,items,chunk=100)=>{
   return out;
 };
 const addDays=(iso,days)=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+const ensureUniqueFirst=(scores)=>{
+  const values=[...scores],highest=Math.max(...values),top=values.map((v,i)=>v===highest?i:-1).filter(i=>i>=0);
+  if(top.length>1){values[top[0]]+=1;values[top[1]]-=1;}
+  return values;
+};
+const placements=(scores)=>{const lowest=Math.min(...scores);return scores.map(score=>({placement:1+scores.filter(other=>other>score).length,isLast:score===lowest?1:0}));};
 const sql=[];
 const meta={generatedAt:new Date().toISOString(),profiles:[]};
 for(const p of profiles){
@@ -41,15 +47,20 @@ for(const p of profiles){
       const minute=String((g-1)*20%60).padStart(2,"0");
       const hour=String(9+Math.floor((g-1)*20/60)).padStart(2,"0");
       gameRows.push([gid,sid,seg,g,`${date}T${hour}:${minute}:00Z`,1]);
-      const a=((s+g)%31)-15,b=((s*2+g)%21)-10,c=-(a+b);
-      resultRows.push([gid,`${p.groupId}-p1`,1,a],[gid,`${p.groupId}-p2`,2,b],[gid,`${p.groupId}-p3`,3,c]);
+      const a=((s+g)%31)-15,b=((s*2+g)%21)-10;
+      const values=ensureUniqueFirst([a,b,-(a+b)]),derived=placements(values);
+      resultRows.push(
+        [gid,`${p.groupId}-p1`,1,values[0],derived[0].placement,derived[0].isLast],
+        [gid,`${p.groupId}-p2`,2,values[1],derived[1].placement,derived[1].isLast],
+        [gid,`${p.groupId}-p3`,3,values[2],derived[2].placement,derived[2].isLast],
+      );
     }
   }
   sql.push(...rows("sessions",["id","group_id","session_date","started_at","ended_at","status","note","version","created_at","updated_at"],sessionRows));
   sql.push(...rows("participant_segments",["id","session_id","sequence"],segmentRows));
   sql.push(...rows("segment_players",["segment_id","player_id","seat_order"],segmentPlayerRows));
   sql.push(...rows("games",["id","session_id","segment_id","sequence","played_at","version"],gameRows));
-  sql.push(...rows("game_results",["game_id","player_id","rank","score_point"],resultRows));
+  sql.push(...rows("game_results",["game_id","player_id","rank","score_point","placement","is_last"],resultRows));
   sql.push(...rows("chip_results",["session_id","player_id","chip_count"],chipRows));
   sql.push(...rows("session_participant_notes",["session_id","player_id","note"],noteRows));
   meta.profiles.push({

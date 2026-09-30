@@ -1,0 +1,63 @@
+/* Issue #292: make finalized Session memo save state explicit without showing a disabled CTA. */
+.session-memo-editor {
+  gap: 10px;
+}
+
+.session-memo-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.session-memo-save-state__icon {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.session-memo-save-state--saved {
+  color: var(--muted);
+}
+
+.session-memo-save-state--saved .session-memo-save-state__icon {
+  color: var(--success, #3b7652);
+  background: rgb(59 118 82 / 10%);
+}
+
+.session-memo-save-state--dirty {
+  color: var(--text);
+}
+
+.session-memo-save-state--dirty .session-memo-save-state__icon {
+  color: var(--accent);
+  background: rgb(42 105 83 / 10%);
+}
+
+.session-memo-save-state--saving {
+  color: var(--muted);
+}
+
+.session-memo-save-state--warning {
+  color: var(--danger);
+}
+
+.session-memo-save-state--warning .session-memo-save-state__icon {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+@media (max-width: 520px) {
+  .session-memo-save-state {
+    font-size: 0.8rem;
+  }
+}

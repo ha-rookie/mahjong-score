@@ -23,20 +23,25 @@ type ErrorResponse = { error?: { code?: string } };
 export function SessionMemoEditor({ session, editable, disabled=false, onBusyChange, onError, onStatus, onUpdated }: Props) {
   const [draft,setDraft]=useState(session.note??"");
   const [saving,setSaving]=useState(false);
+  const [hasConflict,setHasConflict]=useState(false);
 
-  useEffect(()=>{setDraft(session.note??"");},[session.id,session.note,session.version]);
+  useEffect(()=>{
+    setDraft(session.note??"");
+    setHasConflict(false);
+  },[session.id,session.note,session.version]);
 
   if(!editable){
     return session.note?.trim()?<div className="session-result-note"><span>Sessionメモ</span><p>{session.note}</p></div>:null;
   }
 
   const normalized=draft.trim()||null;
-  const dirty=normalized!==session.note;
+  const savedNormalized=session.note?.trim()||null;
+  const dirty=normalized!==savedNormalized;
 
   const save=async()=>{
-    if(saving||disabled)return;
+    if(saving||disabled||!dirty)return;
     if(session.version===undefined){onError("Sessionの更新情報を確認できませんでした。もう一度開き直してください。");return;}
-    setSaving(true);onBusyChange(true);onError(null);onStatus(null);
+    setSaving(true);setHasConflict(false);onBusyChange(true);onError(null);onStatus(null);
     try{
       const response=await fetch(`/api/sessions/${encodeURIComponent(session.id)}/note`,{
         method:"PATCH",
@@ -52,6 +57,7 @@ export function SessionMemoEditor({ session, editable, disabled=false, onBusyCha
           if(latest?.session&&latest.session.version!==undefined){
             setDraft(latest.session.note??"");
             onUpdated(latest.session.note,latest.session.version);
+            setHasConflict(true);
           }
           onError("他の端末でSessionメモが更新されました。最新内容を確認して再操作してください。");
         }else if(code==="forbidden"){
@@ -65,6 +71,7 @@ export function SessionMemoEditor({ session, editable, disabled=false, onBusyCha
       }
       const saved=payload as NoteUpdateResponse;
       setDraft(saved.note??"");
+      setHasConflict(false);
       onUpdated(saved.note,saved.version);
       onStatus("Sessionメモを保存しました。");
     }catch{
@@ -74,8 +81,13 @@ export function SessionMemoEditor({ session, editable, disabled=false, onBusyCha
     }
   };
 
-  return <div className="form-stack">
-    <label className="memo-field">Sessionメモ<textarea maxLength={SESSION_NOTE_MAX_LENGTH} value={draft} onChange={e=>setDraft(e.target.value)} /></label>
-    <Button block variant="secondary" disabled={disabled||saving||!dirty||session.version===undefined} onClick={()=>void save()}>{saving?"保存しています…":"Sessionメモを保存"}</Button>
+  const stateClass=saving?"session-memo-save-state--saving":hasConflict?"session-memo-save-state--warning":dirty?"session-memo-save-state--dirty":"session-memo-save-state--saved";
+  const stateIcon=saving?"…":hasConflict?"!":dirty?"●":"✓";
+  const stateText=saving?"保存しています…":hasConflict?"最新内容を読み込みました。内容を確認してください。":dirty?"未保存の変更があります":"保存済み";
+
+  return <div className="form-stack session-memo-editor">
+    <label className="memo-field">Sessionメモ<textarea maxLength={SESSION_NOTE_MAX_LENGTH} value={draft} onChange={e=>{setDraft(e.target.value);setHasConflict(false);}} /></label>
+    <div className={`session-memo-save-state ${stateClass}`} role="status" aria-live="polite"><span className="session-memo-save-state__icon" aria-hidden="true">{stateIcon}</span><span>{stateText}</span></div>
+    {dirty?<Button block disabled={disabled||saving||session.version===undefined} onClick={()=>void save()}>{saving?"保存しています…":"メモの変更を保存"}</Button>:null}
   </div>;
 }

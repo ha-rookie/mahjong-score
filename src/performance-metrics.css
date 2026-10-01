@@ -38,3 +38,8 @@
     font-size: 0.56rem;
   }
 }
+
+.performance-card__placement-distribution { grid-column: span 2; }
+.performance-card__placement-distribution dd { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; font-size:.72rem; font-variant-numeric:tabular-nums; }
+.performance-card__placement-distribution span { white-space:nowrap; }
+@media (max-width:380px){.performance-card__placement-distribution dd{font-size:.64rem;gap:2px;}}

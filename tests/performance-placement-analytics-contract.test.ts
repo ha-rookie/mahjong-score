@@ -1,0 +1,7 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+test("Performance aggregate reads persisted placement and last-place flags in one query",()=>{const worker=readFileSync("src/worker.ts","utf8");for(const fragment of ["SUM(gr.placement) AS placementTotal","SUM(CASE WHEN gr.placement=1 THEN 1 ELSE 0 END) AS gameFirstPlaceCount","SUM(CASE WHEN gr.placement=2 THEN 1 ELSE 0 END) AS secondPlaceCount","SUM(CASE WHEN gr.placement=3 THEN 1 ELSE 0 END) AS thirdPlaceCount","SUM(CASE WHEN gr.placement=4 THEN 1 ELSE 0 END) AS fourthPlaceCount","SUM(CASE WHEN gr.is_last=1 THEN 1 ELSE 0 END) AS lastPlaceCount","SUM(placementTotal) AS placementTotal","SUM(lastPlaceCount) AS lastPlaceCount"])assert.ok(worker.includes(fragment),fragment);});
+test("Performance UI derives average placement and last-place rate from raw aggregates",()=>{const app=readFileSync("src/App.tsx","utf8");assert.ok(app.includes("averagePlacement=a.gameCount===0?0:a.placementTotal/a.gameCount"));assert.ok(app.includes("lastPlaceRate=a.gameCount===0?0:a.lastPlaceCount/a.gameCount*100"));for(const label of ["平均順位","ラス率","1位 {a.gameFirstPlaceCount}","4位 {a.fourthPlaceCount}"])assert.ok(app.includes(label),label);});
+test("Performance design preserves stored tie ranks and uses is_last as last-place truth",()=>{const design=readFileSync("docs/09_FUNCTION_DESIGN.md","utf8");assert.ok(design.includes("下位同点をmid-rankへ変換しない"));assert.ok(design.includes("`is_last`を正本とする"));});

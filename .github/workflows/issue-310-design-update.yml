@@ -1,0 +1,180 @@
+name: Issue 310 design update
+
+on:
+  push:
+    branches:
+      - feature/310-player-performance-detail
+
+permissions:
+  contents: write
+
+jobs:
+  update-design:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/310-player-performance-detail
+          fetch-depth: 0
+
+      - name: Update approved design for Issue 310
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"anchor not found: {path}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          def append_once(path: str, marker: str, addition: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              if marker in text:
+                  return
+              p.write_text(text.rstrip() + "\n\n" + addition.strip() + "\n")
+
+          replace_once(
+              "docs/09_FUNCTION_DESIGN.md",
+              "| FUNC-010 | finalized Session Memo編集 | 3 User Test | Active |",
+              "| FUNC-010 | finalized Session Memo編集 | 3 User Test | Active |\n| FUNC-011 | Player個人成績表 | 3 User Test | Planned: Issue #310 |",
+          )
+          append_once(
+              "docs/09_FUNCTION_DESIGN.md",
+              "## FUNC-011 Player個人成績表",
+              r'''
+          ## FUNC-011 Player個人成績表
+          - 現行PerformanceはPlayer間比較のランキング／サマリーとして維持し、詳細指標を追加しない
+          - PerformanceでPlayerを選択すると別画面のPlayer個票を開く
+          - 個票は通算 / 年間 / 月間を切り替え、finalized Sessionだけを対象にする
+          - 総合: 最終pt、麻雀pt、Chip累計枚数、Chip換算pt、半荘数、Session数
+          - 半荘: 平均pt、平均順位、半荘勝率、ラス率、1〜4位の回数・率
+          - Session: Session勝率
+          - 順位分布はドーナツグラフと数値一覧を併記し、色だけに意味を依存させない
+          - 平均順位・順位分布は保存済み`placement`、ラス率は保存済み`is_last`を正本とする
+          - Score Pointからread時に順位・ラスを再推定しない
+          - 下位同点は保存済みcompetition placementをそのまま使用し、最下位同点は`is_last=1`の全Playerをラスとして数える
+          - Chipは半荘ではなくSession単位。枚数と`chip_count * session.chip_rate`による換算ptを分離する
+          - 率・平均はD1へ保存せず、aggregateの分子・分母から表示時に算出する
+          - Player個票専用read APIは1回のaggregate queryを基本とし、Game/Session単位N+1を導入しない
+          - D1 schema / migrationは変更しない
+          - 初版では月別推移、Chip推移、直近N半荘、連勝/連続ラス、最高/最低記録を扱わない
+          '''
+          )
+
+          replace_once(
+              "docs/10_SCREEN_DESIGN.md",
+              "| SCR-008 | Backup | Home内 | Legacy localStorage JSON Backup / Restore | Admin | D1運用時はRecovery Runbookを使用 | 1 | Active |",
+              "| SCR-008 | Backup | Home内 | Legacy localStorage JSON Backup / Restore | Admin | D1運用時はRecovery Runbookを使用 | 1 | Active |\n| SCR-009 | Player Performance Detail | Single-page state | Player個人成績・順位分布 | Group User | Group access | 3 User Test | Planned: Issue #310 |",
+          )
+          append_once(
+              "docs/10_SCREEN_DESIGN.md",
+              "## SCR-009 Player Performance Detail",
+              r'''
+          ## SCR-009 Player Performance Detail
+          ### Navigation
+          - 現行Performance cardのPlayer名/カードを選択して個票へ遷移する
+          - 個票から「成績へ戻る」でPerformanceへ戻る
+          - 現行Performance cardの主要4指標・密度は維持し、平均順位・ラス率・順位分布を追加しない
+
+          ### Period
+          - 個票でも通算 / 年間 / 月間を切り替える
+          - 年間は年、月間は年+月を選択する
+          - Performanceから開いた時点の期間を初期値として引き継ぐ
+
+          ### Information hierarchy
+          1. Player名と期間
+          2. 総合: 最終pt / 麻雀pt / Chip枚数 / Chip換算pt
+          3. 母数: 半荘数 / Session数
+          4. 半荘分析: 平均pt / 平均順位 / 半荘勝率 / ラス率
+          5. 順位分布: ドーナツグラフ + 1〜4位の件数/率
+          6. Session勝率
+
+          ### Donut chart
+          - 1〜4位の構成比を円環で表現する
+          - 3人Gameでは4位0件を許容する
+          - 凡例に順位、件数、率を必ず表示し、色だけで意味を伝えない
+          - Game 0件では空円や誤解を招く100%表示をせず「データなし」を表示する
+          - 外部Chart library追加を必須とせず、小さいbundle差分を優先する
+
+          ### Mobile
+          - 320px以上で横スクロールさせない
+          - 指標は小さな固定4列へ詰め込まず、個票内で読みやすい2列/可変gridを利用する
+          - touch targetは既存UI ruleを維持する
+          '''
+          )
+
+          append_once(
+              "docs/12_INTERFACE_IO_DESIGN.md",
+              "## 14. Player performance detail API",
+              r'''
+          ## 14. Player performance detail API
+          `GET /api/groups/:groupId/players/:playerId/performance-detail` returns one Player's finalized-Session detail aggregate for the selected Group.
+
+          Query parameters:
+          - no period params: all-time
+          - `year=YYYY`: yearly
+          - `year=YYYY&month=MM`: monthly
+
+          Authorization / scope:
+          - authenticated User must have existing Group access
+          - `playerId` must be an active or historically linked Player of the target Group; cross-Group Player access returns not found/forbidden without leaking another Group's aggregate
+          - read-only; no Production data mutation
+
+          Response:
+          ```json
+          {
+            "performance": {
+              "playerId": "player-id",
+              "sessionCount": 12,
+              "gameCount": 72,
+              "mahjongPointTotal": 406,
+              "chipCountTotal": 45,
+              "chipPointTotal": 225,
+              "finalPointTotal": 631,
+              "placementTotal": 136,
+              "firstPlaceCount": 28,
+              "secondPlaceCount": 31,
+              "thirdPlaceCount": 13,
+              "fourthPlaceCount": 0,
+              "lastPlaceCount": 13,
+              "sessionFirstPlaceCount": 5
+            }
+          }
+          ```
+
+          Semantics:
+          - `placementTotal`: persisted `game_results.placement` sum; average placement = `placementTotal / gameCount`
+          - first/second/third/fourth counts: exact persisted `placement` values
+          - `lastPlaceCount`: persisted `game_results.is_last = 1` count, independent from max placement
+          - `chipCountTotal`: Session-unit `chip_results.chip_count` sum
+          - `chipPointTotal`: Session-unit `chip_count * sessions.chip_rate` sum
+          - `finalPointTotal = mahjongPointTotal + chipPointTotal`
+          - `sessionFirstPlaceCount`: same Session finalPoint winner semantics as Performance summary
+          - rate/average display values are derived by the UI and are not persisted
+          - one aggregate query is the default implementation; no per-Game/per-Session N+1 reads
+          - no D1 schema / migration change
+          '''
+          )
+
+          replace_once(
+              "docs/06_REQUIREMENTS_TRACEABILITY.md",
+              "| REQ-013 | 0半荘active Sessionの取り消し | FUNC-009, SCR-004, IF Session cancel | #201 | CancelEmptySessionUseCase + Worker guarded cancel API + conditional UI | application/API tests + smartphone review | ACTIVE |",
+              "| REQ-013 | 0半荘active Sessionの取り消し | FUNC-009, SCR-004, IF Session cancel | #201 | CancelEmptySessionUseCase + Worker guarded cancel API + conditional UI | application/API tests + smartphone review | ACTIVE |\n| REQ-014 | Player個人成績表 | FUNC-011, SCR-009, IF performance-detail | #310 | Player detail aggregate API + separate detail UI + placement donut | API/contract/UI tests + PR CI + smartphone review | PLANNED |",
+          )
+          PY
+
+      - name: Commit design update and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/issue-310-design-update.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/06_REQUIREMENTS_TRACEABILITY.md docs/09_FUNCTION_DESIGN.md docs/10_SCREEN_DESIGN.md docs/12_INTERFACE_IO_DESIGN.md .github/workflows/issue-310-design-update.yml
+          git commit -m "docs: define player performance detail for #310"
+          git push origin HEAD:feature/310-player-performance-detail

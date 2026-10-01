@@ -1,0 +1,190 @@
+.player-performance-detail__back {
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: var(--teal-dark);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.player-performance-detail__period-label {
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: .86rem;
+}
+
+.player-performance-detail__summary,
+.player-performance-detail__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.player-performance-detail__summary > div,
+.player-performance-detail__metrics > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.player-performance-detail__summary span,
+.player-performance-detail__metrics span,
+.player-performance-detail__metrics small {
+  display: block;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.player-performance-detail__summary strong,
+.player-performance-detail__metrics strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1.18rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-performance-detail__metrics small {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-performance-detail__counts {
+  display: flex;
+  gap: 16px;
+  margin: 12px 2px 0;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.player-performance-detail__counts strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-performance-detail__distribution {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.player-performance-detail__section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.player-performance-detail__section-head h2 {
+  margin: 0;
+}
+
+.player-performance-detail__section-head > span {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.player-performance-detail__distribution-body {
+  display: grid;
+  grid-template-columns: minmax(120px, .8fr) minmax(150px, 1.2fr);
+  align-items: center;
+  gap: 22px;
+  margin-top: 14px;
+}
+
+.placement-donut {
+  width: min(42vw, 168px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 50%;
+  position: relative;
+}
+
+.placement-donut::after {
+  content: "";
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.placement-donut__center {
+  position: absolute;
+  inset: 24%;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.placement-donut__center strong {
+  font-size: 1.28rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.placement-donut__center span {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.placement-legend {
+  display: grid;
+  gap: 8px;
+}
+
+.placement-legend__row {
+  display: grid;
+  grid-template-columns: 12px 42px 1fr 1fr;
+  align-items: center;
+  gap: 7px;
+  font-size: .8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.placement-legend__row span:nth-last-child(-n+2) {
+  text-align: right;
+}
+
+.placement-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.placement-legend__dot--1 { background: #176b57; }
+.placement-legend__dot--2 { background: #6f9b8d; }
+.placement-legend__dot--3 { background: #c09a61; }
+.placement-legend__dot--4 { background: #a24b42; }
+
+.performance-card__player-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 34px);
+  border: 0;
+  padding: 4px 2px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.performance-card__player-link::after {
+  content: "›";
+  color: var(--teal);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+@media (max-width: 380px) {
+  .player-performance-detail__distribution-body {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .placement-donut {
+    width: 148px;
+  }
+}

@@ -179,3 +179,17 @@ Rules:
 
 This boundary is a regression-sensitive composition rule. New mutable resources must explicitly document whether they are create-only/idempotent, last-write-wins by design, or protected by an optimistic concurrency token.
 
+
+
+## 11. Browser / PWA navigation history
+
+Presentationの主要なユーザー起点画面遷移はBrowser Historyと同期する。
+
+- Homeを初期history entryとして扱う
+- Home → History / Performance / Session Setup / Group / Member / Rule Settings、およびHistory → Results、Performance → Player Performanceのようなユーザー起点遷移はhistory entryを追加する
+- Headerの戻ると端末/Browserの戻るは同じhistory entryを消費する
+- 業務処理完了後の状態遷移（Session開始・終了、Group切替、設定保存等）は新しい戻り先を作らない
+- 未保存Session入力がある場合、popstateでも既存のnavigation confirmationを経由し、端末戻るだけで入力を破棄しない
+- Homeより前の履歴はApplicationが擬似的に塞がず、Browser/PWA本来の戻る/終了動作へ委ねる
+
+この境界はIssue #316で導入する。URL router導入、DB/API変更は含めない。

@@ -21,6 +21,7 @@ RequirementがDesign・Implementation・Test・Evidenceまでつながってい�
 | REQ-011-FUTURE | Participant memo | Future auth/authorization | #6/#27 | Domain互換は維持、Phase 1 UIでは非表示 | 本人識別・認可導入時に再検討 | DEFERRED |
 | REQ-012 | Backup/Restore | DATA-010, FILE-001 | #6/#8/#10 | Export/Import | integration test / CI + UI実装 + smartphone review | ACTIVE |
 | REQ-013 | 0半荘active Sessionの取り消し | FUNC-009, SCR-004, IF Session cancel | #201 | CancelEmptySessionUseCase + Worker guarded cancel API + conditional UI | application/API tests + smartphone review | ACTIVE |
+| REQ-014 | Player個人成績表 | FUNC-011, SCR-009, IF performance-detail | #310 | Player detail aggregate API + separate detail UI + placement donut | API/contract/UI tests + PR CI + smartphone review | PLANNED |
 | NFR-001 | 卓上スマホUsability | SCR-001..006 | #12/#25/#27/#283 | mobile-first UI + direct score entry + ± sign toggle + History memo editor | Production smartphone review | ACTIVE |
 
 ## 3. Score Implementation Gate

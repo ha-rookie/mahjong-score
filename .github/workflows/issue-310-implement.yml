@@ -1,0 +1,49 @@
+name: Issue 310 implementation
+
+on:
+  push:
+    branches:
+      - feature/310-player-performance-detail
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feature/310-player-performance-detail
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Apply scoped source patch
+        run: python scripts/issue-310-apply.py
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          rm scripts/issue-310-apply.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/worker.ts src/application/use-cases/read-models.ts scripts/issue-310-apply.py
+          git diff --cached --quiet && { echo "No implementation diff to commit"; exit 0; }
+          git commit -m "feat: add Player performance detail for #310"
+          git push origin HEAD:feature/310-player-performance-detail

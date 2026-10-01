@@ -32,7 +32,7 @@ class FakeDb{
     private groupPlayers:Record<string,string[]>={},
     private failNextBatch=false,
     private nextRunChanges:number|null=null,
-    private gameResults:Record<string,Array<{playerId:string;scorePoint:number}>>={},
+    private gameResults:Record<string,Array<{playerId:string;scorePoint:number;placement?:number;isLast?:number}>>={},
     private gameTags:Record<string,Array<{type:"yakuman"|"double-yakuman";playerId:string|null}>>={},
     private groups:Record<string,{name:string;createdAt?:string;updatedAt?:string;startingPoints?:number;returnPoints?:number;chipRate?:number}>={},
   ){}
@@ -314,18 +314,18 @@ test("game list bulk loads results and tags with three data queries",async()=>{
     },
     {},false,null,
     {
-      game1:[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}],
-      game2:[{playerId:"p1",scorePoint:-8},{playerId:"p2",scorePoint:3},{playerId:"p3",scorePoint:5}],
+      game1:[{playerId:"p1",scorePoint:10,placement:1,isLast:0},{playerId:"p2",scorePoint:-5,placement:2,isLast:1},{playerId:"p3",scorePoint:-5,placement:2,isLast:1}],
+      game2:[{playerId:"p1",scorePoint:-8,placement:3,isLast:1},{playerId:"p2",scorePoint:3,placement:2,isLast:0},{playerId:"p3",scorePoint:5,placement:1,isLast:0}],
     },
     {game1:[{type:"yakuman",playerId:"p1"}]},
   );
   const response=await worker.fetch(await request("/api/sessions/s1/games",{},"member"),env(db));
   assert.equal(response.status,200);
-  const payload=await response.json() as {games:Array<{id:string;results:Array<{playerId:string;scorePoint:number}>;tags:Array<{type:string;playerId:string|null}>}>};
+  const payload=await response.json() as {games:Array<{id:string;results:Array<{playerId:string;scorePoint:number;placement:number;isLast:boolean}>;tags:Array<{type:string;playerId:string|null}>}>};
   assert.equal(payload.games.length,2);
-  assert.deepEqual(payload.games[0]?.results,[{playerId:"p1",scorePoint:10},{playerId:"p2",scorePoint:-5},{playerId:"p3",scorePoint:-5}]);
+  assert.deepEqual(payload.games[0]?.results,[{playerId:"p1",scorePoint:10,placement:1,isLast:false},{playerId:"p2",scorePoint:-5,placement:2,isLast:true},{playerId:"p3",scorePoint:-5,placement:2,isLast:true}]);
   assert.deepEqual(payload.games[0]?.tags,[{type:"yakuman",playerId:"p1"}]);
-  assert.deepEqual(payload.games[1]?.results,[{playerId:"p1",scorePoint:-8},{playerId:"p2",scorePoint:3},{playerId:"p3",scorePoint:5}]);
+  assert.deepEqual(payload.games[1]?.results,[{playerId:"p1",scorePoint:-8,placement:3,isLast:true},{playerId:"p2",scorePoint:3,placement:2,isLast:false},{playerId:"p3",scorePoint:5,placement:1,isLast:false}]);
   assert.deepEqual(payload.games[1]?.tags,[]);
   const gameReadSql=db.preparedSql.filter(sql=>sql.includes("FROM games WHERE session_id=?")||sql.includes("FROM game_results WHERE game_id IN")||sql.includes("FROM game_tags WHERE game_id IN"));
   assert.equal(gameReadSql.length,3);

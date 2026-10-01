@@ -110,7 +110,7 @@ Rules:
 - PUT訂正時はResult置換と同時にplacement/is_lastを再計算・置換する
 - existing `game_results.rank`はlegacy orderとして維持し、actual placementには使用しない
 
-Game read payloadはIssue #299では既存shapeを維持し、`placement` / `isLast`を追加しない。Performance集計はserver-sideでD1列を利用する。
+Issue #304以降、Game read payloadは保存済み`game_results.placement` / `is_last`をそれぞれ`placement` / `isLast`として返す。対象は`GET /api/sessions/:sessionId/games`と`GET /api/games/:gameId`。`isLast`はbooleanへ正規化する。Session Resultsの勝率はこの`placement`を正本として使い、Score Point最大値から順位を再推定しない。Performance集計は引き続きserver-sideでD1列を利用する。
 
 ## 10. Session details and API client baseline
 

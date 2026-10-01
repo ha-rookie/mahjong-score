@@ -94,3 +94,20 @@ export interface PlayerPerformanceAggregate {
   readonly gameFirstPlaceCount: number;
   readonly sessionFirstPlaceCount: number;
 }
+
+export interface PlayerPerformanceDetailAggregate {
+  readonly playerId: PlayerId;
+  readonly sessionCount: number;
+  readonly gameCount: number;
+  readonly mahjongPointTotal: number;
+  readonly chipCountTotal: number;
+  readonly chipPointTotal: number;
+  readonly finalPointTotal: number;
+  readonly placementTotal: number;
+  readonly firstPlaceCount: number;
+  readonly secondPlaceCount: number;
+  readonly thirdPlaceCount: number;
+  readonly fourthPlaceCount: number;
+  readonly lastPlaceCount: number;
+  readonly sessionFirstPlaceCount: number;
+}

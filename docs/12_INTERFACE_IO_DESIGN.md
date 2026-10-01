@@ -213,3 +213,49 @@ This endpoint is distinct from administrative `DELETE /api/sessions/:sessionId`,
 - Session versionも更新し、Session詳細の競合検知を維持する
 - 監査ログ`finalized_game_corrected`にはuser、group、game、session識別情報とoutcomeを残し、Score値そのものは記録しない
 
+## 14. Player performance detail API
+`GET /api/groups/:groupId/players/:playerId/performance-detail` returns one Player's finalized-Session detail aggregate for the selected Group.
+
+Query parameters:
+- no period params: all-time
+- `year=YYYY`: yearly
+- `year=YYYY&month=MM`: monthly
+
+Authorization / scope:
+- authenticated User must have existing Group access
+- `playerId` must be an active or historically linked Player of the target Group; cross-Group Player access returns not found/forbidden without leaking another Group's aggregate
+- read-only; no Production data mutation
+
+Response:
+```json
+{
+  "performance": {
+    "playerId": "player-id",
+    "sessionCount": 12,
+    "gameCount": 72,
+    "mahjongPointTotal": 406,
+    "chipCountTotal": 45,
+    "chipPointTotal": 225,
+    "finalPointTotal": 631,
+    "placementTotal": 136,
+    "firstPlaceCount": 28,
+    "secondPlaceCount": 31,
+    "thirdPlaceCount": 13,
+    "fourthPlaceCount": 0,
+    "lastPlaceCount": 13,
+    "sessionFirstPlaceCount": 5
+  }
+}
+```
+
+Semantics:
+- `placementTotal`: persisted `game_results.placement` sum; average placement = `placementTotal / gameCount`
+- first/second/third/fourth counts: exact persisted `placement` values
+- `lastPlaceCount`: persisted `game_results.is_last = 1` count, independent from max placement
+- `chipCountTotal`: Session-unit `chip_results.chip_count` sum
+- `chipPointTotal`: Session-unit `chip_count * sessions.chip_rate` sum
+- `finalPointTotal = mahjongPointTotal + chipPointTotal`
+- `sessionFirstPlaceCount`: same Session finalPoint winner semantics as Performance summary
+- rate/average display values are derived by the UI and are not persisted
+- one aggregate query is the default implementation; no per-Game/per-Session N+1 reads
+- no D1 schema / migration change

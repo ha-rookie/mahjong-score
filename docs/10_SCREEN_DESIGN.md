@@ -16,6 +16,7 @@ Screen Map、画面遷移、項目、Event、画面-Data Mapping、Wireframe/Moc
 | SCR-006 | Results | TBD | Session / 日次成績 | User | TBD | 1 | Planned |
 | SCR-007 | Statistics | TBD | 月・年・通算 | User | TBD | 1 | Planned |
 | SCR-008 | Backup | Home内 | Legacy localStorage JSON Backup / Restore | Admin | D1運用時はRecovery Runbookを使用 | 1 | Active |
+| SCR-009 | Player Performance Detail | Single-page state | Player個人成績・順位分布 | Group User | Group access | 3 User Test | Planned: Issue #310 |
 
 Routerはまだ採用せず、Phase 1最初のVertical SliceはReact stateでHome / Session Setupを切り替える。
 
@@ -265,3 +266,33 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 - 保存成功後はSession結果を再取得し、集計表示を最新値へ更新する
 - Group Admin / Memberには編集導線を表示しない
 
+## SCR-009 Player Performance Detail
+### Navigation
+- 現行Performance cardのPlayer名/カードを選択して個票へ遷移する
+- 個票から「成績へ戻る」でPerformanceへ戻る
+- 現行Performance cardの主要4指標・密度は維持し、平均順位・ラス率・順位分布を追加しない
+
+### Period
+- 個票でも通算 / 年間 / 月間を切り替える
+- 年間は年、月間は年+月を選択する
+- Performanceから開いた時点の期間を初期値として引き継ぐ
+
+### Information hierarchy
+1. Player名と期間
+2. 総合: 最終pt / 麻雀pt / Chip枚数 / Chip換算pt
+3. 母数: 半荘数 / Session数
+4. 半荘分析: 平均pt / 平均順位 / 半荘勝率 / ラス率
+5. 順位分布: ドーナツグラフ + 1〜4位の件数/率
+6. Session勝率
+
+### Donut chart
+- 1〜4位の構成比を円環で表現する
+- 3人Gameでは4位0件を許容する
+- 凡例に順位、件数、率を必ず表示し、色だけで意味を伝えない
+- Game 0件では空円や誤解を招く100%表示をせず「データなし」を表示する
+- 外部Chart library追加を必須とせず、小さいbundle差分を優先する
+
+### Mobile
+- 320px以上で横スクロールさせない
+- 指標は小さな固定4列へ詰め込まず、個票内で読みやすい2列/可変gridを利用する
+- touch targetは既存UI ruleを維持する

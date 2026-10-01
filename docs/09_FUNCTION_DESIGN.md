@@ -17,6 +17,7 @@
 | FUNC-008 | 認証・認可 | 2-3 | Active |
 | FUNC-009 | 0半荘Session取り消し | 3 RC | Active |
 | FUNC-010 | finalized Session Memo編集 | 3 User Test | Active |
+| FUNC-011 | Player個人成績表 | 3 User Test | Planned: Issue #310 |
 
 ## 3. FUNC-003 半荘結果入力
 
@@ -189,3 +190,19 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - `placement` / `is_last` は訂正後Score Pointから再計算して同時更新する
 - 成功・拒否・競合・更新失敗は `finalized_game_corrected` のaudit eventで追跡可能にする
 
+## FUNC-011 Player個人成績表
+- 現行PerformanceはPlayer間比較のランキング／サマリーとして維持し、詳細指標を追加しない
+- PerformanceでPlayerを選択すると別画面のPlayer個票を開く
+- 個票は通算 / 年間 / 月間を切り替え、finalized Sessionだけを対象にする
+- 総合: 最終pt、麻雀pt、Chip累計枚数、Chip換算pt、半荘数、Session数
+- 半荘: 平均pt、平均順位、半荘勝率、ラス率、1〜4位の回数・率
+- Session: Session勝率
+- 順位分布はドーナツグラフと数値一覧を併記し、色だけに意味を依存させない
+- 平均順位・順位分布は保存済み`placement`、ラス率は保存済み`is_last`を正本とする
+- Score Pointからread時に順位・ラスを再推定しない
+- 下位同点は保存済みcompetition placementをそのまま使用し、最下位同点は`is_last=1`の全Playerをラスとして数える
+- Chipは半荘ではなくSession単位。枚数と`chip_count * session.chip_rate`による換算ptを分離する
+- 率・平均はD1へ保存せず、aggregateの分子・分母から表示時に算出する
+- Player個票専用read APIは1回のaggregate queryを基本とし、Game/Session単位N+1を導入しない
+- D1 schema / migrationは変更しない
+- 初版では月別推移、Chip推移、直近N半荘、連勝/連続ラス、最高/最低記録を扱わない

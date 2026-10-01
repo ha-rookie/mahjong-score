@@ -312,7 +312,7 @@ function App() {
       {statusMessage?<div className="toast" role="status"><span>{statusMessage}</span></div>:null}
     </div>:null}
     <main className="page">
-      {authState==="checking"?<section className="login-gate"><p className="screen-eyebrow">AUTHENTICATION</p><h1>ログイン状態を確認しています</h1><p>少し待ってください。</p></section>:
+      {authState==="checking"?<div className="loading" role="status" aria-live="polite">認証を確認しています…</div>:
       authState==="unauthenticated"?<section className="login-gate"><p className="screen-eyebrow">WELCOME</p><h1>三麻スコアへログイン</h1><p>このアプリはLINEアカウントで利用者を確認します。招待を受けた方は、届いた招待URLからログインしてください。</p><button className="login-gate__button" type="button" onClick={()=>window.location.assign("/api/auth/line/start")}>LINEでログイン</button><p className="login-gate__note">ログイン前は、端末に残っている過去データやグループ情報を表示しません。</p></section>:
       <>
       {isLoading?<div className="loading">記録を読み込んでいます…</div>:

@@ -32,8 +32,8 @@ test("detail metrics keep persisted competition placement and last-place semanti
   const metrics=derivePlayerPerformanceDetailMetrics(aggregate);
   assert.equal(metrics.averageScorePoint,10);
   assert.equal(metrics.averagePlacement,5/3);
-  assert.equal(metrics.gameWinRate,100/3);
-  assert.equal(metrics.lastPlaceRate,200/3);
+  assert.ok(Math.abs(metrics.gameWinRate-100/3)<1e-10);
+  assert.ok(Math.abs(metrics.lastPlaceRate-200/3)<1e-10);
   assert.equal(metrics.sessionWinRate,50);
   assert.deepEqual(metrics.placements.map(item=>item.count),[1,2,0,0]);
 });

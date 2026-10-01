@@ -44,7 +44,7 @@ Issue #299以降、保存時はWorkerがScore Pointから実順位を算出し�
 
 Runtime Model:
 
-- `GameResult = { playerId, scorePoint }`
+- `GameResult = { playerId, scorePoint, placement?, isLast? }`。D1から読み出した保存済みGameでは`placement` / `isLast`を返し、未保存入力やlegacy local dataでは互換のため省略可能とする
 - `validateGameResults` が3/4人、重複、整数、合計0を検証
 - `validateGameParticipants` がParticipantSegmentとのPlayer集合一致を検証
 - `deriveGameResultPlacements` が保存用の`placement` / `isLast`を算出する
@@ -112,8 +112,9 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
 - Participant列順は変更しない
 - PlayerごとにSession内の平均スコアと勝率を表示する
 - 平均スコアは `Session内のscorePoint合計 ÷ Session内のGame数` とし、chip換算を含めず小数1桁で表示する
-- 勝率は `そのGameで最高scorePointになった回数 ÷ Session内のGame数 × 100` とし、小数1桁で表示する
-- 現行D1では1位同点をvalid writeとして許可しない。Session Resultsの既存read helperはlegacy/defensive readとして同点最高を複数1位扱いできるが、新規/訂正データでは発生しない
+- 勝率は `保存済みGameResult.placement = 1 の回数 ÷ Session内のGame数 × 100` とし、小数1桁で表示する
+- Session ResultsはScore Point最大値から1位を再推定しない。D1に保存済みの`placement`をread modelの正本として使う
+- `GET /api/sessions/:sessionId/games` と `GET /api/games/:gameId` は`placement` / `isLast`を返す
 - 勝率には `4/6` のように1位回数 / Game数を併記する
 - 平均スコア・勝率は既存のSession Results read modelに含まれるGameから導出し、D1へ集計値を保存しない
 - Active Sessionの終了前ResultsとHistoryから開いたfinalized Resultsで同じ導出ロジックを使う

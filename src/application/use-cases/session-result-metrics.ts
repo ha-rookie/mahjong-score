@@ -17,11 +17,10 @@ export const calculateSessionResultMetrics = (
   const firstPlaces = new Map<PlayerId, number>(participantPlayerIds.map((playerId) => [playerId, 0]));
 
   for (const game of games) {
-    const bestScore = Math.max(...game.results.map((result) => result.scorePoint));
     for (const result of game.results) {
       if (!totals.has(result.playerId)) continue;
       totals.set(result.playerId, (totals.get(result.playerId) ?? 0) + result.scorePoint);
-      if (result.scorePoint === bestScore) {
+      if (result.placement === 1) {
         firstPlaces.set(result.playerId, (firstPlaces.get(result.playerId) ?? 0) + 1);
       }
     }

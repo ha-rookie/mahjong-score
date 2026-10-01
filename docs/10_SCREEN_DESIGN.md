@@ -201,7 +201,11 @@ Phase 1ではDB ColumnをN/Aとし、Use Case / Domain / localStorage modelと�
 
 ### PERFORMANCE
 - Homeに「通算成績を見る」を配置する
-- Playerごとに最終pt、麻雀pt、1位回数、Session数、半荘数を表示する
+- Playerごとに最終pt、麻雀pt、平均pt、半荘勝率、Session勝率、平均順位、ラス率、1位/2位/3位/4位回数を表示する
+- 平均順位は保存済み`placement`の単純平均を小数2桁で表示し、同順位をmid-rankへ変換しない
+- ラス率は保存済み`isLast`を正本とし、率とラス回数/半荘数を併記する
+- 着順分布は1位/2位/3位/4位の回数をコンパクトに表示する。3人Gameでは4位0回を許容する
+- 320px以上で横スクロールを増やさず、既存Performance card内の補助行として追加する
 - 最終pt降順で表示する
 
 

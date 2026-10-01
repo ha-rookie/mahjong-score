@@ -158,7 +158,12 @@ Response item:
   "gameCount": 72,
   "mahjongPointTotal": 406,
   "finalPointTotal": 631,
+  "placementTotal": 142,
   "gameFirstPlaceCount": 28,
+  "secondPlaceCount": 24,
+  "thirdPlaceCount": 20,
+  "fourthPlaceCount": 0,
+  "lastPlaceCount": 20,
   "sessionFirstPlaceCount": 5
 }
 ```
@@ -168,13 +173,21 @@ Semantics:
 - `gameCount`: 対象期間のGame Result件数
 - `mahjongPointTotal`: chipを含まないScore Point合計
 - `finalPointTotal`: Sessionごとの`mahjongPointTotal + chipCount * chipRate`合計
+- `placementTotal`: 保存済み`game_results.placement`の合計。平均順位の分子
 - `gameFirstPlaceCount`: `game_results.placement = 1`件数
+- `secondPlaceCount`: `game_results.placement = 2`件数
+- `thirdPlaceCount`: `game_results.placement = 3`件数
+- `fourthPlaceCount`: `game_results.placement = 4`件数
+- `lastPlaceCount`: `game_results.is_last = 1`件数。最下位同点は各Playerを1件として数える
 - `sessionFirstPlaceCount`: Session finalPoint最大だったSession件数。Session finalPoint同点は双方を1位として数える
 
 UI derived values:
-- 平均 = `mahjongPointTotal / gameCount`
+- 平均pt = `mahjongPointTotal / gameCount`
 - 半荘勝率 = `gameFirstPlaceCount / gameCount * 100`
 - Session勝率 = `sessionFirstPlaceCount / sessionCount * 100`
+- 平均順位 = `placementTotal / gameCount`。保存済み競技順位を単純平均し、同順位をmid-rankへ変換しない
+- ラス率 = `lastPlaceCount / gameCount * 100`。`placement`最大値ではなく`is_last`を使用する
+- 着順分布 = `gameFirstPlaceCount / secondPlaceCount / thirdPlaceCount / fourthPlaceCount`
 
 平均/率そのものはAPI/D1へ保存しない。Performance summaryは1回のaggregate queryで返し、GameごとのN+1 readを行わない。
 

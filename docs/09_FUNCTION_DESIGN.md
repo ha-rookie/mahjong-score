@@ -137,9 +137,14 @@ Event -> UI validation -> Use Case -> Domain -> Repository -> Persistence -> Res
   - 平均: `mahjongPointTotal / gameCount`。chipを含めず小数1桁
   - 半荘勝率: `gameFirstPlaceCount / gameCount × 100`。`placement=1`件数を分子とし、`4/12`のように件数も併記
   - Session勝率: `sessionFirstPlaceCount / sessionCount × 100`。Session最終pt（chip込み）が最大だった回数を分子とし、`1/2`のように件数も併記
+  - 平均順位: 保存済み`placement`合計 / `gameCount`。小数2桁で表示する
+  - ラス率: 保存済み`is_last=1`件数 / `gameCount × 100`。率と`3/12`のような件数を併記する
+  - 着順分布: 保存済み`placement=1/2/3/4`の件数を表示する
+- 平均順位は保存済み競技順位の単純平均とし、下位同点をmid-rankへ変換しない。例: `1,2,2`の同点Playerはそれぞれ`2`として扱う
+- ラスは`placement`最大値から推定せず、`is_last`を正本とする。`1,2,2`で同点2名が最下位なら両名をラスとして数える
 - `gameFirstPlaceCount`はD1に保存済みの`game_results.placement=1`をaggregateする
 - `sessionFirstPlaceCount`はSession単位のfinalPoint最大値から既存ロジックでaggregateする。Session最終pt同点は双方をSession 1位として数える
-- 平均/勝率の率そのものはD1へ保存しない。分子・分母のraw aggregateからUIで算出する
+- 平均Score Point / 平均順位 / 勝率 / ラス率そのものはD1へ保存しない。分子・分母のraw aggregateからUIで算出する
 - Performance APIは1回のaggregate queryで返し、Game単位の追加N+1 queryを発生させない
 - 5年/10年Local D1 benchmarkで既存Performance read budgetを継続検証する
 

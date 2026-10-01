@@ -90,7 +90,8 @@
   display: grid;
   grid-template-columns: minmax(120px, .8fr) minmax(150px, 1.2fr);
   align-items: center;
-  gap: 22px;
+  column-gap: 36px;
+  row-gap: 22px;
   margin-top: 14px;
 }
 

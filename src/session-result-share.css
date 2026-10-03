@@ -1,0 +1,54 @@
+.score-session {
+  position: relative;
+}
+
+.session-result-share {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 1;
+  min-width: 76px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--teal-dark);
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.session-result-share:hover:not(:disabled) {
+  background: rgb(23 107 87 / 8%);
+}
+
+.session-result-share:active:not(:disabled) {
+  background: rgb(23 107 87 / 12%);
+}
+
+.session-result-share:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.session-result-share svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 380px) {
+  .session-result-share {
+    top: 26px;
+    min-width: 70px;
+    padding-inline: 8px;
+  }
+}

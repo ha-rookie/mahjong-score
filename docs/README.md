@@ -18,7 +18,7 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | Document | Responsibility |
 | --- | --- |
 | `00_PROJECT_OVERVIEW.md` | 背景、目的、対象、Scope |
-| `01_REQUIREMENTS.md` | 機能要件、非機能要件、制約 |
+| `01_REQUIREMENTS.md` | 機能/非機能要件、制約 |
 | `02_SYSTEM_ARCHITECTURE.md` | System Context、Hosting、Data Flow、Environment |
 | `03_APPLICATION_ARCHITECTURE.md` | App内部Layer、Module、State、Error boundary |
 | `04_REPOSITORY_STRUCTURE.md` | Directory、source/generated、配置Rule |
@@ -48,6 +48,7 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | `22_SE_USER_TEST_READINESS.md` | SE向けUser Test前のRelease Candidate Gate、task script、defect severity、説明ポイント |
 | `23_D1_PERFORMANCE_BENCHMARK.md` | Historical Preview D1 benchmark evidence。現在の実行手順ではない |
 | `23_PERFORMANCE_D1_TEST.md` | Current local / isolated Performance D1 test strategy、query-count guardrail、smartphone scenario |
+| `24_SESSION_RESULT_SHARING.md` | finalized Session結果の汎用共有、共有本文、Web Share / Clipboard fallback |
 
 ## 4. Cross-project Standards
 
@@ -105,7 +106,7 @@ Production Appとは分離し、Design Previewを公開する場合はnoindexを
 
 ## 7. No Duplicate Source of Truth
 
-同じ仕様を複数Documentへ全文コピーしない。
+同じ仕様を複数Documentへ全文コピーして正本を増やさない。
 
 例:
 - Hosting採用理由 → System Architecture / ADR

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SESSION_NOTE_MAX_LENGTH, type Session } from "../domain";
 import { Button } from "./ui";
+import { SessionResultShareButton } from "./session-result-share-button";
 
 type Props = {
   session: Session;
@@ -85,9 +86,12 @@ export function SessionMemoEditor({ session, editable, disabled=false, onBusyCha
   const stateIcon=saving?"…":hasConflict?"!":dirty?"●":"✓";
   const stateText=saving?"保存しています…":hasConflict?"最新内容を読み込みました。内容を確認してください。":dirty?"未保存の変更があります":"保存済み";
 
-  return <div className="form-stack session-memo-editor">
-    <label className="memo-field">Sessionメモ<textarea maxLength={SESSION_NOTE_MAX_LENGTH} value={draft} onChange={e=>{setDraft(e.target.value);setHasConflict(false);}} /></label>
-    <div className={`session-memo-save-state ${stateClass}`} role="status" aria-live="polite"><span className="session-memo-save-state__icon" aria-hidden="true">{stateIcon}</span><span>{stateText}</span></div>
-    {dirty?<Button block disabled={disabled||saving||session.version===undefined} onClick={()=>void save()}>{saving?"保存しています…":"メモの変更を保存"}</Button>:null}
-  </div>;
+  return <>
+    <SessionResultShareButton session={session} disabled={disabled} onError={onError} onStatus={onStatus} />
+    <div className="form-stack session-memo-editor">
+      <label className="memo-field">Sessionメモ<textarea maxLength={SESSION_NOTE_MAX_LENGTH} value={draft} onChange={e=>{setDraft(e.target.value);setHasConflict(false);}} /></label>
+      <div className={`session-memo-save-state ${stateClass}`} role="status" aria-live="polite"><span className="session-memo-save-state__icon" aria-hidden="true">{stateIcon}</span><span>{stateText}</span></div>
+      {dirty?<Button block disabled={disabled||saving||session.version===undefined} onClick={()=>void save()}>{saving?"保存しています…":"メモの変更を保存"}</Button>:null}
+    </div>
+  </>;
 }

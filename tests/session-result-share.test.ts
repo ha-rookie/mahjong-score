@@ -60,9 +60,9 @@ test("formats share text without memo or internal ids",()=>{
   const text=buildSessionShareText(summary);
   assert.match(text,/🀄 三麻スコア/);
   assert.match(text,/2026-09-30｜3人三麻・1半荘/);
-  assert.match(text,/🥇 田中　\+20/);
-  assert.match(text,/🥈 石村　-5/);
-  assert.match(text,/🥉 山名　-15/);
+  assert.match(text,/🥇 田中 \+20/);
+  assert.match(text,/🥈 石村 -5/);
+  assert.match(text,/🥉 山名 -15/);
   assert.match(text,/三麻スコアを開く$/);
   assert.doesNotMatch(text,/このメモは共有しない/);
   assert.doesNotMatch(text,/session-secret-id|group-secret-id/);
@@ -71,7 +71,7 @@ test("formats share text without memo or internal ids",()=>{
 test("formats fourth place for four-player rotation",()=>{
   const summary=buildSessionShareSummary(session(),[game(1,[40,10,-20,-30])],players(["A","B","C","D"]));
   assert.equal(summary.modeLabel,"4人回し三麻");
-  assert.match(buildSessionShareText(summary),/4位 D　-30/);
+  assert.match(buildSessionShareText(summary),/4位 D -30/);
 });
 
 test("normalizes top URL and appends it only in clipboard fallback",()=>{

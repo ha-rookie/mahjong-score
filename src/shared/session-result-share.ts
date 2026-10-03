@@ -73,7 +73,7 @@ export const buildSessionShareSummary = (
 
 export const buildSessionShareText = (summary: SessionShareSummary): string => {
   const resultLines = summary.rows.map(
-    (row) => `${rankLabel(row.rank)} ${row.displayName}　${formatPoint(row.finalPoint)}`,
+    (row) => `${rankLabel(row.rank)} ${row.displayName} ${formatPoint(row.finalPoint)}`,
   );
   return [
     "🀄 三麻スコア",

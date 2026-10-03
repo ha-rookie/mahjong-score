@@ -28,8 +28,8 @@ const env=(consumed=true)=>({
 });
 
 const base64url=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64url");
-const sessionCookie=async(userId:string)=>{
-  const payload=base64url(new TextEncoder().encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+60})));
+const sessionCookie=async(userId:string,exp=Math.floor(Date.now()/1000)+60)=>{
+  const payload=base64url(new TextEncoder().encode(JSON.stringify({userId,exp})));
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const signature=base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload))));
   return `${payload}.${signature}`;
@@ -47,20 +47,42 @@ const captureAudit=async(run:()=>Promise<Response>)=>{
   }
 };
 
-test("recently consumed LINE state is treated as an idempotent duplicate without minting a new session",async()=>{
+const assertWaitPage=async(response:Response)=>{
+  assert.equal(response.status,200);
+  assert.equal(response.headers.get("location"),null);
+  assert.equal(response.headers.get("set-cookie"),null);
+  assert.equal(response.headers.get("cache-control"),"no-store");
+  assert.match(response.headers.get("content-type")??"",/^text\/html/);
+  const body=await response.text();
+  assert.match(body,/ログインを完了しています/);
+  assert.match(body,/http-equiv="refresh" content="1;url=\/"/);
+};
+
+test("recently consumed LINE state waits for the first callback session instead of redirecting immediately",async()=>{
   const {response,events}=await captureAudit(()=>finishLineLogin(
     new Request("https://mahjong.example/api/auth/line/callback?code=duplicate-code&state=duplicate-state"),
     env(),
   ));
 
-  assert.equal(response.status,302);
-  assert.equal(response.headers.get("location"),"https://mahjong.example/");
-  assert.equal(response.headers.get("set-cookie"),null);
-  assert.equal(response.headers.get("cache-control"),"no-store");
+  await assertWaitPage(response);
   const duplicate=events.find(event=>event.event==="line_login_duplicate_callback");
   assert.ok(duplicate);
   assert.equal(duplicate.outcome,"success");
-  assert.equal(duplicate.reason,"session_missing");
+  assert.equal(duplicate.reason,"session_pending");
+});
+
+test("duplicate LINE callback with an expired application session waits instead of falling back to login gate",async()=>{
+  const expiredSession=await sessionCookie("user-1",Math.floor(Date.now()/1000)-1);
+  const {response,events}=await captureAudit(()=>finishLineLogin(
+    new Request("https://mahjong.example/api/auth/line/callback?code=duplicate-code&state=duplicate-state",{headers:{cookie:`mahjong_session=${expiredSession}`}}),
+    env(),
+  ));
+
+  await assertWaitPage(response);
+  const duplicate=events.find(event=>event.event==="line_login_duplicate_callback");
+  assert.ok(duplicate);
+  assert.equal(duplicate.userId,undefined);
+  assert.equal(duplicate.reason,"session_pending");
 });
 
 test("duplicate LINE callback preserves an already-valid application session",async()=>{

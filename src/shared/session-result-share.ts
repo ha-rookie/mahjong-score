@@ -61,7 +61,7 @@ export const buildSessionShareSummary = (
       finalPoint: finalPoint(playerId),
       rank: 1 + participantIds.filter((otherId) => finalPoint(otherId) > finalPoint(playerId)).length,
     }))
-    .sort((left, right) => right.finalPoint - left.finalPoint || left.displayName.localeCompare(right.displayName, "ja"));
+    .sort((left, right) => right.finalPoint - left.finalPoint);
 
   return {
     sessionDate: session.sessionDate,

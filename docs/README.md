@@ -18,7 +18,7 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | Document | Responsibility |
 | --- | --- |
 | `00_PROJECT_OVERVIEW.md` | 背景、目的、対象、Scope |
-| `01_REQUIREMENTS.md` | 機能/非機能要件、制約 |
+| `01_REQUIREMENTS.md` | 機能要件、非機能要件、制約 |
 | `02_SYSTEM_ARCHITECTURE.md` | System Context、Hosting、Data Flow、Environment |
 | `03_APPLICATION_ARCHITECTURE.md` | App内部Layer、Module、State、Error boundary |
 | `04_REPOSITORY_STRUCTURE.md` | Directory、source/generated、配置Rule |
@@ -106,7 +106,7 @@ Production Appとは分離し、Design Previewを公開する場合はnoindexを
 
 ## 7. No Duplicate Source of Truth
 
-同じ仕様を複数Documentへ全文コピーして正本を増やさない。
+同じ仕様を複数Documentへ全文コピーしない。
 
 例:
 - Hosting採用理由 → System Architecture / ADR

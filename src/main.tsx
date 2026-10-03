@@ -10,6 +10,7 @@ import "./session-danger-zone.css";
 import "./session-end-flow.css";
 import "./session-memo-save-state.css";
 import "./session-result-metrics.css";
+import "./session-result-share.css";
 import "./performance-metrics.css";
 installBrowserAuthSessionGuard();
 createRoot(document.getElementById("root")!).render(

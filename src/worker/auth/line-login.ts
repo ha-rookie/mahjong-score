@@ -63,12 +63,18 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
   }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
 };
 
+const duplicateCallbackWaitPage=()=>new Response("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"1;url=/\"><title>三麻スコア</title></head><body><p>ログインを完了しています…</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","referrer-policy":"no-referrer"}});
+
 const duplicateLineCallbackResponse=async(request:Request,env:AuthEnv,url:URL,oauthFlowId:string)=>{
   const session=await resolveSession(request,env);
   const destination=new URL("/",url.origin);
-  if(session.userId)destination.searchParams.set("login","success");
-  auditAuth(request,"line_login_duplicate_callback","success",{userId:session.userId,resourceType:"authentication",reason:session.userId?"session_preserved":"session_missing",oauthFlowId});
-  return new Response(null,{status:302,headers:{location:destination.toString(),"cache-control":"no-store"}});
+  if(session.userId){
+    destination.searchParams.set("login","success");
+    auditAuth(request,"line_login_duplicate_callback","success",{userId:session.userId,resourceType:"authentication",reason:"session_preserved",oauthFlowId});
+    return new Response(null,{status:302,headers:{location:destination.toString(),"cache-control":"no-store"}});
+  }
+  auditAuth(request,"line_login_duplicate_callback","success",{resourceType:"authentication",reason:"session_pending",oauthFlowId});
+  return duplicateCallbackWaitPage();
 };
 
 export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await resolveSession(request,env)).userId;

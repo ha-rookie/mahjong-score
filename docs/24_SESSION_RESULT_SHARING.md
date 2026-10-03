@@ -99,21 +99,23 @@ Session順位はfinalPointの降順とし、同点時は既存Resultsのcompetit
 
 ## 7. Processing Flow
 
+Web Share APIはtransient user activationを要求するため、共有button押下後にAPI readをawaitしてから `navigator.share()` を呼ばない。History Results表示時に共有用read dataを事前取得・集計し、button押下時は同期的に共有payloadを組み立てて直ちに `navigator.share()` を呼び出す。
+
 ```text
 History
   -> finalized Session Results
-      -> 共有
-          -> 必要なread dataを取得
-          -> 共有本文を生成
+      -> 共有用read dataを事前取得
+      -> 共有summaryを準備
+      -> 共有button
           -> navigator.share が利用可能
-               -> OS共有シート
+               -> 直ちにOS共有シート
                -> User cancelは無通知
           -> navigator.share 非対応
                -> Clipboard copy
                -> 「共有内容をコピーしました。」
 ```
 
-共有準備のreadに失敗した場合、共有シートは開かず通常のError Toastで通知する。
+共有準備中はbuttonをdisabledにする。共有準備のreadに失敗した場合は、button押下時に通常のError Toastで通知する。
 
 ## 8. Security / Privacy
 
@@ -134,7 +136,7 @@ TOP URLは `window.location.origin + "/"` 相当とし、現在URLのquery/hash/
 - Web Share API失敗: 「結果を共有できませんでした。」
 - Clipboard fallback成功: `MSG-012-01`「共有内容をコピーしました。」
 - Clipboard fallback失敗: 「共有内容をコピーできませんでした。」
-- read data取得失敗: 「共有する結果を準備できませんでした。」
+- read data取得失敗: 「共有する結果を準備できませんでした。もう一度開き直してください。」
 
 ## 10. Validation
 

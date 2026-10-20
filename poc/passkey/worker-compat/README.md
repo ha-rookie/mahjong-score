@@ -1,7 +1,7 @@
 # S0: SimpleWebAuthn × Cloudflare Workers local runtime
 
 - Issue: #337 / Parent: #335 / Current design: PR #336
-- Status: **proposed test / 未検証**（GitHub Actionsで実行して判定する。Workflow起票だけではPASSとしない）
+- Status: **GitHub Actions local workerd検証成功（実機/remote未検証）**。Run #39404066013 (2026-10-20) / HEAD 343c9e024450e2ee2a85443fc6a9c40be26894be.
 - Purpose: S0 PR #338（Nodeの合成WebCryptoテスト）とは**独立**し、実際の `@simplewebauthn/server` をCloudflare `workerd`互換の`wrangler dev --local`で検証する。
 - No deployment, no Cloudflare API token, no Production D1, no migration, no app code changes.
 
@@ -34,11 +34,11 @@ These are **simplified test tables**, not the existing `invitations`/`group_play
 
 ## Acceptance
 
-- [ ] GitHub Actionsの`S0 isolated WebAuthn workerd compatibility`がPR HEADでSUCCESS。
-- [ ] npmパッケージ14.0.3の一時取得と`wrangler deploy --dry-run`が成功。
-- [ ] ローカルworkerdから登録・認証・Wrong Origin/Challenge拒否が実行成功。
+- [x] GitHub Actionsの`S0 isolated WebAuthn workerd compatibility`がPR HEADでSUCCESS（Run #39404066013）。
+- [x] npmパッケージ14.0.3の一時取得と`wrangler deploy --dry-run`が成功（708.01 KiB / gzip 129.71 KiB）。
+- [x] ローカルworkerdから登録・認証・Wrong Origin/Challenge拒否の5項目が実行成功。
 - [ ] 以上は**ローカルworkerdでの検証**でありCloudflareデプロイや実機パスキーのPASSではないとIssue #337へ正しく記録。
-- [ ] Isolated local D1 test of invite claim, replay/revocation, concurrent redemption, UNIQUE rollback, changes=0 consequence succeeds; record GitHub Actions run evidence.
+- [x] Isolated local D1 fixtureの10項目（happy/replay rollback/concurrent 1 winner/revoked/duplicate Credential/changes=0 consequence）成功。**簡易 `s0_*` テーブルに限定。既存招待処理のテストではない。**
 - [ ] S0完了に残るProduction RP ID/Preview hostname実測・iOS/Android実機・**actual existing schema** D1 integration remain separate Gate.
 
 ## Scope
@@ -52,3 +52,13 @@ These are **simplified test tables**, not the existing `invitations`/`group_play
 - https://developers.cloudflare.com/workers/runtime-apis/web-crypto/
 - https://developers.cloudflare.com/changelog/post/2026-08-04-nodejs-compat-default/
 - https://developers.cloudflare.com/d1/worker-api/d1-database/
+
+## Run #39404066013 の確定証跡
+
+- local Worker SimpleWebAuthn: 5/5 PASS
+- local isolated D1 fixture: 10/10 PASS
+- bundled Worker: 708.01 KiB（gzip: 129.71 KiB）
+- テストランナー: GitHub-hosted Ubuntu / Node 24 / Wrangler 4.135.0 / SimpleWebAuthn Server 14.0.3
+- Production, Remote D1, Secrets, 実ブラウザパスキーは一切使用せず
+- 実際のCloudflare Edge、および元のinvitations/group_playersテーブルについては**未検証**
+- Evidence URL: https://github.com/ha-rookie/mahjong-score/actions/runs/39404066013

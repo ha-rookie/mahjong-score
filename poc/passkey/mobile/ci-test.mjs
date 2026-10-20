@@ -59,6 +59,34 @@ try {
   ok('Health endpoint declares no DB/no user data',h.ok&&h.noDatabase&&h.noUserData);
   const rejectedPost=await context.request.post(base+'/');
   ok('No mutable API',rejectedPost.status()===405);
+  // Separate S0-only server crypto path: real browser WebAuthn -> local workerd
+  // SimpleWebAuthn server verifier, with ephemeral one-shot challenge state.
+  const captured={};
+  page.on('request',req=>{
+    if(req.url().endsWith('/s0-server/auth/verify'))captured.auth=req.postDataJSON();
+    if(req.url().endsWith('/s0-server/register/verify'))captured.registration=req.postDataJSON();
+  });
+  const serverPage=await page.goto(base+'/server-check');
+  ok('Isolated server-side WebAuthn page loads with same-origin API CSP',
+    serverPage.status()===200&&serverPage.headers()['content-security-policy'].includes("connect-src 'self'"));
+  await page.locator('#register').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"registrationVerified": true'),null,{timeout:20000});
+  const regVerified=JSON.parse(await page.locator('#status').textContent());
+  ok('Real server verifies browser attestation challenge origin RP and UV',
+    regVerified.state==='PASS'&&regVerified.serverVerified===true&&regVerified.sessionIssued===false);
+  const badReg=await context.request.post(base+'/s0-server/register/verify',{data:captured.registration});
+  ok('Server rejects reused registration challenge',badReg.status()===409);
+  await page.locator('#auth').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"signatureVerified": true'),null,{timeout:20000});
+  const signature=JSON.parse(await page.locator('#status').textContent());
+  ok('Real server verifies WebAuthn authentication signature',
+    signature.state==='PASS'&&signature.serverVerified===true&&signature.signatureVerified===true&&signature.rpIdMatched===true&&signature.sessionIssued===false);
+  const replayAuth=await context.request.post(base+'/s0-server/auth/verify',{data:captured.auth});
+  ok('Server rejects reused authentication challenge',replayAuth.status()===409);
+  const fakeFlow=await context.request.post(base+'/s0-server/auth/options',{data:{flowId:'00000000-0000-4000-8000-000000000000'}});
+  ok('Unknown or expired server state fails closed',fakeFlow.status()===409);
+  const noPost=await context.request.get(base+'/s0-server/register/options');
+  ok('No credential APIs accept GET methods',noPost.status()===405);
   console.log(JSON.stringify({ok:true,checks:passed,origin:base,virtualAuthenticator:true,physicalPhone:false,remotePreviewDeployed:false,productionData:false}));
   await cdp.send('WebAuthn.removeVirtualAuthenticator',{authenticatorId});
   await context.close();

@@ -62,4 +62,10 @@ jobs:
           cat /tmp/passkey-s0-existing-schema.json
           node -e 'const x=require("/tmp/passkey-s0-existing-schema.json"); if (!x.ok || x.count !== 16 || Object.values(x.checks).some(v=>v!==true) || x.realProductionD1!==false || x.applicationHandlerCalled!==false) process.exit(2)'
           echo 'S0 EXISTING MAIN D1 SCHEMA AND LINE SQL SNAPSHOT PASS (local workerd only)'
+          if ! curl --max-time 25 --silent --show-error --fail http://127.0.0.1:8799/actual-handler-probe > /tmp/passkey-s0-actual-handler.json; then
+            cat /tmp/passkey-s0.log; cat /tmp/passkey-s0-actual-handler.json || true; exit 1
+          fi
+          cat /tmp/passkey-s0-actual-handler.json
+          node -e 'const x=require("/tmp/passkey-s0-actual-handler.json"); if (!x.ok || x.count !== 18 || Object.values(x.checks).some(v=>v!==true) || x.actualApplicationHandlerCalled!==true || x.passkeyRegistrationImplemented!==false || x.realProductionD1!==false) process.exit(2)'
+          echo 'S0 ACTUAL APP INVITATION HANDLER PASS (local workerd + existing D1 migration only)'
 

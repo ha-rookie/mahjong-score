@@ -30,6 +30,16 @@ try {
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"operation": "get"')&&document.querySelector('#status')?.textContent?.includes('"state": "PASS"'),null,{timeout:20000});
   const used=JSON.parse(await page.locator('#status').textContent());
   ok('Browser-only get matches credential and verifies RP+UV flags',used.credentialMatched&&used.userVerification&&used.signaturePresent&&!used.serverVerified);
+  // Force a local identifier mismatch to exercise safe diagnostic reporting,
+  // without printing a real credential ID or authenticator response.
+  const savedId=await page.evaluate(()=>localStorage.getItem('mahjong-passkey-s0-test-credential-id'));
+  await page.evaluate(()=>localStorage.setItem('mahjong-passkey-s0-test-credential-id','synthetic-wrong-id'));
+  await page.getByRole('button',{name:'2. パスキーを使用'}).click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"reason": "credential_id_mismatch"'),null,{timeout:15000});
+  const mismatch=JSON.parse(await page.locator('#status').textContent());
+  ok('Diagnostic separates local credential mismatch from native browser failure',
+    mismatch.state==='FAIL'&&mismatch.stage==='get_credential_match'&&mismatch.error==='Error'&&mismatch.reason==='credential_id_mismatch');
+  await page.evaluate(id=>localStorage.setItem('mahjong-passkey-s0-test-credential-id',id),savedId);
   await cdp.send('WebAuthn.setUserVerified',{authenticatorId,isUserVerified:false});
   await page.getByRole('button',{name:'2. パスキーを使用'}).click();
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"state": "FAIL"'),null,{timeout:10000});

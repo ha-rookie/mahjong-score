@@ -31,6 +31,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install --no-audit --no-fund
+      - name: Install pinned S0-only WebAuthn verifier without repository dependency changes
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @simplewebauthn/server@14.0.3
       - name: No production resources may be bound
         run: |
           node - <<'NODE'
@@ -76,6 +78,8 @@ jobs:
           if(d.name!=='mahjong-score-passkey-s0-phone-337'||d.workers_dev!==true||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
           NODE
       - run: npm install --no-audit --no-fund
+      - name: Install pinned S0-only WebAuthn verifier without repository dependency changes
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @simplewebauthn/server@14.0.3
       - name: Create Preview for independent Worker ONLY
         shell: bash
         env:

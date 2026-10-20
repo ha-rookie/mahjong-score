@@ -68,4 +68,11 @@ jobs:
           cat /tmp/passkey-s0-actual-handler.json
           node -e 'const x=require("/tmp/passkey-s0-actual-handler.json"); if (!x.ok || x.count !== 18 || Object.values(x.checks).some(v=>v!==true) || x.actualApplicationHandlerCalled!==true || x.passkeyRegistrationImplemented!==false || x.realProductionD1!==false) process.exit(2)'
           echo 'S0 ACTUAL APP INVITATION HANDLER PASS (local workerd + existing D1 migration only)'
+          if ! curl --max-time 30 --silent --show-error --fail http://127.0.0.1:8799/passkey-invite-probe > /tmp/passkey-s0-invite-passkey.json; then
+            cat /tmp/passkey-s0.log; cat /tmp/passkey-s0-invite-passkey.json || true; exit 1
+          fi
+          cat /tmp/passkey-s0-invite-passkey.json
+          node -e 'const x=require("/tmp/passkey-s0-invite-passkey.json"); if (!x.ok || x.count !== 15 || Object.values(x.checks).some(v=>v!==true) || x.verifiedRealLibraryFirst!==true || x.realAuthenticator!==false || x.realProductionD1!==false || x.usedExistingAppRedemptionFunction!==false || x.requiresNewAtomicDesign!==true) process.exit(2)'
+          echo 'S0 PASSKEY VERIFICATION + ATOMIC INVITATION PROTOTYPE PASS (synthetic Workerd/local D1 only)'
+
 

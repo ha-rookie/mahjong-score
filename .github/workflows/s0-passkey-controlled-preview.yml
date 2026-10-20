@@ -37,7 +37,7 @@ jobs:
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
           const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
-          if(d.name!=='mahjong-score-passkey-s0-isolated'||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          if(d.name!=='mahjong-score-passkey-s0-isolated'||d.workers_dev!==false||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
           console.log('PASS: independent no-binding S0 Worker config');
           NODE
       - name: Cloudflare Preview CLI preflight (NO cloud authorization)
@@ -73,7 +73,7 @@ jobs:
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
           const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
-          if(d.name!=='mahjong-score-passkey-s0-isolated'||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          if(d.name!=='mahjong-score-passkey-s0-isolated'||d.workers_dev!==false||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
           NODE
       - run: npm install --no-audit --no-fund
       - name: Create Preview for independent Worker ONLY

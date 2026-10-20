@@ -1,0 +1,50 @@
+name: S0 browser-native passkey with virtual authenticator
+
+on:
+  pull_request:
+    branches:
+      - poc/issue-337-worker-runtime
+    paths:
+      - 'poc/passkey/browser/**'
+      - '.github/workflows/s0-passkey-browser.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-browser-passkey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install existing repository dev tools
+        run: npm install --no-audit --no-fund
+      - name: Install S0-only pinned dependencies without changing package files
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @simplewebauthn/server@14.0.3 playwright@1.56.1
+      - name: Install Chromium for browser-native WebAuthn virtual authenticator
+        run: npx playwright install --with-deps chromium
+      - name: Bundle isolated Worker (dry run only)
+        run: npx wrangler deploy --config poc/passkey/browser/wrangler.jsonc --dry-run --outdir /tmp/passkey-s0-browser-bundle
+      - name: Start local workerd and test Chromium WebAuthn
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler dev --config poc/passkey/browser/wrangler.jsonc --local --ip 127.0.0.1 --port 8799 --persist-to /tmp/passkey-s0-browser-db > /tmp/passkey-s0-browser-worker.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in $(seq 1 60); do
+            if curl --max-time 2 --silent --fail http://localhost:8799/health > /dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then cat /tmp/passkey-s0-browser-worker.log; exit 1; fi
+          if ! node poc/passkey/browser/ci-test.mjs > /tmp/passkey-s0-browser-test.log 2>&1; then
+            cat /tmp/passkey-s0-browser-test.log
+            cat /tmp/passkey-s0-browser-worker.log
+            exit 1
+          fi
+          cat /tmp/passkey-s0-browser-test.log
+          echo 'S0 CHROMIUM WEB AUTHN VIRTUAL AUTHENTICATOR PASS: NOT physical phone or Production'

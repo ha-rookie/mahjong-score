@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: s0-passkey-controlled-preview
+  group: s0-passkey-controlled-preview-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:

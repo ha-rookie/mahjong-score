@@ -1,4 +1,5 @@
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
+import { redeemInvitationById } from '../../../src/worker/auth/line-login.ts';
 
 // Synthetic authenticator for S0 testing ONLY. No real user/passkey/DB/session involved.
 const encoder = new TextEncoder();
@@ -202,10 +203,74 @@ async function runExistingSchema(db) {
   return {ok:true,checks:results,count:Object.keys(results).length,source:"migrations/0001..0010 and main LINE redemption SQL snapshot",testOnly:true,realProductionD1:false,applicationHandlerCalled:false,attempts:attempt};
 }
 
+
+async function runActualInvitationHandler(db) {
+  // S0: Use the CURRENT APPLICATION HANDLER, not the test's SQL duplication.
+  // Isolated local D1 with migrations/0001-0010 only; no passkey table / credential.
+  const now=new Date().toISOString();
+  const expires=new Date(Date.now()+86400000).toISOString();
+  const id=()=>crypto.randomUUID();
+  const one=(sql,...args)=>db.prepare(sql).bind(...args).first();
+  const num=async(sql,...args)=>Number((await one(sql,...args))?.n??0);
+  const checks={};
+  const env={DB:db};
+  async function fixture({revoked=false,linkedToB=false,previousA=false,groupAdminA=false}={}) {
+    const groupId=id(),playerId=id(),inviteId=id(),admin=id(),a=id(),b=id();
+    await db.batch([
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(admin,'Admin',now,now),
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(a,'A',now,now),
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(b,'B',now,now),
+      db.prepare("INSERT INTO groups(id,name,created_at,updated_at) VALUES(?,?,?,?)").bind(groupId,'Real handler S0',now,now),
+      db.prepare("INSERT INTO players(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(playerId,'Player',now,now),
+      db.prepare("INSERT INTO group_players(group_id,player_id,active,user_id) VALUES(?,?,1,?)").bind(groupId,playerId,linkedToB?b:null),
+      db.prepare("INSERT INTO invitations(id,token_hash,group_id,player_id,role,created_by_user_id,expires_at,revoked_at,created_at) VALUES(?,?,?,?,'member',?,?,?,?)").bind(inviteId,id(),groupId,playerId,admin,expires,revoked?now:null,now),
+    ]);
+    if(previousA) {
+      const otherPlayer=id();
+      await db.batch([
+        db.prepare("INSERT INTO players(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(otherPlayer,'Already linked',now,now),
+        db.prepare("INSERT INTO group_players(group_id,player_id,active,user_id) VALUES(?,?,1,?)").bind(groupId,otherPlayer,a),
+      ]);
+    }
+    if(groupAdminA) await db.prepare("INSERT INTO group_memberships(group_id,user_id,role,created_at,updated_at) VALUES(?,?,'group_admin',?,?)").bind(groupId,a,now,now).run();
+    return {groupId,playerId,inviteId,a,b};
+  }
+  const normal=await fixture();
+  checks.normalAccept=(await redeemInvitationById(env,normal.inviteId,normal.a))==='accepted';
+  checks.playerLinked=(await one("SELECT user_id AS u FROM group_players WHERE group_id=? AND player_id=?",normal.groupId,normal.playerId))?.u===normal.a;
+  checks.membershipCreated=(await one("SELECT role FROM group_memberships WHERE group_id=? AND user_id=?",normal.groupId,normal.a))?.role==='member';
+  checks.invitationConsumed=(await one("SELECT used_by_user_id AS u FROM invitations WHERE id=?",normal.inviteId))?.u===normal.a;
+  checks.replayInvalid=(await redeemInvitationById(env,normal.inviteId,normal.b))==='invalid';
+  checks.replayMembershipNotCreated=(await num("SELECT count(*) AS n FROM group_memberships WHERE group_id=? AND user_id=?",normal.groupId,normal.b))===0;
+  const revoked=await fixture({revoked:true});
+  checks.revokedInvalid=(await redeemInvitationById(env,revoked.inviteId,revoked.a))==='invalid';
+  checks.revokedUnlinked=(await one("SELECT user_id AS u FROM group_players WHERE group_id=? AND player_id=?",revoked.groupId,revoked.playerId))?.u===null;
+  const prelinked=await fixture({linkedToB:true});
+  checks.prelinkedConflict=(await redeemInvitationById(env,prelinked.inviteId,prelinked.a))==='conflict';
+  checks.prelinkedPreserved=(await one("SELECT user_id AS u FROM group_players WHERE group_id=? AND player_id=?",prelinked.groupId,prelinked.playerId))?.u===prelinked.b;
+  const busy=await fixture({previousA:true});
+  checks.sameGroupUserConflict=(await redeemInvitationById(env,busy.inviteId,busy.a))==='conflict';
+  checks.busyUnlinked=(await one("SELECT user_id AS u FROM group_players WHERE group_id=? AND player_id=?",busy.groupId,busy.playerId))?.u===null;
+  const existingAdmin=await fixture({groupAdminA:true});
+  checks.adminAccepted=(await redeemInvitationById(env,existingAdmin.inviteId,existingAdmin.a))==='accepted';
+  checks.groupAdminRetained=(await one("SELECT role FROM group_memberships WHERE group_id=? AND user_id=?",existingAdmin.groupId,existingAdmin.a))?.role==='group_admin';
+  const race=await fixture();
+  const raceResponses=await Promise.all([redeemInvitationById(env,race.inviteId,race.a),redeemInvitationById(env,race.inviteId,race.b)]);
+  checks.raceExactlyOneAccepted=raceResponses.filter(x=>x==='accepted').length===1;
+  checks.raceExactlyOneConflict=raceResponses.filter(x=>x==='conflict').length===1;
+  const linked=await one("SELECT user_id AS u FROM group_players WHERE group_id=? AND player_id=?",race.groupId,race.playerId);
+  const consumed=await one("SELECT used_by_user_id AS u FROM invitations WHERE id=?",race.inviteId);
+  checks.raceSameUser=Boolean(linked?.u)&&linked.u===consumed?.u;
+  checks.raceOneMembership=(await num("SELECT count(*) AS n FROM group_memberships WHERE group_id=?",race.groupId))===1;
+  if(Object.values(checks).some(x=>x!==true))throw Error("Actual invitation handler integration failed: "+JSON.stringify(checks));
+  return {ok:true,count:Object.keys(checks).length,checks,source:"src/worker/auth/line-login.ts::redeemInvitationById",actualApplicationHandlerCalled:true,passkeyRegistrationImplemented:false,realProductionD1:false,realDevice:false};
+}
+
 export default {
   async fetch(request,env) {
     const path = new URL(request.url).pathname;
     if(path==='/health')return Response.json({ready:true});
+    if(path==='/actual-handler-probe'){try{return Response.json(await runActualInvitationHandler(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 actual handler integration failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path==='/existing-schema-probe'){try{return Response.json(await runExistingSchema(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 current-schema probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path==='/db-probe'){try{return Response.json(await runD1(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 D1 probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path!=='/probe')return new Response('not found',{status:404});

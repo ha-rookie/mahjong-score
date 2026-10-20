@@ -52,3 +52,16 @@ https://developers.cloudflare.com/workers/previews/
 - 新Workerには `workers_dev: true`, `preview_urls: true` を**初期設定**として付ける。これは専用Workerのみで、三麻スコア本番 `mahjong-score` は一切変更しない。独立WorkerにProductionスクリプトのDeployは行わない。
 - 旧名前のCloudflare Worker/Previewメタデータが残っている可能性がある。旧データベースや認証情報は紐付いておらず、公開URLが返った証跡もない。Cloudflare内の旧テストリソースは別途安全確認後に整理する。
 - 今回のPreview公開承認の範囲を越えて、Production経由の設定変更・既存Workerの更新・mainマージ・Remote D1操作は行わない。
+
+## S0サーバーWebAuthn署名検証（2026-10-21）
+
+- 独立ページ /server-check を追加（ブラウザ互換性テスト / は変更なし）。
+- **別のテスト専用パスキーを新規作成**し、実WebAuthn Registration/Authentication JSONを独立Workerの @simplewebauthn/server@14.0.3 で検証。
+- Workers側でサーバー生成Challenge・HTTPS Origin・RP ID・UV・Credential公開鍵・実署名を照合する。
+- Registration は registrationVerified=true、Authentication は signatureVerified=true, serverVerified=true, sessionIssued=false を目標にする。
+- 本番ユーザーID・LINE・Player・成績・Cookie session・D1/KV/Secrets/DO Bindingなし。
+- PoC用サーバー状態は**Worker isolateのMapのみ**（最大24フロー、TTL 10分、Challenge2分・使用時消費）。環境切替で失われ、その場合は ephemeral_state_missing として失敗する。Cloudflare推奨の本番状態管理ではない。
+- 状態消失が続くときは何度もパスキーを作らない。永続D1/DO設計へ移るには別のスコープ・権限判断が必要。
+- ローカルworkerd＋Chromium CDP仮想認証器でサーバー登録とログイン署名の検証・Challenge再利用拒否等 **20/20 PASS** (Run #39488620635)。実Android/Remote Edge成功は別途未確認。
+- 本テスト終了後、端末パスキー管理から新旧のテストCredentialを削除する。ページの記録削除はOS内のパスキーを削除しない。
+- 公開はHuman承認済み独立S0 Workerの範囲のみ。main、Production、実D1、Secrets、実ユーザーデータは不変更。

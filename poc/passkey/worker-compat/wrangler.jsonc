@@ -9,7 +9,8 @@
     {
       "binding": "DB",
       "database_name": "passkey-s0-local-fixture",
-      "database_id": "00000000-0000-4000-8000-000000000337"
+      "database_id": "00000000-0000-4000-8000-000000000337",
+      "migrations_dir": "../../../migrations"
     }
   ]
 }

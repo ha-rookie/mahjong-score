@@ -142,3 +142,27 @@ Risk: High。Auth/DB/Session/認可境界変更。**T1/T2/T4の検証失敗、�
 - 静的照合: main SHA f000d4737ef70cdaac989be0f513e81163a5dc37 / Issue #335 / src/worker/auth/line-login.ts / src/worker.ts / migrations/0005,0006 / wrangler.jsonc。
 - 公式参考: https://developers.cloudflare.com/d1/worker-api/d1-database/ , https://developers.cloudflare.com/workers/runtime-apis/web-crypto/ , https://www.w3.org/TR/2026/REC-webauthn-3-20260825/ , https://simplewebauthn.dev/docs/packages/server , https://simplewebauthn.dev/docs/advanced/passkeys/ 。
 - **未検証**: Worker/Library実行、D1 concurrent transaction、固定origin、iOS/Android実機、CI/Preview、既存利用者マイグレーション。これらはS0/S1で確認し、成功したと記録しない。
+
+## 11. S0実証結果とS1実装前ゲート（2026-10-21、Proposedを維持）
+
+### 実証できたこと
+
+- S0 #337の独立Cloudflare Worker Preview上で、Android物理端末のWebAuthn登録は `registrationVerified=true, serverVerified=true`、認証時は `signatureVerified=true, userVerified=true, rpIdMatched=true, serverVerified=true`（利用者から直接受領した診断JSON）。
+- S0認証器はCloudflare Edge側のSimpleWebAuthn v14.0.3で実署名を検証できた。Chromium仮想認証器のCloudflare Edge CI Run #39490099593（7/7 PASS）も別にあり、Android実機報告と混同しない。
+- **実証はログインの暗号技術互換性のみ**。S0は `sessionIssued=false, ephemeral=true`。Credential公開鍵とChallengeをWorker isolate内Mapに一時保持しており、実用保存・セッション発行・User/Playerリンクの根拠とはしない。
+- 旧「未検証」と書かれた第9/10節の記載は**2026-10-20時点の履歴**。最新のS0 Android実機技術結果は上記を優先。ただしProduction origin/RP ID、iPhone Safari/ホーム画面Web Appは引き続き未検証。
+
+### 次の作業を増やす前に決めるべきS1事項（Issue #343に受入条件）
+
+1. **セッション**：現行 `line-login.ts` の `{userId,exp}`署名CookieへauthVersionを追加し、`authMe`だけでなく`src/worker.ts`全保護API入口・sliding更新・既存LINE callback時のSession再利用にDB世代照合を適用。方式失効時はUser.auth_version更新と同時commit。既存Cookieの欠損Versionを期間限定0と扱う案は回帰/安全性を確認して決める。
+2. **DB**：既存Migration 0001〜0010を変更しない追加Migrationの `users.auth_version` / `passkey_credentials` / `auth_challenges` を設計。Credential ID一意制約とrevoked判定、公開鍵byte形式、Challengeのpurpose/Origin/RP ID/User/招待束縛、有効期限と使用済み更新の競合制御を確定。
+3. **原子性**：招待消費・新User作成・Credential保存・Player/Membership紐付けは後続S2の単一transaction契約。`D1.batch`後にchanges=0を見るだけではrollbackしないため、制約/abort強制を隔離D1で検証。S1ではその設計とテスト契約を確定し、S2の実APIを先行実装しない。
+4. **0方式と回復**：最後の方式失効後は全旧Cookieから401、User・Player・Group・Scoreは維持。新Userへ旧UserのGroup権限を自動移管しない。最後のSystem Admin方式削除には運用上の警告が必要。個人向け回復UIは追加しない。
+5. **既存互換**：現行LINE未招待ログインを壊さず、`line_login_states`のnonce一回限り、#278のcallback、#301のsliding/401未保存スコア保持を回帰対象とする。
+6. **端末**：インストール型PWAは既存方針で撤去済み。対象はSafari/Chromeの通常Webと**OSのホーム画面Web App実行コンテキスト**の互換性試験であり、PWA機能を再導入するものではない。
+
+### 担当レイヤーと許可境界
+
+- GitHub [Issue #335](https://github.com/ha-rookie/mahjong-score/issues/335)は全Phase 4受入・意思決定、[Issue #337](https://github.com/ha-rookie/mahjong-score/issues/337)はS0証跡、[Issue #343](https://github.com/ha-rookie/mahjong-score/issues/343)はS1実装前契約。ADR-0002は採用理由、本書はクロススライス設計案、各GitHub実装PRは差分、Notion基本設計は現在地を管理する。
+- **設計PR #336は引き続きProposed・未承認・未マージ**。S1のIssue起票・この追記は実装のHuman Gateを解除しない。Runtime/Migration/Secrets/Remote D1/main/Productionデプロイは行わない。
+

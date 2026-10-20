@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - poc/issue-337-browser-webauthn
+      - poc/issue-337-mobile-https-readiness
     paths:
       - 'poc/passkey/mobile/**'
       - '.github/workflows/s0-passkey-mobile-readiness.yml'
@@ -23,14 +24,14 @@ jobs:
       - name: Install existing tools
         run: npm install --no-audit --no-fund
       - name: Install ephemeral Chromium tooling (no lockfile changes)
-        run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1
+        run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1 @simplewebauthn/server@14.0.3
       - name: Install local test Chromium
         run: npx playwright install --with-deps chromium
       - name: Bundle standalone Worker without cloud upload
         run: npx wrangler deploy --config poc/passkey/mobile/wrangler.jsonc --dry-run --outdir /tmp/s0-mobile-ready-build
       - name: Validate isolated config never binds production resources
         run: |
-          node -e 'const fs=require("node:fs");const d=JSON.parse(fs.readFileSync("poc/passkey/mobile/wrangler.jsonc","utf8"));if(d.name==="mahjong-score"||d.d1_databases||d.kv_namespaces||d.r2_buckets||d.vars||d.assets||d.services||d.triggers||d.routes||d.route||d.workers_dev!==false||d.preview_urls!==false)process.exit(2);console.log("PASS no production resources bound")'
+          node -e 'const fs=require("node:fs");const d=JSON.parse(fs.readFileSync("poc/passkey/mobile/wrangler.jsonc","utf8"));if(d.name!=="mahjong-score-passkey-s0-phone-337"||d.d1_databases||d.kv_namespaces||d.r2_buckets||d.vars||d.assets||d.services||d.triggers||d.routes||d.route||d.workers_dev!==true||d.preview_urls!==true)process.exit(2);console.log("PASS no production resources bound")'
       - name: Local workerd with browser-native create/get and virtual authenticator
         shell: bash
         run: |

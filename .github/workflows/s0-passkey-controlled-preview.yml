@@ -1,0 +1,156 @@
+name: S0 isolated Cloudflare Preview controlled release
+
+on:
+  pull_request:
+    branches:
+      - poc/issue-337-mobile-https-readiness
+    paths:
+      - '.github/workflows/s0-passkey-controlled-preview.yml'
+      - 'poc/passkey/mobile/PREVIEW_RELEASE.md'
+  push:
+    branches:
+      - poc/issue-337-preview-publish-gate
+    paths:
+      - 'poc/passkey/mobile/.approve-preview-publish'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s0-passkey-controlled-preview-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - name: Install pinned S0-only WebAuthn verifier without repository dependency changes
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @simplewebauthn/server@14.0.3
+      - name: No production resources may be bound
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
+          const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
+          if(d.name!=='mahjong-score-passkey-s0-phone-337'||d.workers_dev!==true||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          console.log('PASS: independent no-binding S0 Worker config');
+          NODE
+      - name: Cloudflare Preview CLI preflight (NO cloud authorization)
+        run: |
+          set -euo pipefail
+          npx wrangler --version
+          npx wrangler preview --help > /tmp/s0-preview-help.txt
+          grep -q -- '--ignore-base-config' /tmp/s0-preview-help.txt
+          grep -q -- '--worker-name' /tmp/s0-preview-help.txt
+          npx wrangler deploy --config poc/passkey/mobile/wrangler.jsonc --dry-run --outdir /tmp/s0-preview-bundle
+          echo 'PASS: Wrangler Preview CLI and dry-run; no HTTPS Preview published'
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/poc/issue-337-preview-publish-gate' && github.repository == 'ha-rookie/mahjong-score'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: s0-preview-release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Verify explicit approval marker and immutable scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat poc/passkey/mobile/.approve-preview-publish)" = 'APPROVE_S0_PUBLIC_HTTPS_PREVIEW_ONLY'
+          test "$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | wc -l)" -eq 1
+          test "$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")" = 'poc/passkey/mobile/.approve-preview-publish'
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
+          const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
+          if(d.name!=='mahjong-score-passkey-s0-phone-337'||d.workers_dev!==true||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          NODE
+      - run: npm install --no-audit --no-fund
+      - name: Install pinned S0-only WebAuthn verifier without repository dependency changes
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @simplewebauthn/server@14.0.3
+      - name: Create Preview for independent Worker ONLY
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx wrangler preview --config poc/passkey/mobile/wrangler.jsonc --worker-name mahjong-score-passkey-s0-phone-337 --name s0-phone-check-337 --ignore-base-config --json > /tmp/s0-preview.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/s0-preview.json','utf8'));
+          const candidates=[];
+          const walk=(x,depth=0)=>{
+            if(depth>8||x==null)return;
+            if(typeof x==='string'){if(x.startsWith('https://'))candidates.push(x);return;}
+            if(Array.isArray(x)){for(const y of x)walk(y,depth+1);return;}
+            if(typeof x==='object'){for(const y of Object.values(x))walk(y,depth+1);}
+          };
+          walk(d.preview?.urls);
+          walk(d);
+          console.log('S0_CLOUDFLARE_RESPONSE_TOP_KEYS='+Object.keys(d).join(','));
+          console.log('S0_PREVIEW_CANDIDATE_URLS='+candidates.join(','));
+          const url=candidates.find(x=>{
+            try {const host=new URL(x).hostname;
+              return host.endsWith('.workers.dev')&&host.includes('s0-phone-check-337')&&host.includes('mahjong-score-passkey-s0-phone-337');
+            }catch{return false;}
+          });
+          if(!url)throw Error('No HTTPS Preview host returned for isolated s0-phone-check-337 Worker');
+          fs.writeFileSync('/tmp/s0-preview-url.txt',url);
+          console.log('S0_PREVIEW_URL='+url);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## S0 isolated mobile Preview\n\n'+url+'\n\nNo production app or D1 bindings. Public test page; delete after testing.\n');
+          NODE
+      - name: Verify HTTPS Preview response
+        run: |
+          set -euo pipefail
+          url="$(cat /tmp/s0-preview-url.txt)"
+          curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||!x.noDatabase||!x.noUserData)process.exit(2);})'
+          curl --fail --silent --show-error --retry 4 --retry-delay 2 --head "$url/" | tr -d '\r' | grep -iq '^x-robots-tag: noindex'
+          # Cloudflare Preview's stable URL may briefly serve the prior deployment.
+          # Require this exact S0 diagnostic code to be visible before reporting success.
+          found=false
+          for i in $(seq 1 25); do
+            if curl --fail --silent --show-error --max-time 8 -H 'Cache-Control: no-cache' "$url/client.js?build=$GITHUB_SHA" -o /tmp/s0-client.js                 && grep -q 'get_credential_match' /tmp/s0-client.js && grep -Fq "allowCredentials:[{type:'public-key',id:registeredId}]" /tmp/s0-client.js; then
+              found=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$found" != true ]; then
+            echo 'ERROR: HTTPS Preview did not serve the new safe diagnostic within the bounded checks' >&2
+            exit 1
+          fi
+          echo 'PASS: updated S0-only browser diagnostic script is on remote Preview'
+          echo 'PASS: isolated remote HTTPS Preview health + noindex verified'
+          ready=false
+          for attempt in $(seq 1 25); do
+            if curl --fail --silent --max-time 8 --header 'Cache-Control: no-cache' "$url/server-check?build=$GITHUB_SHA" -o /tmp/s0-server-page.html \
+              && grep -q 'server-check.js' /tmp/s0-server-page.html \
+              && curl --fail --silent --max-time 8 --header 'Cache-Control: no-cache' "$url/server-check.js?build=$GITHUB_SHA" -o /tmp/s0-server-client.js \
+              && grep -q 'signatureVerified' /tmp/s0-server-client.js \
+              && curl --fail --silent --max-time 8 --request POST --header 'content-type: application/json' --data '{}' "$url/s0-server/register/options" -o /tmp/s0-server-options.json; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            echo 'ERROR: S0 server-check not available on named Preview after bounded verification' >&2
+            exit 1
+          fi
+          node -e 'const f=require("node:fs"),d=JSON.parse(f.readFileSync("/tmp/s0-server-options.json","utf8"));if(!d.ok||!d.options?.challenge||!d.flowId||!d.ephemeral||d.options?.rp?.id!=="s0-phone-check-337-mahjong-score-passkey-s0-phone-337.ha-rookie.workers.dev")process.exit(2);console.log("PASS: remote S0 server generated valid challenge and RP ID");'
+          echo 'PASS: remote standalone WebAuthn server-check page and browser code served'

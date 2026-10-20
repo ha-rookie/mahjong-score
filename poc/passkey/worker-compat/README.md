@@ -81,3 +81,16 @@ These are **simplified test tables**, not the existing `invitations`/`group_play
 - S0専用CI Run #39408258461と既存App CI Run #39408258516は同一HEADでともにSUCCESS。ProductionデプロイやRemote D1操作はしていない。
 - **未実装/未検証**: 新パスキーのCredential永続化と招待連動、実ブラウザ/物理端末、実Cloudflare Edge、Production/Preview RP ID、Session失効。
 - Evidence: https://github.com/ha-rookie/mahjong-score/actions/runs/39408258461
+
+## Run #39409631945: WebAuthn検証→招待原子登録PoC（2026-10-20）
+
+- 合成WebAuthn登録を実際の `@simplewebauthn/server@14.0.3` に通して**検証した後だけ**、架空IDのローカルD1で単一 `D1.batch` を実行するPoCを追加。
+- DBの **現行`users` / `group_players` / `group_memberships` / `invitations`** と、S0限定の `s0_passkey_registrations` / `s0_atomic_invite_claims` を利用する。招待の有効性/未使用/Player空き状態を検証するSQLite triggerで、条件不成立時にDBエラーとして全バッチをrollbackする。
+- 実測: **15/15 PASS**。正常登録でUser＋Credential＋Player＋Membership＋Invitationが一致。再使用、失効、期限切れ、既紐付け、Credential重複、同時登録の競合を拒否し、新User・Credentialの孤児データを残さない。
+- これは**本番採用案ではなく原子性の技術検証**。実際の`redeemInvitationById`とは別経路であり、追加のS0専用trigger/claim tableはProduction schemaに存在しない。WebAuthn Challengeの事前保存・使い捨て、実User向けの招待Token検証、認証セッション発行、画面遷移、LINE方式併用などは未実装。
+- 一連の検証は **synthetic authenticator / `wrangler dev --local` / fake local D1** のみ。本番Cloudflare Worker、Production/Preview D1、実機パスキーには触れていない。
+- CI evidence: https://github.com/ha-rookie/mahjong-score/actions/runs/39409631945
+
+### 実装へ渡す判断
+
+旧 `redeemInvitationById` の呼出しと新Credential保存を**別トランザクション**で組み合わせるだけでは、途中失敗時にUser/Credentialが残る。新規Passkey招待登録には、今回のような検証済み一括コミットを要求する。詳細方式はPhase 4設計レビューPR #336とIssue #335で確定する。S0で使用したtrigger/tableを無審査でそのままProductionへ転用しない。

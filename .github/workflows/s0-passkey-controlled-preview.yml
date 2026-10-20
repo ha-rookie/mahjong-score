@@ -120,7 +120,7 @@ jobs:
           # Require this exact S0 diagnostic code to be visible before reporting success.
           found=false
           for i in $(seq 1 25); do
-            if curl --fail --silent --show-error --max-time 8 -H 'Cache-Control: no-cache' "$url/client.js?build=$GITHUB_SHA" -o /tmp/s0-client.js                 && grep -q 'get_credential_match' /tmp/s0-client.js; then
+            if curl --fail --silent --show-error --max-time 8 -H 'Cache-Control: no-cache' "$url/client.js?build=$GITHUB_SHA" -o /tmp/s0-client.js                 && grep -q 'get_credential_match' /tmp/s0-client.js && grep -Fq "allowCredentials:[{type:'public-key',id:registeredId}]" /tmp/s0-client.js; then
               found=true
               break
             fi

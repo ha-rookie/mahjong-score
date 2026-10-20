@@ -16,7 +16,7 @@ npmインストール、Cloudflare Secrets、Remote D1、ネットワーク接�
 
 ## 結果（2026-10-20 / Node.js v22.16.0）
 
-**10/10 PASS**。
+**10/10 PASS**。さらに、鍵とChallengeを作り直す30回の反復実行で **300/300 assertions PASS**。Nodeの構文チェック（`node --check`）もPASS。いずれもローカル検証であり、Cloudflare Workersの実行結果ではない。
 
 - ECDSA P-256 SHA-256（ES256）の署名生成/検証、WebAuthn想定DER署名とWebCrypto raw署名の変換。
 - Challenge/Origin/RP ID不一致、User Presence/User Verification不足、署名改ざん、未知のCredentialの拒否。

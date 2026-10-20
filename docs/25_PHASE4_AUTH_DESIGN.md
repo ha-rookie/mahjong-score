@@ -29,13 +29,15 @@
 
 ## 3. DB差分（Proposed / Migrationは未作成）
 
-1. users.auth_version INTEGER NOT NULL DEFAULT 0 を追加候補。signed Cookieにversionを含め、API認証の都度UserのDB現行値と比較。Credential追加・失効時はversionを増分し当該Userの全sessionを即時失効。既存version無しCookieは移行期間にversion=0として照合する案（ロールアウト時テスト必須）。
+1. users.auth_version INTEGER NOT NULL DEFAULT 0 を追加候補。signed Cookieにversionを含め、API認証の都度UserのDB現行値と比較。Credential失効時はversionを増分し当該Userの全sessionを即時失効（追加だけではversionを増分しない。追加時の再認証は別途確認）。既存version無しCookieは移行期間にversion=0として照合する案（ロールアウト時テスト必須）。
 2. passkey_credentials: id (opaque UI ID), user_id FK(users), credential_id（base64url bytesの一意キー）, public_key（検証用公開鍵）, sign_count, transports, device_type/backup flags（分かる範囲）, label, created_at, last_used_at, revoked_at。UNIQUE(credential_id)。公開鍵を保存し、秘密鍵・生体情報は保存しない。同期Passkeyではsign_countが0や非単調になり得るため、単純な増分必須チェックに依存しない。
 3. auth_challenges: id, challenge_hash, purpose(register_invite/register_account/login), user_id nullable, provisional_user_id nullable, invitation_id nullable, expected_origin, expires_at, consumed_at, created_at。短時間/一回限り、目的とUser/招待文脈を分離。機密Challenge・招待Tokenをログに出さない。
 4. line_login_states: 既存nonce/stateを再利用しながらlogin・invite・linkの目的と対象userIdをサーバー保持するための必要最小限の追加列を検討。クエリ文字列だけで対象Userやmodeを信じない。
 5. 認証情報0件でもusers/group_players/group_memberships/players/game_resultsは維持。個々のCredential削除は原則revoked_at論理失効を推奨し、古いWebAuthn資格情報をサーバー側で再使用不可にする。
 
 DBトランザクション境界: 招待消費・新User作成・Passkey Credential作成・Player紐付け・Group Membership作成は**すべて原子的に成功か失敗**させる。署名検証はDB更新より先。既存のredeemInvitationByIdを単純に後段で別トランザクション呼出ししない。Challengeは検証成功時に1回だけ消費。レース/409時は一貫した再試行案内にする。
+
+**重要: D1.batch()はSQLエラー時の全ロールバックは保証するが、UPDATEのchanges=0をbatch完了後に検出しただけではロールバックにならない。** 既存redeemInvitationByIdの「batch→changes!=1→conflict」を新Passkey登録へそのまま流用しない。利用済み/失効/競合検出をDBの一意制約・条件付き書き込み＋失敗時SQLエラー・トランザクション内の整合性強制でfail-closedに設計する。実際のD1 APIで成功/競合/並列使用をテストし、検証できない場合はSTOP。
 
 ## 4. API候補（名称は設計レビュー時確定）
 
@@ -51,7 +53,7 @@ DBトランザクション境界: 招待消費・新User作成・Passkey Credent
 | DELETE | /api/auth/line/link | 本人のLINE Identityを解除、セッション全失効 |
 | DELETE | /api/admin/users/:userId/auth-methods/:methodId | System Adminによる対面確認後の対象Credential失効 |
 
-既存LINE login/callback・/api/auth/me・logoutと共存させる。line/linkのcallbackは既存loginとモードを厳密に区別し、linkモードでは別Userに既登録のLINE subjectを409で拒否。新User自動生成や他Userへの資格情報の黙示的付け替え禁止。
+既存LINE login/callback・/api/auth/me・logoutと共存させる。line/linkのcallbackは既存loginとモードを厳密に区別し、linkモードでは別Userに既登録のLINE subjectを409で拒否。OAuth callbackは保存stateのtargetUserIdだけで確定せず、**開始時とcallback時のブラウザsessionが同一Userであることを照合**し、直近再認証と目的(login/invite/link)を検証する。セッションがない/別Userなら安全に失敗し、PWAとブラウザ間の自動紐付けを行わない。新User自動生成や他Userへの資格情報の黙示的付け替え禁止。
 
 招待URLは既存発行APIのまま、返すURLのみ方式選択入口（例: /?invite=<opaque>）へ変更する案。URL fragment/ブラウザ履歴/Referrer/Analytics等へTokenを残さないよう、受領直後に安全な一時文脈へ引き取りURLを清掃する。招待データの保存は既存token_hash、期限7日、one-time/revokeを尊重。LINEに渡す際は既存サーバー側stateへInvitation IDを保持する。Passkeyでは招待検証→ChallengeへInvitation IDを束縛する。
 
@@ -60,7 +62,7 @@ WebAuthnの検証: ランダム32byte以上Challenge、5分程度のTTL案、適
 ## 5. セッションと権限
 
 - auth_version比較はGET /api/auth/meだけでは不十分。**すべての保護API**の認証解決で照合。署名付きCookieのuserId/exp/versionが正しくてもDB側version不一致・User不存在なら401、必要なら期限切れCookieを削除。
-- 方式失効とusers.auth_version増分は同一D1トランザクションで確定。別端末・別タブ・旧LINE/Passkeyセッションを全拒否。
+- 方式失効とusers.auth_version増分は同一D1トランザクションで確定。別端末・別タブ・旧LINE/Passkeyセッションを全拒否。**本人の現行セッションも失効し、再ログイン案内に遷移**。方式追加だけならこの失効は行わず、本人確認の成功条件を別に管理する。
 - 新規ログイン時・スライディング更新時はDBの現行auth_versionを使う。既存#301の401時入力保持、手動再ログイン、明示logoutは維持。
 - Credential追加・削除は本人の直近再認証が必要。System Admin失効操作は管理者権限＋直近再認証＋監査を必須とする。再認証の具体的な有効時間（例5分）はHuman設計レビューで確定。
 - Group Adminには他Groupを横断するUser Credential削除権限を付与しない。System Adminが唯一の資格情報を削除して全管理者が操作不能になるリスクは操作前に警告する。新しいセルフサービス復旧は実装しない。
@@ -103,7 +105,7 @@ WebAuthnの検証: ランダム32byte以上Challenge、5分程度のTTL案、適
 ## 9. 未確定・Human Gate
 
 - T1: Cloudflare Workersで実利用するWebAuthnライブラリ/Version、ブラウザ実機挙動。候補を固定していない。
-- T2: Passkey RP IDと本番運用ドメインの長期固定。workers.devから独自ドメインへの移行がある場合の再登録。
+- T2: 本番の実効HTTPS hostnameをデプロイ設定・実際の配信originで読み取り確認してからPasskey RP IDに固定。RP IDは有効なoriginのhostname又は登録可能な親ドメインに限る。PreviewのランダムURL/独立D1では本番Credentialを流用せず、別RP IDかローカルの固定検証originを使う。workers.devから独自ドメインへ移行する場合は再登録計画が必要。
 - T3: 再認証の許容経過時間（セキュリティと使いやすさのトレードオフ）。
 - T4: 既存招待URLから方式選択への安全な移行と旧URL後方互換。
 - T5: 認証情報の完全削除と論理失効＋監査履歴の保持期間。デフォルトは論理失効。
@@ -116,3 +118,27 @@ Risk: High。Auth/DB/Session/認可境界変更。**T1/T2/T4の検証失敗、�
 - MDN Web Authentication API: https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API
 - MDN Passkeys: https://developer.mozilla.org/en-US/docs/Web/Security/Authentication/Passkeys
 - FIDO Passkeys journey: https://fidoalliance.org/wp-content/uploads/2025/03/Passkeys-The-Journey-to-Prevent-Phishing-Pt1.pdf
+
+## 10. 設計レビュー v0.2（2026-10-20 / #335）
+
+### 技術確認済み（仕様・コードの静的確認。実機動作の証明ではない）
+
+- Cloudflare D1公式仕様ではbatchはSQL失敗時にtransaction rollbackされる。一方、影響行数0はSQLエラーではないため、**招待・Credential登録の条件不成立をアプリ側で事後検出しても原子性が成立しない**。実装前にfail-closedなSQL契約を決める。
+- Cloudflare WorkersはWeb CryptoのECDSA/RSA/Ed25519等を提供するが、@simplewebauthn/serverの対象バージョンが互換・build成功することは未検証。S0 PoCで確認する。
+- W3C WebAuthn Level 3ではRP IDはoriginのeffective domain又は適格な親ドメイン。Production hostnameとPreview URLを確認せずRP IDを仮決めしない。
+- SimpleWebAuthnのdiscoverable credential/loginは候補として妥当。Passkeyだけのログインには許可Credential一覧を空にするusernameless認証を採用できる。新規登録ではresidentKey required / verification時UV requiredを設計候補とする。
+- 現行のLINE sessionは署名CookieのuserId+expのみで、ログアウトしても別端末Cookieは無効にならない。auth_versionを**全protected API**で検証しなければ認証情報失効の保証はできない。
+
+### 優先して守る実装ゲート
+
+1. **Invite atomicity**: 招待→Passkey作成→User→Playerの競合時に一切の片手間の保存が残らない。既存LINE招待の回帰テストも設ける。
+2. **LINE link CSRF/confused-deputy**: OAuth stateとブラウザのログインUserを相互束縛し、別UserのLINE資格情報を盗み連携できない。
+3. **Session zero-credential**: 最終Credential失効後は本人も他端末も401。Credential追加は安易に既存session全切断しない。
+4. **Preview/Production分離**: D1、RP ID、origin、Cookieを混同しない。Previewで本番Passkeyの再利用を前提にしない。
+5. **Scope**: 既存のPlayerリンクUI・Score・既存User選択・招待管理は原則変更せず文言と認証方式選択だけ補完。メール/SMS/専用回復UIは対象外。
+
+### 証跡と残課題
+
+- 静的照合: main SHA f000d4737ef70cdaac989be0f513e81163a5dc37 / Issue #335 / src/worker/auth/line-login.ts / src/worker.ts / migrations/0005,0006 / wrangler.jsonc。
+- 公式参考: https://developers.cloudflare.com/d1/worker-api/d1-database/ , https://developers.cloudflare.com/workers/runtime-apis/web-crypto/ , https://www.w3.org/TR/2026/REC-webauthn-3-20260825/ , https://simplewebauthn.dev/docs/packages/server , https://simplewebauthn.dev/docs/advanced/passkeys/ 。
+- **未検証**: Worker/Library実行、D1 concurrent transaction、固定origin、iOS/Android実機、CI/Preview、既存利用者マイグレーション。これらはS0/S1で確認し、成功したと記録しない。

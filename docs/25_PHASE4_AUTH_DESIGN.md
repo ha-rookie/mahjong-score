@@ -166,3 +166,46 @@ Risk: High。Auth/DB/Session/認可境界変更。**T1/T2/T4の検証失敗、�
 - GitHub [Issue #335](https://github.com/ha-rookie/mahjong-score/issues/335)は全Phase 4受入・意思決定、[Issue #337](https://github.com/ha-rookie/mahjong-score/issues/337)はS0証跡、[Issue #343](https://github.com/ha-rookie/mahjong-score/issues/343)はS1実装前契約。ADR-0002は採用理由、本書はクロススライス設計案、各GitHub実装PRは差分、Notion基本設計は現在地を管理する。
 - **設計PR #336は引き続きProposed・未承認・未マージ**。S1のIssue起票・この追記は実装のHuman Gateを解除しない。Runtime/Migration/Secrets/Remote D1/main/Productionデプロイは行わない。
 
+## 12. S1リスクレビュー：具体的な検査契約（2026-10-21、提案のみ）
+
+### レビューで確認できた現行コードの境界
+
+- `src/worker/auth/line-login.ts` の `resolveSession` は署名と期限を検証しuserIdを返すが、DB usersの存在と世代は未照合。`authenticatedUserId` はその結果のみ返す。`src/worker.ts` がそれを保護APIの入口で使う。現行 `/api/auth/me` は別途Userを照合するため、**/meだけを修正しても足りない**。
+- `authMe` だけが残期限12時間以内のsigned cookieをスライディング更新する。旧Cookie→新Cookie移行時に `authVersion` を必ず付け、version検査後にしか延長しない。LINE OAuth callback の `makeSession`、重複callback時の `duplicateLineCallbackResponse`、bootstrapAdmin、全保護API入口も同じ判定を通す。
+- `redeemInvitationById` はD1.batchのあと `meta.changes!==1` を確認する。**これはSQL例外ではないためロールバックの保証にならない**。既存LINE動作の調整は別変更範囲で評価しつつ、S2の新User＋Credential＋招待消費を同じパターンに増築しない。
+- 2026-10-21実機S0では特定Credential IDを `allowCredentials` に指定して成功。しかし**未ログイン・User未特定のPasskeyログインではIDを事前に指定できない**。S2のdiscoverable passkey認証では空allowCredentialsから返却されたIDを**サーバー側の一意Credential索引**で照合し、userIdをサーバーのCredentialレコードから確定する。フロント申告userIdやDisplayNameを信用しない。S0実機試験はこのusernamelessフローまで証明していない。
+
+### 推奨する最小データ・API契約（採否Human Review）
+
+1. `passkey_credentials.credential_id`: 正規化base64url TEXTを全件UNIQUE（**失効済みを含め再割当・他User付け替え禁止**）。`public_key`: WebAuthnCredential相当のbytesをBLOB保存し読み出し時にUint8Arrayへ復元。`counter`/transports/backup flagsの意味とロールオーバー時の扱いをテストで固定。保存形式が曖昧なままmigrationを作らない。
+2. `auth_challenges`: 推測不能なflow識別子、challenge_hash、purpose、User/招待への束縛、server-configから確定したexpected origin/RP ID、expires/consumed。challenge_hashしか保存しないならSimpleWebAuthnの `expectedChallenge` callbackで **応答challengeのダイジェストをDB保存値と比較**する案を検証。検証APIにリクエストから受け取ったOrigin/RP IDを期待値としてそのまま使わない。
+3. チャレンジの消費は条件付き更新で `consumed_at IS NULL AND expires_at>now AND purpose/target一致` をSQLレベルに束縛し、成功検証まで同一challengeを並列利用できない契約にする。crypto失敗時にchallengeだけ失効して再登録が必要になるのは安全側の失敗として許容。ただしUser/Credential/招待/Playerが半端に増えないこと。
+4. Session: HMAC signed `userId/exp/authVersion`。旧形式は**最大1セッションTTL（24h）の限定移行候補**でversion0扱い、更新時には必ずversion入りCookieへ置換。旧cookieとDB version不一致は必ず拒否。移行猶予の起点・終了時刻と、失効の反映遅延はHuman決定。Migration時のauthVersion=0の全ユーザーがいきなり401にならないことをテスト。
+5. D1エラー時は**fail closed**（署名成功でもUser世代を検証できなければ保護APIを実行しない）。DB障害による503と実際の不正なCookieによる401は必要に応じて区別し、ユーザー情報を返さない。失効時の**次の認証判定から無効**とし、すでに認可された同時実行中リクエストの巻き戻しは保証しない。
+6. Cookieだけに依存する高リスク操作は許可しない。再認証の方式・5分等のfreshness、有効な同一Userの束縛、CSRF/Origin、Group AdminとSystem Admin境界、監査イベントの保存値をS3までに確定する。S1ではそのためのSchemaと認証経路の契約を準備。
+
+### 最小テスト表（すべて未実行）
+
+| ケース | 条件 | 期待結果 |
+| --- | --- | --- |
+| A1 | 既存Cookie `{userId,exp}` + authVersion=0、猶予期間内 | 認証成功・renew時はversion付きへ移行 |
+| A2 | 旧Cookie + DB authVersion=1、同じSecretで署名妥当 | /meと保護APIすべて401、renewしない |
+| A3 | 現行Cookie version0 + DB version1、別端末からアクセス | ログイン済の全端末で新規API要求401 |
+| A4 | version妥当だがUser削除済／DB照合不能 | それぞれ401／安全な障害応答（権限通過なし） |
+| A5 | signed Cookie残11時間、authVersion一致 | 24hへ延長しDBの現行versionで再発行 |
+| A6 | invalid/expired state、duplicate LINE callback、logout | 既存LINE UX・再ログイン挙動を維持 |
+| D1 | 新スキーマを既存10 Migration＋fixtureへ追加 | 既存User/LINE/Player/成績不変、外部キー正常 |
+| D2 | 同じCredential IDを異なるUser・revoked行へ登録 | UNIQUE拒否、誤紐付け0 |
+| D3 | 同一challengeの同時verify・TTL切れ・目的違い | 一回だけ成功、再利用0 |
+| D4 | 使用済み/期限切れ招待でUserやCredential保存を試行 | DB完全ロールバック・孤立User/リンク/認証情報0 |
+| D5 | 条件付きUPDATEが0件で後続INSERTは成功するケース | 単なる`changes=0`ではrollback不可と確認→SQL制約/明示abort設計で再試験 |
+| W1 | usernameless assertionのCredential IDだけが判明 | サーバーのUNIQUE Credential索引経由で正しいUser、client userId不採用 |
+| W2 | 署名正常でもorigin/RP違い、revoked、別Userへの付け替え | 全て拒否・sessionIssued=false |
+
+Cloudflare公式ではD1 `batch()` は**SQLエラー**を含むと全シーケンスをrollbackする。一方0件UPDATEは正常終了し得るためロールバックを引き起こさない。SQLiteの `RAISE(ABORT,...)` はトリガー内で利用できるが、D1で採用するかは隔離D1の試験で決める（他案も比較）。
+
+### STOP / 進め方
+
+- S1を**DB＋既存Sessionの土台**に限定。実WebAuthnハンドラ・招待発行URL変更・認証方式管理UIはS2/S3で別PR。既存PWA機能は撤去済みのため、Safari/Chromeのホーム画面Web App確認をPWA再実装と混同しない。
+- この節とIssue #343は設計案。S1 Runtime変更・新Migration・実Userへの操作・mainマージ/Production配信はHumanの独立承認が必要。
+

@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler dev --config poc/passkey/worker-compat/wrangler.jsonc --local --ip 127.0.0.1 --port 8799 > /tmp/passkey-s0.log 2>&1 &
+          npx wrangler dev --config poc/passkey/worker-compat/wrangler.jsonc --local --ip 127.0.0.1 --port 8799 --persist-to /tmp/passkey-s0-isolated-d1 > /tmp/passkey-s0.log 2>&1 &
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           ready=false
@@ -43,4 +43,10 @@ jobs:
           fi
           cat /tmp/passkey-s0-result.json
           node -e 'const x=require("/tmp/passkey-s0-result.json"); if (!x.ok || Object.values(x.checks).some(v=>v!==true) || x.realCloudflareEdge!==false || x.realDevice!==false) process.exit(2)'
-          echo 'S0 LOCAL WORKER COMPAT PASS (not production Cloudflare edge or physical passkey)'
+          echo 'S0 WEB AUTHN LOCAL WORKER PASS'
+          if ! curl --max-time 25 --silent --show-error --fail http://127.0.0.1:8799/db-probe > /tmp/passkey-s0-d1-result.json; then
+            cat /tmp/passkey-s0.log; cat /tmp/passkey-s0-d1-result.json || true; exit 1
+          fi
+          cat /tmp/passkey-s0-d1-result.json
+          node -e 'const x=require("/tmp/passkey-s0-d1-result.json"); if (!x.ok || Object.keys(x.checks).length !== 10 || Object.values(x.checks).some(v=>v!==true) || x.realCloudflareD1!==false) process.exit(2)'
+          echo 'S0 LOCAL WORKER + ISOLATED D1 FIXTURE PASS (not Production or actual browser)'

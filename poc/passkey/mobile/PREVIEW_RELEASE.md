@@ -20,9 +20,9 @@ Cloudflare公式 Previews は、既存Workerが無くても `wrangler preview` �
 
 ## 公開ジョブの範囲
 
-- 対象Worker名: `mahjong-score-passkey-s0-isolated` （本番 `mahjong-score` とは異なる）
+- 対象Worker名: `mahjong-score-passkey-s0-phone-337` （本番 `mahjong-score` とは異なる）
 - Preview名: `s0-phone-check-337`。新規WorkerのPreviewであり、Productionへの `wrangler deploy` は行わない。
-- Command: `npx wrangler preview --config poc/passkey/mobile/wrangler.jsonc --worker-name mahjong-score-passkey-s0-isolated --name s0-phone-check-337 --ignore-base-config --json`。
+- Command: `npx wrangler preview --config poc/passkey/mobile/wrangler.jsonc --worker-name mahjong-score-passkey-s0-phone-337 --name s0-phone-check-337 --ignore-base-config --json`。
 - D1/Vars/Secrets/Assets/Service bindingsなし。Cloudflare認証Secretは**GitHub Actionsランナーでのみ**使用し、Workerには注入しない。
 - 成功したら `.preview.urls[0]` を検証し、GitHub Actionsログ・Job Summaryへ検証URLを記録する（推測URLは使用しない）。
 - リモート健康応答 `noDatabase=true`, `noUserData=true` と `X-Robots-Tag: noindex` をHTTPSで確認。
@@ -30,7 +30,7 @@ Cloudflare公式 Previews は、既存Workerが無くても `wrangler preview` �
 
 ## 後片付け / 再検証
 
-- 実機確認後は `npx wrangler preview delete --worker-name mahjong-score-passkey-s0-isolated --name s0-phone-check-337 --skip-confirmation` で**このPreviewだけを削除**。削除は別の明示的操作と権限確認を要する。
+- 実機確認後は `npx wrangler preview delete --worker-name mahjong-score-passkey-s0-phone-337 --name s0-phone-check-337 --skip-confirmation` で**このPreviewだけを削除**。削除は別の明示的操作と権限確認を要する。
 - iPhone/Androidに残ったテスト用パスキーは端末OSから削除。ページのLocal record削除ボタンのみでは消えない。
 - リモートPreviewの作成・削除そのものは、このREADME作成では実行していない。
 
@@ -45,3 +45,10 @@ Cloudflare公式:
 https://developers.cloudflare.com/workers/previews/get-started/
 https://developers.cloudflare.com/workers/previews/examples/
 https://developers.cloudflare.com/workers/previews/
+
+## 2026-10-20 発行方式の修正
+
+- 先の検証で `mahjong-score-passkey-s0-isolated` に対する `wrangler preview --json` は成功応答（preview / deployment）を返したが公開URLが空。後から設定を変更してもURLが空のため、**本番DeployでPreview URLを有効化する操作は行わず**、別名の新規独立検証用Worker `mahjong-score-passkey-s0-phone-337` を初回Preview作成対象に変更。
+- 新Workerには `workers_dev: true`, `preview_urls: true` を**初期設定**として付ける。これは専用Workerのみで、三麻スコア本番 `mahjong-score` は一切変更しない。独立WorkerにProductionスクリプトのDeployは行わない。
+- 旧名前のCloudflare Worker/Previewメタデータが残っている可能性がある。旧データベースや認証情報は紐付いておらず、公開URLが返った証跡もない。Cloudflare内の旧テストリソースは別途安全確認後に整理する。
+- 今回のPreview公開承認の範囲を越えて、Production経由の設定変更・既存Workerの更新・mainマージ・Remote D1操作は行わない。

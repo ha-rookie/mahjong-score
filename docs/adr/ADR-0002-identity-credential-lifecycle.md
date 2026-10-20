@@ -42,7 +42,7 @@ Option B。User IDは不変とし、LINEは既存external_identities、Passkey�
 
 新規Passkey登録によるUser作成は管理者招待経由のみ。LINEは既存動作（未招待でもUser作成される場合はGroup非参加）を今回は変更しない。既存の認証方式を使ってGroupに参加する場合も、招待または既存Userの管理者紐付けが必要。
 
-User側のCredential失効時はセッション世代の更新により当該Userの既存セッションを全失効させる。方式はsigned CookieにauthVersionを追加し、毎回D1側の現行versionとの照合を行う案を第一候補とする。旧Cookieとの互換性・移行手順は詳細設計を経て決定する。
+User側のCredential**失効時**はセッション世代の更新により当該Userの既存セッションを全失効させる。方式はsigned CookieにauthVersionを追加し、毎回D1側の現行versionとの照合を行う案を第一候補とする。**新しい認証手段の追加だけでは既存セッションを強制失効させない。**旧Cookieとの互換性・移行手順は詳細設計を経て決定する。
 
 ## Consequences
 
@@ -51,6 +51,13 @@ User側のCredential失効時はセッション世代の更新により当該Use
 - 管理者はCredentialを失効できるが、本人に代わって秘密鍵を作れない。
 - 最後のSystem Admin資格情報削除に対する警告と運用手順は必要。自己回復UIは不要。
 - Google等の他Provider、Player/Score再構築、独自メール復旧、認証方式ごとの新User強制作成は対象外。
+
+## Review follow-up（2026-10-20）
+
+- 署名済みCookieのversion検証は全保護APIで行い、失効は即時適用とする。
+- WebAuthn招待登録はD1トランザクションで成功/失敗を原子的に扱う。D1.batch()のSQL失敗はrollbackされるがchanges=0は自動失敗とならない点に注意する。
+- LINE OAuthによる既存Userへの認証方式追加はstate・ブラウザsession・対象Userの一致が必須で、他UserへのLINE Subject付け替えを拒否する。
+- 本番origin/RP IDとPreviewの分離、およびCloudflare Workers/WebAuthn library実行は未検証・後続S0 Gateとする。
 
 ## Validation / Revisit
 

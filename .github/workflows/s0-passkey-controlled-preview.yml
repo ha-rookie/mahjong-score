@@ -115,6 +115,7 @@ jobs:
           url="$(cat /tmp/s0-preview-url.txt)"
           curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||!x.noDatabase||!x.noUserData)process.exit(2);})'
           curl --fail --silent --show-error --retry 4 --retry-delay 2 --head "$url/" | tr -d '\r' | grep -iq '^x-robots-tag: noindex'
-          curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/client.js" | grep -q 'get_credential_match'
+          curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/client.js" -o /tmp/s0-client.js
+          grep -q 'get_credential_match' /tmp/s0-client.js
           echo 'PASS: updated S0-only browser diagnostic script is on remote Preview'
           echo 'PASS: isolated remote HTTPS Preview health + noindex verified'

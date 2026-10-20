@@ -114,10 +114,99 @@ async function runD1(db) {
   return {ok:true,checks:{happy,replayRejected,replayRolledBack,concurrentExactlyOne,concurrentNoOrphans,revokedRejected,revokedRolledBack,collisionRejected,collisionRolledBack,zeroChangesCommitted},fixture:'local isolated D1 only',realCloudflareD1:false};
 }
 
+
+async function runExistingSchema(db) {
+  // S0 only: exact EXISTING schema, loaded by unchanged migrations/0001..0010.
+  // Redemption statements are a snapshot of main/src/worker/auth/line-login.ts.
+  // This does NOT execute that application handler or include new Passkey storage.
+  const now = new Date().toISOString();
+  const future = new Date(Date.now()+7*86400_000).toISOString();
+  const uuid = () => crypto.randomUUID();
+  const one = (sql,...params) => db.prepare(sql).bind(...params).first();
+  const count = async (sql,...params) => Number((await one(sql,...params))?.n??0);
+  const demand = (condition,description) => {if(!condition)throw Error(description);};
+  let attempt=0;
+  async function scenario({revoked=false,linkedUser=null,secondPlayer=false}={}) {
+    const groupId=uuid(),playerId=uuid(),invitationId=uuid(),administrator=uuid(),userA=uuid(),userB=uuid();
+    await db.batch([
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(administrator,"Test Admin",now,now),
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(userA,"User A",now,now),
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(userB,"User B",now,now),
+      db.prepare("INSERT INTO groups(id,name,created_at,updated_at) VALUES(?,?,?,?)").bind(groupId,"S0 isolated",now,now),
+      db.prepare("INSERT INTO players(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(playerId,"Player A",now,now),
+      db.prepare("INSERT INTO group_players(group_id,player_id,active,user_id) VALUES(?,?,1,?)").bind(groupId,playerId,linkedUser=== "userB" ? userB:null),
+      db.prepare("INSERT INTO invitations(id,token_hash,group_id,player_id,role,created_by_user_id,expires_at,revoked_at,created_at) VALUES(?,?,?,?,'member',?,?,?,?)").bind(invitationId,uuid(),groupId,playerId,administrator,future,revoked?now:null,now)
+    ]);
+    if(secondPlayer){
+      const anotherPlayer=uuid();
+      await db.batch([
+        db.prepare("INSERT INTO players(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(anotherPlayer,"Player B",now,now),
+        db.prepare("INSERT INTO group_players(group_id,player_id,user_id) VALUES(?,?,?)").bind(groupId,anotherPlayer,userA)
+      ]);
+    }
+    return {groupId,playerId,invitationId,administrator,userA,userB};
+  }
+  async function redeem(invitationId,userId) {
+    attempt++;
+    const instant = new Date().toISOString();
+    const invite=await one("SELECT id,group_id AS groupId,player_id AS playerId,expires_at AS expiresAt FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?",invitationId,instant);
+    if(!invite)return "invalid";
+    const existingLink=await one("SELECT player_id AS playerId FROM group_players WHERE group_id=? AND user_id=?",invite.groupId,userId);
+    if(existingLink&&existingLink.playerId!==invite.playerId)return "conflict";
+    const target=await one("SELECT active,user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",invite.groupId,invite.playerId);
+    if(!target||target.active!==1||(target.userId&&target.userId!==userId))return "conflict";
+    try {
+      const result=await db.batch([
+        db.prepare("UPDATE group_players SET user_id=? WHERE group_id=? AND player_id=? AND active=1 AND (user_id IS NULL OR user_id=?) AND EXISTS(SELECT 1 FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?)").bind(userId,invite.groupId,invite.playerId,userId,invite.id,instant),
+        db.prepare("INSERT INTO group_memberships(group_id,user_id,role,created_at,updated_at) SELECT ?,?,'member',?,? WHERE EXISTS(SELECT 1 FROM group_players WHERE group_id=? AND player_id=? AND user_id=?) AND EXISTS(SELECT 1 FROM invitations WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?) ON CONFLICT(group_id,user_id) DO UPDATE SET role=CASE WHEN group_memberships.role='group_admin' THEN 'group_admin' ELSE 'member' END,updated_at=excluded.updated_at").bind(invite.groupId,userId,instant,instant,invite.groupId,invite.playerId,userId,invite.id,instant),
+        db.prepare("UPDATE invitations SET used_at=?,used_by_user_id=? WHERE id=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>? AND EXISTS(SELECT 1 FROM group_players WHERE group_id=? AND player_id=? AND user_id=?)").bind(instant,userId,invite.id,instant,invite.groupId,invite.playerId,userId)
+      ]);
+      return result.some(v=>v.meta.changes!==1) ? "conflict":"accepted";
+    } catch {return "conflict";}
+  }
+  const results={};
+  const good=await scenario();
+  results.normalAccepted=(await redeem(good.invitationId,good.userA))==="accepted";
+  results.normalLinked=(await one("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",good.groupId,good.playerId))?.userId===good.userA;
+  results.normalMembership=(await one("SELECT role FROM group_memberships WHERE group_id=? AND user_id=?",good.groupId,good.userA))?.role==="member";
+  results.normalUsedBy=(await one("SELECT used_by_user_id AS userId FROM invitations WHERE id=?",good.invitationId))?.userId===good.userA;
+  results.sameInviteReplayRejected=(await redeem(good.invitationId,good.userB))==="invalid";
+  results.sameInviteNoOtherMembership=(await count("SELECT COUNT(*) AS n FROM group_memberships WHERE group_id=? AND user_id=?",good.groupId,good.userB))===0;
+  const revoked=await scenario({revoked:true});
+  results.revokedRejected=(await redeem(revoked.invitationId,revoked.userA))==="invalid";
+  results.revokedPlayerUnlinked=(await one("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",revoked.groupId,revoked.playerId))?.userId===null;
+  const prelinked=await scenario({linkedUser:"userB"});
+  results.otherUserPrelinkedRejected=(await redeem(prelinked.invitationId,prelinked.userA))==="conflict";
+  results.otherUserStillLinked=(await one("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",prelinked.groupId,prelinked.playerId))?.userId===prelinked.userB;
+  const sameGroupTwoPlayer=await scenario({secondPlayer:true});
+  results.userAlreadyLinkedRejected=(await redeem(sameGroupTwoPlayer.invitationId,sameGroupTwoPlayer.userA))==="conflict";
+  results.userAlreadyLinkedTargetUnchanged=(await one("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",sameGroupTwoPlayer.groupId,sameGroupTwoPlayer.playerId))?.userId===null;
+  const race=await scenario();
+  const raceResults=await Promise.all([redeem(race.invitationId,race.userA),redeem(race.invitationId,race.userB)]);
+  const accepted=raceResults.filter(v=>v==="accepted").length;
+  const racePlayer=await one("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",race.groupId,race.playerId);
+  const raceInvite=await one("SELECT used_by_user_id AS userId FROM invitations WHERE id=?",race.invitationId);
+  results.raceOneWinner=accepted===1;
+  results.raceLinkAndInviteAgree=Boolean(racePlayer?.userId)&&racePlayer.userId===raceInvite?.userId;
+  results.raceOnlyWinnerMembership=(await count("SELECT COUNT(*) AS n FROM group_memberships WHERE group_id=?",race.groupId))===1;
+  const existingUserUninvited=uuid(),otherGroup=uuid(),otherPlayer=uuid();
+  // Simulate the existing admin "existing User -> Player" mapping: no new Credential is necessary.
+  await db.batch([
+    db.prepare("INSERT INTO users(id,created_at,updated_at) VALUES(?,?,?)").bind(existingUserUninvited,now,now),
+    db.prepare("INSERT INTO groups(id,name,created_at,updated_at) VALUES(?,?,?,?)").bind(otherGroup,"Second group",now,now),
+    db.prepare("INSERT INTO players(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(otherPlayer,"Same person",now,now),
+    db.prepare("INSERT INTO group_players(group_id,player_id,user_id) VALUES(?,?,?)").bind(otherGroup,otherPlayer,existingUserUninvited)
+  ]);
+  results.existingUserLinkIndependent=(await one("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",otherGroup,otherPlayer))?.userId===existingUserUninvited;
+  demand(Object.values(results).every(Boolean),"existing-schema fixture failure: "+JSON.stringify(results));
+  return {ok:true,checks:results,count:Object.keys(results).length,source:"migrations/0001..0010 and main LINE redemption SQL snapshot",testOnly:true,realProductionD1:false,applicationHandlerCalled:false,attempts:attempt};
+}
+
 export default {
   async fetch(request,env) {
     const path = new URL(request.url).pathname;
     if(path==='/health')return Response.json({ready:true});
+    if(path==='/existing-schema-probe'){try{return Response.json(await runExistingSchema(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 current-schema probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path==='/db-probe'){try{return Response.json(await runD1(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 D1 probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path!=='/probe')return new Response('not found',{status:404});
     try{return Response.json(await run(),{headers:{'cache-control':'no-store'}});}

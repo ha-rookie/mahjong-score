@@ -19,7 +19,7 @@ function rawToDer(raw) {
   const sequence=join(encInt(raw.subarray(0,32)),encInt(raw.subarray(32,64)));return join(Uint8Array.of(0x30,sequence.length),sequence);
 }
 
-async function run() {
+async function run(onVerifiedRegistration) {
   const registrationOptions = await generateRegistrationOptions({
     rpName:'S0 Isolated WebAuthn Probe', rpID, userName:'synthetic-s0-user',
     userID:crypto.getRandomValues(new Uint8Array(32)), attestationType:'none',
@@ -56,7 +56,8 @@ async function run() {
   let rejectedChallenge=false;
   try {await verifyAuthenticationResponse({response:assertion,expectedChallenge:'wrongchallenge',expectedOrigin:origin,expectedRPID:rpID,credential,requireUserVerification:true});}catch{rejectedChallenge=true;}
   if(!rejectedChallenge)throw Error('wrong challenge was accepted');
-  return {ok:true,checks:{registration:true,discoverableOptions:true,authentication:true,rejectWrongOrigin:true,rejectWrongChallenge:true},runtime:'wrangler dev --local (workerd)',realDevice:false,realCloudflareEdge:false};
+  const inviteProof=onVerifiedRegistration ? await onVerifiedRegistration({id,publicKey:registration.registrationInfo.credential.publicKey}) : undefined;
+  return {ok:true,checks:{registration:true,discoverableOptions:true,authentication:true,rejectWrongOrigin:true,rejectWrongChallenge:true},...(inviteProof ? {inviteProof}: {}),runtime:'wrangler dev --local (workerd)',realDevice:false,realCloudflareEdge:false};
 }
 
 
@@ -266,10 +267,108 @@ async function runActualInvitationHandler(db) {
   return {ok:true,count:Object.keys(checks).length,checks,source:"src/worker/auth/line-login.ts::redeemInvitationById",actualApplicationHandlerCalled:true,passkeyRegistrationImplemented:false,realProductionD1:false,realDevice:false};
 }
 
+
+async function runPasskeyInvitationAtomicityProbe(db, registration) {
+  // S0 isolated prototype; DO NOT use in production.
+  // The new credential/claim tables exist ONLY in fake-ID local D1.
+  // Existing application tables use unchanged migrations/0001..0010.
+  await db.batch([
+    db.prepare("CREATE TABLE IF NOT EXISTS s0_passkey_registrations(credential_id TEXT PRIMARY KEY,user_id TEXT NOT NULL,public_key TEXT NOT NULL,FOREIGN KEY(user_id) REFERENCES users(id))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS s0_atomic_invite_claims(invitation_id TEXT PRIMARY KEY,user_id TEXT NOT NULL,FOREIGN KEY(invitation_id) REFERENCES invitations(id),FOREIGN KEY(user_id) REFERENCES users(id))")
+  ]);
+  await db.prepare(
+    "CREATE TRIGGER IF NOT EXISTS s0_atomic_claim_guard BEFORE INSERT ON s0_atomic_invite_claims BEGIN "+
+    "SELECT CASE WHEN NOT EXISTS ("+
+    "SELECT 1 FROM invitations i JOIN group_players gp ON gp.group_id=i.group_id AND gp.player_id=i.player_id "+
+    "WHERE i.id=NEW.invitation_id AND i.used_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now') "+
+    "AND gp.active=1 AND gp.user_id IS NULL AND NOT EXISTS ("+
+    "SELECT 1 FROM group_players gp2 WHERE gp2.group_id=i.group_id AND gp2.user_id=NEW.user_id"+
+    ")) THEN RAISE(ABORT,'invite_unavailable') END; END"
+  ).run();
+  const timestamp=()=>new Date().toISOString();
+  const uuid=()=>crypto.randomUUID();
+  const first=(sql,...p)=>db.prepare(sql).bind(...p).first();
+  const total=async(sql,...p)=>Number((await first(sql,...p))?.count??0);
+  const ensure=(ok,label)=>{if(!ok)throw Error("S0 atomicity regression: "+label);};
+  const key=registration.id;
+  const publicKey=b64(registration.publicKey);
+  async function seed({revoked=false,expired=false,linked=false}={}) {
+    const inviter=uuid(),group=uuid(),player=uuid(),invite=uuid(),occupiedBy=uuid();
+    const now=timestamp(),exp=expired?new Date(Date.now()-60000).toISOString():new Date(Date.now()+3600000).toISOString();
+    const rows=[
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(inviter,'S0 inviter',now,now),
+      db.prepare("INSERT INTO groups(id,name,created_at,updated_at) VALUES(?,?,?,?)").bind(group,'S0 invited group',now,now),
+      db.prepare("INSERT INTO players(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(player,'S0 player',now,now)
+    ];
+    if(linked)rows.push(db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(occupiedBy,'S0 existing user',now,now));
+    rows.push(
+      db.prepare("INSERT INTO group_players(group_id,player_id,active,user_id) VALUES(?,?,1,?)").bind(group,player,linked?occupiedBy:null),
+      db.prepare("INSERT INTO invitations(id,token_hash,group_id,player_id,role,created_by_user_id,expires_at,revoked_at,created_at) VALUES(?,?,?,?,'member',?,?,?,?)")
+        .bind(invite,uuid(),group,player,inviter,exp,revoked?now:null,now)
+    );
+    await db.batch(rows);
+    return {inviter,group,player,invite,occupiedBy};
+  }
+  async function claim({invite,group,player},userId,credentialId,credentialPublicKey) {
+    const now=timestamp();
+    const operations=[
+      db.prepare("INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)").bind(userId,'S0 new User',now,now),
+      db.prepare("INSERT INTO s0_passkey_registrations(credential_id,user_id,public_key) VALUES(?,?,?)").bind(credentialId,userId,credentialPublicKey),
+      db.prepare("INSERT INTO s0_atomic_invite_claims(invitation_id,user_id) VALUES(?,?)").bind(invite,userId),
+      db.prepare("UPDATE group_players SET user_id=? WHERE group_id=? AND player_id=? AND active=1 AND user_id IS NULL").bind(userId,group,player),
+      db.prepare("INSERT INTO group_memberships(group_id,user_id,role,created_at,updated_at) VALUES(?,?,'member',?,?)").bind(group,userId,now,now),
+      db.prepare("UPDATE invitations SET used_at=?,used_by_user_id=? WHERE id=? AND used_at IS NULL AND revoked_at IS NULL").bind(now,userId,invite)
+    ];
+    return db.batch(operations);
+  }
+  async function failsWithoutOrphans(target,userId,credentialId,credentialPublicKey) {
+    let rejected=false;try{await claim(target,userId,credentialId,credentialPublicKey);}catch{rejected=true;}
+    const noUser=await total("SELECT COUNT(*) AS count FROM users WHERE id=?",userId)===0;
+    const noCredential=await total("SELECT COUNT(*) AS count FROM s0_passkey_registrations WHERE user_id=?",userId)===0;
+    return {rejected,noUser,noCredential};
+  }
+  const checks={};
+  const target=await seed(),newUser=uuid();
+  const accepted=await claim(target,newUser,key,publicKey);
+  checks.verifiedPasskeyThenOneAtomicBatch=accepted.length===6&&accepted.every(v=>v.meta.changes===1);
+  checks.userCreated=await total("SELECT COUNT(*) AS count FROM users WHERE id=?",newUser)===1;
+  checks.credentialLinkedToSameUser=(await first("SELECT user_id AS userId,public_key AS publicKey FROM s0_passkey_registrations WHERE credential_id=?",key))?.userId===newUser &&
+    (await first("SELECT public_key AS publicKey FROM s0_passkey_registrations WHERE credential_id=?",key))?.publicKey===publicKey;
+  checks.playerLinked=(await first("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",target.group,target.player))?.userId===newUser;
+  checks.memberRole=(await first("SELECT role FROM group_memberships WHERE group_id=? AND user_id=?",target.group,newUser))?.role==='member';
+  checks.invitationConsumed=(await first("SELECT used_by_user_id AS userId FROM invitations WHERE id=?",target.invite))?.userId===newUser;
+  const replay=await failsWithoutOrphans(target,uuid(),uuid(),publicKey);
+  checks.replayedInviteRejected=replay.rejected;
+  checks.replayedInviteRolledBack=replay.noUser&&replay.noCredential;
+  const revokedTarget=await seed({revoked:true});
+  const revoked=await failsWithoutOrphans(revokedTarget,uuid(),uuid(),publicKey);
+  checks.revokedRejectedWithoutOrphan=revoked.rejected&&revoked.noUser&&revoked.noCredential;
+  const expiredTarget=await seed({expired:true});
+  const expired=await failsWithoutOrphans(expiredTarget,uuid(),uuid(),publicKey);
+  checks.expiredRejectedWithoutOrphan=expired.rejected&&expired.noUser&&expired.noCredential;
+  const alreadyLinked=await seed({linked:true});
+  const preoccupied=await failsWithoutOrphans(alreadyLinked,uuid(),uuid(),publicKey);
+  checks.prelinkedRejectedWithoutOrphan=preoccupied.rejected&&preoccupied.noUser&&preoccupied.noCredential;
+  const another=await seed();
+  const credentialDuplicate=await failsWithoutOrphans(another,uuid(),key,publicKey);
+  checks.credentialCollisionRolledBack=credentialDuplicate.rejected&&credentialDuplicate.noUser&&credentialDuplicate.noCredential;
+  const competingTarget=await seed(),otherUsers=[uuid(),uuid()],otherCredentials=[uuid(),uuid()];
+  const concurrency=await Promise.allSettled(otherUsers.map((u,i)=>claim(competingTarget,u,otherCredentials[i],publicKey)));
+  checks.concurrentExactlyOneSuccess=concurrency.filter(x=>x.status==='fulfilled').length===1;
+  checks.concurrentNoOrphan=await total("SELECT COUNT(*) AS count FROM users WHERE id IN (?,?)",...otherUsers)===1 &&
+    await total("SELECT COUNT(*) AS count FROM s0_passkey_registrations WHERE credential_id IN (?,?)",...otherCredentials)===1;
+  const winner=(await first("SELECT used_by_user_id AS userId FROM invitations WHERE id=?",competingTarget.invite))?.userId;
+  checks.concurrentWinnerMatchesPlayer=Boolean(winner)&&
+    (await first("SELECT user_id AS userId FROM group_players WHERE group_id=? AND player_id=?",competingTarget.group,competingTarget.player))?.userId===winner;
+  ensure(Object.values(checks).every(Boolean),JSON.stringify(checks));
+  return {ok:true,checks,count:Object.keys(checks).length,verifiedRealLibraryFirst:true,realAuthenticator:false,realProductionD1:false,usedExistingAppRedemptionFunction:false,requiresNewAtomicDesign:true};
+}
+
 export default {
   async fetch(request,env) {
     const path = new URL(request.url).pathname;
     if(path==='/health')return Response.json({ready:true});
+    if(path==='/passkey-invite-probe'){try{return Response.json((await run(async verified=>runPasskeyInvitationAtomicityProbe(env.DB,verified))).inviteProof,{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 integrated passkey invite probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path==='/actual-handler-probe'){try{return Response.json(await runActualInvitationHandler(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 actual handler integration failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path==='/existing-schema-probe'){try{return Response.json(await runExistingSchema(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 current-schema probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path==='/db-probe'){try{return Response.json(await runD1(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 D1 probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}

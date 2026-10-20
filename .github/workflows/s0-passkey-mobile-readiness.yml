@@ -24,7 +24,7 @@ jobs:
       - name: Install existing tools
         run: npm install --no-audit --no-fund
       - name: Install ephemeral Chromium tooling (no lockfile changes)
-        run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1
+        run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1 @simplewebauthn/server@14.0.3
       - name: Install local test Chromium
         run: npx playwright install --with-deps chromium
       - name: Bundle standalone Worker without cloud upload

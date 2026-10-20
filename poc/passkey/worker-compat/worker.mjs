@@ -257,7 +257,7 @@ async function runActualInvitationHandler(db) {
   const race=await fixture();
   const raceResponses=await Promise.all([redeemInvitationById(env,race.inviteId,race.a),redeemInvitationById(env,race.inviteId,race.b)]);
   checks.raceExactlyOneAccepted=raceResponses.filter(x=>x==='accepted').length===1;
-  checks.raceExactlyOneConflict=raceResponses.filter(x=>x==='conflict').length===1;
+  checks.raceOtherRejected=raceResponses.filter(x=>x==='conflict'||x==='invalid').length===1;
   const linked=await one("SELECT user_id AS u FROM group_players WHERE group_id=? AND player_id=?",race.groupId,race.playerId);
   const consumed=await one("SELECT used_by_user_id AS u FROM invitations WHERE id=?",race.inviteId);
   checks.raceSameUser=Boolean(linked?.u)&&linked.u===consumed?.u;

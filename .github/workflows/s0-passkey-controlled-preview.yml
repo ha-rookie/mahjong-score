@@ -89,9 +89,22 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('/tmp/s0-preview.json','utf8'));
-          const urls=d.preview?.urls||[];
-          const url=urls.find(u=>typeof u==='string'&&u.startsWith('https://')&&u.includes('workers.dev'));
-          if(!url)throw Error('Cloudflare Preview returned no workers.dev HTTPS URL');
+          const candidates=[];
+          const walk=(x,depth=0)=>{
+            if(depth>8||x==null)return;
+            if(typeof x==='string'){if(x.startsWith('https://'))candidates.push(x);return;}
+            if(Array.isArray(x)){for(const y of x)walk(y,depth+1);return;}
+            if(typeof x==='object'){for(const y of Object.values(x))walk(y,depth+1);}
+          };
+          walk(d.preview?.urls);
+          walk(d);
+          console.log('S0_CLOUDFLARE_RESPONSE_TOP_KEYS='+Object.keys(d).join(','));
+          const url=candidates.find(x=>{
+            try {const host=new URL(x).hostname;
+              return host.endsWith('.workers.dev')&&host.includes('s0-phone-check-337')&&host.includes('mahjong-score-passkey-s0-isolated');
+            }catch{return false;}
+          });
+          if(!url)throw Error('No HTTPS Preview host returned for isolated s0-phone-check-337 Worker');
           fs.writeFileSync('/tmp/s0-preview-url.txt',url);
           console.log('S0_PREVIEW_URL='+url);
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## S0 isolated mobile Preview\n\n'+url+'\n\nNo production app or D1 bindings. Public test page; delete after testing.\n');

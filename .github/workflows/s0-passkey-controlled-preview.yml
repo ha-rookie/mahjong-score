@@ -1,0 +1,103 @@
+name: S0 isolated Cloudflare Preview controlled release
+
+on:
+  pull_request:
+    branches:
+      - poc/issue-337-mobile-https-readiness
+    paths:
+      - '.github/workflows/s0-passkey-controlled-preview.yml'
+      - 'poc/passkey/mobile/PREVIEW_RELEASE.md'
+  push:
+    branches:
+      - poc/issue-337-preview-publish-gate
+    paths:
+      - 'poc/passkey/mobile/.approve-preview-publish'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s0-passkey-controlled-preview
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - name: No production resources may be bound
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
+          const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
+          if(d.name!=='mahjong-score-passkey-s0-isolated'||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          console.log('PASS: independent no-binding S0 Worker config');
+          NODE
+      - name: Cloudflare Preview CLI preflight (NO cloud authorization)
+        run: |
+          set -euo pipefail
+          npx wrangler --version
+          npx wrangler preview --help > /tmp/s0-preview-help.txt
+          grep -q -- '--ignore-base-config' /tmp/s0-preview-help.txt
+          grep -q -- '--worker-name' /tmp/s0-preview-help.txt
+          npx wrangler deploy --config poc/passkey/mobile/wrangler.jsonc --dry-run --outdir /tmp/s0-preview-bundle
+          echo 'PASS: Wrangler Preview CLI and dry-run; no HTTPS Preview published'
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/poc/issue-337-preview-publish-gate' && github.repository == 'ha-rookie/mahjong-score'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: s0-preview-release
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Verify explicit approval marker and immutable scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat poc/passkey/mobile/.approve-preview-publish)" = 'APPROVE_S0_PUBLIC_HTTPS_PREVIEW_ONLY'
+          test "$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | wc -l)" -eq 1
+          test "$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")" = 'poc/passkey/mobile/.approve-preview-publish'
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
+          const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
+          if(d.name!=='mahjong-score-passkey-s0-isolated'||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          NODE
+      - run: npm install --no-audit --no-fund
+      - name: Create Preview for independent Worker ONLY
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx wrangler preview --config poc/passkey/mobile/wrangler.jsonc --worker-name mahjong-score-passkey-s0-isolated --name s0-phone-check-337 --ignore-base-config --json > /tmp/s0-preview.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/s0-preview.json','utf8'));
+          const urls=d.preview?.urls||[];
+          const url=urls.find(u=>typeof u==='string'&&u.startsWith('https://')&&u.includes('workers.dev'));
+          if(!url)throw Error('Cloudflare Preview returned no workers.dev HTTPS URL');
+          fs.writeFileSync('/tmp/s0-preview-url.txt',url);
+          console.log('S0_PREVIEW_URL='+url);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## S0 isolated mobile Preview\n\n'+url+'\n\nNo production app or D1 bindings. Public test page; delete after testing.\n');
+          NODE
+      - name: Verify HTTPS Preview response
+        run: |
+          set -euo pipefail
+          url="$(cat /tmp/s0-preview-url.txt)"
+          curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||!x.noDatabase||!x.noUserData)process.exit(2);})'
+          curl --fail --silent --show-error --retry 4 --retry-delay 2 --head "$url/" | tr -d '\r' | grep -iq '^x-robots-tag: noindex'
+          echo 'PASS: isolated remote HTTPS Preview health + noindex verified'

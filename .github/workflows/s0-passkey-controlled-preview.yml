@@ -37,7 +37,7 @@ jobs:
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
           const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
-          if(d.name!=='mahjong-score-passkey-s0-isolated'||d.workers_dev!==false||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          if(d.name!=='mahjong-score-passkey-s0-phone-337'||d.workers_dev!==true||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
           console.log('PASS: independent no-binding S0 Worker config');
           NODE
       - name: Cloudflare Preview CLI preflight (NO cloud authorization)
@@ -73,7 +73,7 @@ jobs:
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('poc/passkey/mobile/wrangler.jsonc','utf8'));
           const banned=['d1_databases','kv_namespaces','r2_buckets','services','assets','vars','routes','route','triggers','queues','durable_objects'];
-          if(d.name!=='mahjong-score-passkey-s0-isolated'||d.workers_dev!==false||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
+          if(d.name!=='mahjong-score-passkey-s0-phone-337'||d.workers_dev!==true||d.preview_urls!==true||banned.some(k=>k in d)||Object.keys(d.previews||{}).length!==0)process.exit(2);
           NODE
       - run: npm install --no-audit --no-fund
       - name: Create Preview for independent Worker ONLY
@@ -85,7 +85,7 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          npx wrangler preview --config poc/passkey/mobile/wrangler.jsonc --worker-name mahjong-score-passkey-s0-isolated --name s0-phone-check-337 --ignore-base-config --json > /tmp/s0-preview.json
+          npx wrangler preview --config poc/passkey/mobile/wrangler.jsonc --worker-name mahjong-score-passkey-s0-phone-337 --name s0-phone-check-337 --ignore-base-config --json > /tmp/s0-preview.json
           node - <<'NODE'
           const fs=require('fs');
           const d=JSON.parse(fs.readFileSync('/tmp/s0-preview.json','utf8'));
@@ -101,7 +101,7 @@ jobs:
           console.log('S0_CLOUDFLARE_RESPONSE_TOP_KEYS='+Object.keys(d).join(','));
           const url=candidates.find(x=>{
             try {const host=new URL(x).hostname;
-              return host.endsWith('.workers.dev')&&host.includes('s0-phone-check-337')&&host.includes('mahjong-score-passkey-s0-isolated');
+              return host.endsWith('.workers.dev')&&host.includes('s0-phone-check-337')&&host.includes('mahjong-score-passkey-s0-phone-337');
             }catch{return false;}
           });
           if(!url)throw Error('No HTTPS Preview host returned for isolated s0-phone-check-337 Worker');

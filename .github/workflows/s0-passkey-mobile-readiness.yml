@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - poc/issue-337-browser-webauthn
+      - poc/issue-337-mobile-https-readiness
     paths:
       - 'poc/passkey/mobile/**'
       - '.github/workflows/s0-passkey-mobile-readiness.yml'

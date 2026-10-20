@@ -32,7 +32,7 @@ Issue #337／親 #335。PR #340の子PRで、**実iPhone/Androidの受入準備*
 
 ## 検証とScope Lock
 
-CIではWrangler dry-runのみ。ローカルworkerd＋Chromium/CDP仮想Authenticatorで登録・使用・RP ID/UV確認・noindex/CSP/no mutable APIを自動確認する。実物理端末・Remote Edgeではない。
+CIはWrangler dry-runとローカルworkerd＋Chromium/CDP仮想Authenticatorで登録・使用・RP ID/UV確認・noindex/CSP/no mutable APIを自動確認する。**Run #39413803335 で11/11 PASS**。実物理端末・Remote Edgeは未検証。
 
 親PR #340との差分は次の6ファイル限定。
 
@@ -49,3 +49,12 @@ main、実アプリ、既存Migration、root依存/lock、Remote D1、Secrets、
 https://developers.cloudflare.com/workers/previews/
 https://developers.cloudflare.com/workers/previews/compare-workflows/
 https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API
+
+## GitHub Actions実測（2026-10-20）
+
+- Run #39413803335：S0 mobile HTTPS-readiness without remote deployment **SUCCESS**。
+- 11/11 PASS：HTML表示、noindex/X-Frame-Options、CSP connect-src none、secure localhost、ブラウザcreate/get、Credential一致、RP hash/UV、UV不足拒否、Local Record削除注意、API変更禁止。
+- Worker bundle: 9.84 KiB（gzip 3.55 KiB）。DB/Secretsなしの独立設定チェックPASS。
+- 証跡: https://github.com/ha-rookie/mahjong-score/actions/runs/39413803335
+- 実行HEAD: b0580f1335700ed268e7abe2cfc7ad01c73cd819。今後更新後も最新HEADのCIを別途確認する。
+- **Remote Cloudflare Preview未作成、物理iPhone/Android未検証、Production Worker/DB変更なし。**

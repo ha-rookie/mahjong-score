@@ -58,10 +58,67 @@ async function run() {
   return {ok:true,checks:{registration:true,discoverableOptions:true,authentication:true,rejectWrongOrigin:true,rejectWrongChallenge:true},runtime:'wrangler dev --local (workerd)',realDevice:false,realCloudflareEdge:false};
 }
 
+
+async function runD1(db) {
+  // Local-only simplified fixture: not the application's invitations tables.
+  await db.batch([
+    db.prepare('CREATE TABLE IF NOT EXISTS s0_invites(id TEXT PRIMARY KEY, player_id TEXT NOT NULL, used_by TEXT, revoked INTEGER NOT NULL DEFAULT 0)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS s0_links(player_id TEXT PRIMARY KEY, user_id TEXT)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS s0_users(id TEXT PRIMARY KEY)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS s0_passkeys(id TEXT PRIMARY KEY, user_id TEXT NOT NULL)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS s0_claims(invite_id TEXT PRIMARY KEY, user_id TEXT NOT NULL)'),
+  ]);
+  await db.prepare('CREATE TRIGGER IF NOT EXISTS s0_claim_guard BEFORE INSERT ON s0_claims BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM s0_invites i JOIN s0_links l ON i.player_id=l.player_id WHERE i.id=NEW.invite_id AND i.used_by IS NULL AND i.revoked=0 AND l.user_id IS NULL) THEN RAISE(ABORT,\'invite_unavailable\') END; END').run();
+  const unique=()=>crypto.randomUUID();
+  const row=async (sql,...values) => db.prepare(sql).bind(...values).first();
+  const seed=async (id,player,revoked=0) => db.batch([
+    db.prepare('INSERT INTO s0_invites(id,player_id,revoked) VALUES(?,?,?)').bind(id,player,revoked),
+    db.prepare('INSERT INTO s0_links(player_id,user_id) VALUES(?,NULL)').bind(player),
+  ]);
+  const redeem=async (id,player,user,credential) => db.batch([
+    db.prepare('INSERT INTO s0_users(id) VALUES(?)').bind(user),
+    db.prepare('INSERT INTO s0_passkeys(id,user_id) VALUES(?,?)').bind(credential,user),
+    db.prepare('INSERT INTO s0_claims(invite_id,user_id) VALUES(?,?)').bind(id,user),
+    db.prepare('UPDATE s0_invites SET used_by=? WHERE id=? AND used_by IS NULL AND revoked=0').bind(user,id),
+    db.prepare('UPDATE s0_links SET user_id=? WHERE player_id=? AND user_id IS NULL').bind(user,player),
+  ]);
+  const check=(value,name)=>{if(!value)throw Error(name);};
+  const a=[unique(),unique(),unique(),unique()];await seed(a[0],a[1]);await redeem(a[0],a[1],a[2],a[3]);
+  const happy=Boolean((await row('SELECT used_by FROM s0_invites WHERE id=?',a[0]))?.used_by===a[2] && (await row('SELECT user_id FROM s0_links WHERE player_id=?',a[1]))?.user_id===a[2]);
+  check(happy,'happy path incomplete');
+  const replayUser=unique(),replayCredential=unique();
+  let replayRejected=false;try{await redeem(a[0],a[1],replayUser,replayCredential);}catch{replayRejected=true;}
+  const replayRolledBack=!(await row('SELECT id FROM s0_users WHERE id=?',replayUser)) && !(await row('SELECT id FROM s0_passkeys WHERE id=?',replayCredential));
+  check(replayRejected && replayRolledBack,'replay rollback');
+  const concurrentInvite=unique(),concurrentPlayer=unique(),concurrentUsers=[unique(),unique()],concurrentCredentials=[unique(),unique()];
+  await seed(concurrentInvite,concurrentPlayer);
+  const both=await Promise.allSettled(concurrentUsers.map((user,i)=>redeem(concurrentInvite,concurrentPlayer,user,concurrentCredentials[i])));
+  const accepted=both.filter(x=>x.status==='fulfilled').length;
+  const concurrentExactlyOne=accepted===1 && Number((await row('SELECT COUNT(*) AS count FROM s0_claims WHERE invite_id=?',concurrentInvite)).count)===1;
+  const concurrentNoOrphans=(await Promise.all(concurrentUsers.map(user=>row('SELECT COUNT(*) AS count FROM s0_users WHERE id=?',user)))).reduce((sum,r)=>sum+Number(r.count),0)===1;
+  check(concurrentExactlyOne && concurrentNoOrphans,'concurrent duplicate claim');
+  const revokedInvite=unique(),revokedPlayer=unique(),revokedUser=unique(),revokedCredential=unique();await seed(revokedInvite,revokedPlayer,1);
+  let revokedRejected=false;try{await redeem(revokedInvite,revokedPlayer,revokedUser,revokedCredential);}catch{revokedRejected=true;}
+  const revokedRolledBack=!(await row('SELECT id FROM s0_users WHERE id=?',revokedUser));check(revokedRejected && revokedRolledBack,'revoked invite');
+  const collisionInvite=unique(),collisionPlayer=unique(),collisionUser=unique();await seed(collisionInvite,collisionPlayer);
+  let collisionRejected=false;try{await redeem(collisionInvite,collisionPlayer,collisionUser,a[3]);}catch{collisionRejected=true;}
+  const collisionRolledBack=!(await row('SELECT id FROM s0_users WHERE id=?',collisionUser)) && (await row('SELECT used_by FROM s0_invites WHERE id=?',collisionInvite))?.used_by===null;
+  check(collisionRejected && collisionRolledBack,'passkey uniqueness rollback');
+  // Explicit demonstration: an UPDATE with zero matching rows does NOT abort a preceding INSERT.
+  const zeroUser=unique();const zeroResults=await db.batch([
+    db.prepare('INSERT INTO s0_users(id) VALUES(?)').bind(zeroUser),
+    db.prepare('UPDATE s0_invites SET used_by=? WHERE id=?').bind(zeroUser,'nonexistent-'+unique()),
+  ]);
+  const zeroChangesCommitted=Number(zeroResults[1].meta.changes)===0 && Boolean(await row('SELECT id FROM s0_users WHERE id=?',zeroUser));
+  await db.prepare('DELETE FROM s0_users WHERE id=?').bind(zeroUser).run();check(zeroChangesCommitted,'expected zero-change commit');
+  return {ok:true,checks:{happy,replayRejected,replayRolledBack,concurrentExactlyOne,concurrentNoOrphans,revokedRejected,revokedRolledBack,collisionRejected,collisionRolledBack,zeroChangesCommitted},fixture:'local isolated D1 only',realCloudflareD1:false};
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request,env) {
     const path = new URL(request.url).pathname;
     if(path==='/health')return Response.json({ready:true});
+    if(path==='/db-probe'){try{return Response.json(await runD1(env.DB),{headers:{'cache-control':'no-store'}});}catch(error){console.error('S0 D1 probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}}
     if(path!=='/probe')return new Response('not found',{status:404});
     try{return Response.json(await run(),{headers:{'cache-control':'no-store'}});}
     catch(error){console.error('S0 probe failed',error);return Response.json({ok:false,error:String(error)},{status:500});}

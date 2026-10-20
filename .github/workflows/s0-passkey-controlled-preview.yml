@@ -99,6 +99,7 @@ jobs:
           walk(d.preview?.urls);
           walk(d);
           console.log('S0_CLOUDFLARE_RESPONSE_TOP_KEYS='+Object.keys(d).join(','));
+          console.log('S0_PREVIEW_CANDIDATE_URLS='+candidates.join(','));
           const url=candidates.find(x=>{
             try {const host=new URL(x).hostname;
               return host.endsWith('.workers.dev')&&host.includes('s0-phone-check-337')&&host.includes('mahjong-score-passkey-s0-phone-337');
@@ -115,7 +116,19 @@ jobs:
           url="$(cat /tmp/s0-preview-url.txt)"
           curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||!x.noDatabase||!x.noUserData)process.exit(2);})'
           curl --fail --silent --show-error --retry 4 --retry-delay 2 --head "$url/" | tr -d '\r' | grep -iq '^x-robots-tag: noindex'
-          curl --fail --silent --show-error --retry 4 --retry-delay 2 "$url/client.js" -o /tmp/s0-client.js
-          grep -q 'get_credential_match' /tmp/s0-client.js
+          # Cloudflare Preview's stable URL may briefly serve the prior deployment.
+          # Require this exact S0 diagnostic code to be visible before reporting success.
+          found=false
+          for i in $(seq 1 25); do
+            if curl --fail --silent --show-error --max-time 8 -H 'Cache-Control: no-cache' "$url/client.js?build=$GITHUB_SHA" -o /tmp/s0-client.js                 && grep -q 'get_credential_match' /tmp/s0-client.js; then
+              found=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$found" != true ]; then
+            echo 'ERROR: HTTPS Preview did not serve the new safe diagnostic within the bounded checks' >&2
+            exit 1
+          fi
           echo 'PASS: updated S0-only browser diagnostic script is on remote Preview'
           echo 'PASS: isolated remote HTTPS Preview health + noindex verified'

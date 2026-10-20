@@ -136,10 +136,21 @@ jobs:
           fi
           echo 'PASS: updated S0-only browser diagnostic script is on remote Preview'
           echo 'PASS: isolated remote HTTPS Preview health + noindex verified'
-          curl --fail --silent --show-error --max-time 10 "$url/server-check" -o /tmp/s0-server-page.html
-          curl --fail --silent --show-error --max-time 10 "$url/server-check.js" -o /tmp/s0-server-client.js
-          grep -q 'server-check.js' /tmp/s0-server-page.html
-          grep -q 'signatureVerified' /tmp/s0-server-client.js
-          curl --fail --silent --show-error --max-time 10 --request POST --header 'content-type: application/json' --data '{}' "$url/s0-server/register/options" -o /tmp/s0-server-options.json
+          ready=false
+          for attempt in $(seq 1 25); do
+            if curl --fail --silent --max-time 8 --header 'Cache-Control: no-cache' "$url/server-check?build=$GITHUB_SHA" -o /tmp/s0-server-page.html \
+              && grep -q 'server-check.js' /tmp/s0-server-page.html \
+              && curl --fail --silent --max-time 8 --header 'Cache-Control: no-cache' "$url/server-check.js?build=$GITHUB_SHA" -o /tmp/s0-server-client.js \
+              && grep -q 'signatureVerified' /tmp/s0-server-client.js \
+              && curl --fail --silent --max-time 8 --request POST --header 'content-type: application/json' --data '{}' "$url/s0-server/register/options" -o /tmp/s0-server-options.json; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            echo 'ERROR: S0 server-check not available on named Preview after bounded verification' >&2
+            exit 1
+          fi
           node -e 'const f=require("node:fs"),d=JSON.parse(f.readFileSync("/tmp/s0-server-options.json","utf8"));if(!d.ok||!d.options?.challenge||!d.flowId||!d.ephemeral||d.options?.rp?.id!=="s0-phone-check-337-mahjong-score-passkey-s0-phone-337.ha-rookie.workers.dev")process.exit(2);console.log("PASS: remote S0 server generated valid challenge and RP ID");'
           echo 'PASS: remote standalone WebAuthn server-check page and browser code served'

@@ -30,16 +30,21 @@ try {
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"operation": "get"')&&document.querySelector('#status')?.textContent?.includes('"state": "PASS"'),null,{timeout:20000});
   const used=JSON.parse(await page.locator('#status').textContent());
   ok('Browser-only get matches credential and verifies RP+UV flags',used.credentialMatched&&used.userVerification&&used.signaturePresent&&!used.serverVerified);
-  // Force a local identifier mismatch to exercise safe diagnostic reporting,
-  // without printing a real credential ID or authenticator response.
-  const savedId=await page.evaluate(()=>localStorage.getItem('mahjong-passkey-s0-test-credential-id'));
-  await page.evaluate(()=>localStorage.setItem('mahjong-passkey-s0-test-credential-id','synthetic-wrong-id'));
+  // Two valid credentials for the SAME RP: an empty allowCredentials list
+  // could have silently selected the wrong passkey. Verify that the requested
+  // registered credential is the only acceptable one.
+  const savedFirst=await page.evaluate(()=>localStorage.getItem('mahjong-passkey-s0-test-credential-id'));
+  await page.getByRole('button',{name:'1. パスキーを作成'}).click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"operation": "create"')&&document.querySelector('#status')?.textContent?.includes('"state": "PASS"'),null,{timeout:20000});
+  const savedSecond=await page.evaluate(()=>localStorage.getItem('mahjong-passkey-s0-test-credential-id'));
+  ok('Browser can hold two distinct discoverable credentials for same RP',
+    savedFirst!==savedSecond && (await cdp.send('WebAuthn.getCredentials',{authenticatorId})).credentials.length===2);
+  await page.evaluate(id=>localStorage.setItem('mahjong-passkey-s0-test-credential-id',id),savedFirst);
   await page.getByRole('button',{name:'2. パスキーを使用'}).click();
-  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"reason": "credential_id_mismatch"'),null,{timeout:15000});
-  const mismatch=JSON.parse(await page.locator('#status').textContent());
-  ok('Diagnostic separates local credential mismatch from native browser failure',
-    mismatch.state==='FAIL'&&mismatch.stage==='get_credential_match'&&mismatch.error==='Error'&&mismatch.reason==='credential_id_mismatch');
-  await page.evaluate(id=>localStorage.setItem('mahjong-passkey-s0-test-credential-id',id),savedId);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"operation": "get"')&&document.querySelector('#status')?.textContent?.includes('"state": "PASS"'),null,{timeout:20000});
+  const selected=JSON.parse(await page.locator('#status').textContent());
+  ok('allowCredentials selects first registered credential even if second exists',
+    selected.state==='PASS'&&selected.credentialMatched===true&&selected.userVerification===true);
   await cdp.send('WebAuthn.setUserVerified',{authenticatorId,isUserVerified:false});
   await page.getByRole('button',{name:'2. パスキーを使用'}).click();
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('"state": "FAIL"'),null,{timeout:10000});

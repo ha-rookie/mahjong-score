@@ -1,0 +1,30 @@
+name: S0 actual Cloudflare Edge server WebAuthn virtual-browser check
+
+on:
+  pull_request:
+    branches:
+      - poc/issue-337-mobile-https-readiness
+    paths:
+      - 'poc/passkey/mobile/ci-edge-test.mjs'
+      - '.github/workflows/s0-passkey-edge-browser.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  remote-crypto-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install existing project tools
+        run: npm install --no-audit --no-fund
+      - name: Install ephemeral Playwright CLI (no repo dependency modifications)
+        run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify published isolated Edge server-side registration and signature
+        run: node poc/passkey/mobile/ci-edge-test.mjs

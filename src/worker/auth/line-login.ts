@@ -62,9 +62,11 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
   const [payload,sig,...extra]=raw.split(".");
   if(!payload||!sig||extra.length)return {userId:null,expiresAt:null,status:"malformed"};
   if(!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return {userId:null,expiresAt:null,status:"bad_signature"};
+  let data:{userId?:unknown;exp?:unknown;authVersion?:unknown};
   try{
     const padded=payload.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(payload.length/4)*4,"=");
-    const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0)))) as {userId?:unknown;exp?:unknown;authVersion?:unknown};
+    data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0))));
+  }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
     if(typeof data.userId!=="string"||!data.userId||typeof data.exp!=="number"||!Number.isSafeInteger(data.exp))return {userId:null,expiresAt:null,status:"invalid_payload"};
     const nowSeconds=Math.floor(Date.now()/1000);
     if(data.exp<=nowSeconds)return {userId:null,expiresAt:data.exp,status:"expired"};
@@ -83,7 +85,6 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
     if(currentVersion===null)return {userId:null,expiresAt:data.exp,status:"user_missing"};
     if(currentVersion!==cookieVersion)return {userId:null,expiresAt:data.exp,status:"version_mismatch"};
     return {userId:data.userId,expiresAt:data.exp,authVersion:currentVersion,status:"valid"};
-  }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
 };
 
 const duplicateCallbackWaitPage=()=>new Response("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"1;url=/\"><title>三麻スコア</title></head><body><p>ログインを完了しています…</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","referrer-policy":"no-referrer"}});

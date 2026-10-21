@@ -1,6 +1,6 @@
 import { DEFAULT_MAHJONG_RULES, CHIP_COUNT_ABS_MAX, GAME_SCORE_ABS_MAX, GROUP_NAME_MAX_LENGTH, PLAYER_NAME_MAX_LENGTH, SESSION_NOTE_MAX_LENGTH, deriveGameResultPlacements } from "./domain";
 import { validateAppDataSchema } from "./infrastructure/storage/app-data-schema";
-import { authMe, authenticatedUserId, bootstrapAdmin, finishLineLogin, logout, startLineLogin } from "./worker/auth/line-login";
+import { authMe, authenticatedUserId, authStoreUnavailableResponse, bootstrapAdmin, finishLineLogin, logout, startLineLogin } from "./worker/auth/line-login";
 import { requestCorrelationId, writeAuditLog } from "./worker/audit";
 interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
 const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data),{...init,headers:{"content-type":"application/json; charset=utf-8",...init.headers}});
@@ -19,7 +19,13 @@ const canInvite=async(env:Env,userId:string,groupId:string)=>await isSystemAdmin
 export default { async fetch(request:Request,env:Env):Promise<Response>{
  const url=new URL(request.url),requestId=requestCorrelationId(request); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return finishLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/me")return authMe(request,env); if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(); if(request.method==="POST"&&url.pathname==="/api/auth/bootstrap-admin")return bootstrapAdmin(request,env);
  if(request.method==="GET"&&url.pathname==="/api/health"){const row=await env.DB.prepare("SELECT 1 AS ok").first<{ok:number}>();return json({ok:row?.ok===1});}
- const authUserId=await authenticatedUserId(request,env);if(!authUserId){writeAuditLog({event:"authentication_failure",requestId,method:request.method,path:url.pathname,outcome:"failure",reason:"session_missing_or_invalid"});return bad("unauthorized","Authentication required",401);}
+ let authUserId:string|null;
+ try{authUserId=await authenticatedUserId(request,env);}
+ catch{
+   writeAuditLog({event:"authentication_service_unavailable",requestId,method:request.method,path:url.pathname,outcome:"failure",reason:"auth_store_read_failed"});
+   return authStoreUnavailableResponse();
+ }
+ if(!authUserId){writeAuditLog({event:"authentication_failure",requestId,method:request.method,path:url.pathname,outcome:"failure",reason:"session_missing_or_invalid"});return bad("unauthorized","Authentication required",401);}
  const deny=(message:string)=>{writeAuditLog({event:"authorization_failure",requestId,method:request.method,path:url.pathname,outcome:"failure",userId:authUserId,reason:message});return bad("forbidden",message,403);};
  const auditSuccess=(event:string,fields:{groupId?:string|null;resourceType?:string;resourceId?:string|null}={})=>writeAuditLog({event,requestId,method:request.method,path:url.pathname,outcome:"success",userId:authUserId,...fields});
  if(request.method==="GET"&&url.pathname==="/api/groups"){const r=await isSystemAdmin(env,authUserId)?await env.DB.prepare("SELECT id,name,created_at AS createdAt,updated_at AS updatedAt,NULL AS role FROM groups ORDER BY created_at,id").all():await env.DB.prepare("SELECT g.id,g.name,g.created_at AS createdAt,g.updated_at AS updatedAt,gm.role FROM groups g JOIN group_memberships gm ON gm.group_id=g.id WHERE gm.user_id=? ORDER BY g.created_at,g.id").bind(authUserId).all();const rules=await env.DB.prepare("SELECT id,starting_points AS startingPoints,return_points AS returnPoints,chip_rate AS chipRate FROM groups").all();const byId=new Map((rules.results as Array<Record<string,unknown>>).map(x=>[String(x.id),x]));return json({groups:(r.results as Array<Record<string,unknown>>).map(g=>({...g,startingPoints:Number(byId.get(String(g.id))?.startingPoints??DEFAULT_MAHJONG_RULES.startingPoints),returnPoints:Number(byId.get(String(g.id))?.returnPoints??DEFAULT_MAHJONG_RULES.returnPoints),chipRate:Number(byId.get(String(g.id))?.chipRate??DEFAULT_MAHJONG_RULES.chipRate)}))});}

@@ -7,6 +7,7 @@ class Statement {
   constructor(readonly sql:string,private readonly consumed:boolean){}
   bind(...values:unknown[]){this.values=values;return this;}
   async first<T>():Promise<T|null>{
+    if(this.sql.includes("SELECT id,auth_version AS authVersion FROM users WHERE id=?"))return {id:this.values[0],authVersion:0} as T;
     if(this.sql.includes("used_at IS NULL"))return null;
     if(this.sql.includes("used_at IS NOT NULL")&&this.consumed)return {usedAt:new Date().toISOString()} as T;
     return null;
@@ -29,7 +30,7 @@ const env=(consumed=true)=>({
 
 const base64url=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64url");
 const sessionCookie=async(userId:string,exp=Math.floor(Date.now()/1000)+60)=>{
-  const payload=base64url(new TextEncoder().encode(JSON.stringify({userId,exp})));
+  const payload=base64url(new TextEncoder().encode(JSON.stringify({userId,exp,authVersion:0})));
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const signature=base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload))));
   return `${payload}.${signature}`;

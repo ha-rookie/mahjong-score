@@ -118,7 +118,10 @@ SELECT
   (SELECT COUNT(*) FROM chip_results WHERE session_id='guard-session') AS chips_count,
   (SELECT COUNT(*) FROM session_participant_notes WHERE session_id='guard-session') AS participant_notes_count,
   (SELECT COUNT(*) FROM sessions s LEFT JOIN games g ON g.session_id=s.id WHERE s.group_id='guard-group' AND s.status='finalized' GROUP BY s.id) AS history_game_count,
-  (SELECT SUM(gr.score_point) FROM game_results gr JOIN games g ON g.id=gr.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='guard-group' AND s.status='finalized') AS performance_total;
+  (SELECT SUM(gr.score_point) FROM game_results gr JOIN games g ON g.id=gr.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='guard-group' AND s.status='finalized') AS performance_total,
+  (SELECT auth_version FROM users WHERE id='guard-user') AS auth_version_default,
+  (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='passkey_credentials') AS passkey_credentials_table,
+  (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='auth_challenges') AS auth_challenges_table;
 `;
 
   const raw = runWrangler(
@@ -171,6 +174,9 @@ SELECT
     participant_notes_count: 1,
     history_game_count: 1,
     performance_total: 0,
+    auth_version_default: 0,
+    passkey_credentials_table: 1,
+    auth_challenges_table: 1,
   };
   for (const [key, expected] of Object.entries(expectedCounts)) {
     if (Number(row[key]) !== expected) {
@@ -182,6 +188,29 @@ SELECT
   if (row.session_note !== "migration-guard-session-note") {
     throw new Error("Existing Session Memo changed during migration regression");
   }
+
+  // S1 contract: an already-revoked Credential ID can never be reassigned.
+  // Execute on the isolated --local D1 only, never Preview/Production.
+  const localArgs=(query)=>["d1","execute","DB","--local","--persist-to",persistDir,"--command",query];
+  runWrangler(localArgs(
+    "INSERT INTO users(id,display_name,created_at,updated_at) VALUES('guard-other-user','Other','2026-09-29T00:00:00Z','2026-09-29T00:00:00Z');"+
+    "INSERT INTO passkey_credentials(id,user_id,credential_id,public_key,created_at,revoked_at) VALUES('credential-1','guard-user','stable-id',x'010203','2026-09-29T00:00:00Z','2026-09-29T00:00:00Z');"
+  ),{capture:true});
+  let duplicateRejected=false;
+  try {
+    runWrangler(localArgs(
+      "INSERT INTO passkey_credentials(id,user_id,credential_id,public_key,created_at) VALUES('credential-2','guard-other-user','stable-id',x'010203','2026-09-29T00:00:00Z')"
+    ),{capture:true});
+  }catch{duplicateRejected=true;}
+  if(!duplicateRejected)throw new Error("S1 Credential ID uniqueness was not enforced across Users and revoked credentials");
+  let purposeRejected=false;
+  try {
+    runWrangler(localArgs(
+      "INSERT INTO auth_challenges(id,challenge_hash,purpose,expected_origin,rp_id,created_at,expires_at) VALUES('invalid-challenge','hash','unknown-purpose','https://example.test','example.test','2026-09-29T00:00:00Z','2026-09-30T00:00:00Z')"
+    ),{capture:true});
+  }catch{purposeRejected=true;}
+  if(!purposeRejected)throw new Error("S1 Challenge purpose restriction was not enforced");
+  console.log("S1 local D1 schema guard passed: auth_version default, unique revoked Credential ID, challenge purpose, legacy data intact.");
 
   console.log(
     `Existing-data migration regression passed: representative Production-shaped data survived ${futureMigrations.length} future migration(s), including placement backfill invariants.`,

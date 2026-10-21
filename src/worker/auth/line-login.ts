@@ -24,6 +24,11 @@ const makeSession=async(userId:string,secret:string,authVersion:number,nowSecond
   return payload+"."+await sign(payload,secret);
 };
 const revokedCookie="mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+// Authentication store outages are NOT session expiry. Never revoke a Cookie on a 503.
+export const authStoreUnavailableResponse=()=>new Response(JSON.stringify({error:{code:"auth_service_unavailable",message:"Authentication is temporarily unavailable"}}),{
+  status:503,
+  headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","retry-after":"30"},
+});
 const userAuthVersion=async(env:AuthEnv,userId:string)=>{
   const user=await env.DB.prepare("SELECT id,auth_version AS authVersion FROM users WHERE id=?").bind(userId).first<{id:string;authVersion:number}>();
   return user&&Number.isSafeInteger(user.authVersion)&&user.authVersion>=0?user.authVersion:null;
@@ -183,7 +188,7 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":sessionCookieValue(session)}});
 };
 
-export const authMe=async(request:Request,env:AuthEnv)=>{
+const authMeUnchecked=async(request:Request,env:AuthEnv)=>{
   const session=await resolveSession(request,env),userId=session.userId;
   if(!userId){
     auditAuth(request,"auth_session_resolved","failure",{resourceType:"authentication",reason:"session_"+session.status});
@@ -207,7 +212,15 @@ export const authMe=async(request:Request,env:AuthEnv)=>{
   return new Response(JSON.stringify({authenticated:true,user,memberships:memberships.results,canBootstrapAdmin:!anyAdmin}),{headers});
 };
 
-export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
+export const authMe=async(request:Request,env:AuthEnv)=>{
+  try{return await authMeUnchecked(request,env);}
+  catch{
+    auditAuth(request,"authentication_service_unavailable","failure",{resourceType:"authentication",reason:"auth_store_read_failed"});
+    return authStoreUnavailableResponse();
+  }
+};
+
+const bootstrapAdminUnchecked=async(request:Request,env:AuthEnv)=>{
   const userId=await authenticatedUserId(request,env);
   if(!userId){auditAuth(request,"authentication_failure","failure",{reason:"bootstrap_admin_without_session"});return new Response(JSON.stringify({error:{code:"unauthorized",message:"Authentication required"}}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});}
   const current=await env.DB.prepare("SELECT system_role AS systemRole FROM users WHERE id=?").bind(userId).first<{systemRole:"admin"|"user"}>();
@@ -217,6 +230,14 @@ export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
   await env.DB.prepare("UPDATE users SET system_role='admin',updated_at=? WHERE id=?").bind(new Date().toISOString(),userId).run();
   auditAuth(request,"system_admin_bootstrapped","success",{userId,resourceType:"user",resourceId:userId});
   return authMe(request,env);
+};
+
+export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
+  try{return await bootstrapAdminUnchecked(request,env);}
+  catch{
+    auditAuth(request,"authentication_service_unavailable","failure",{resourceType:"authentication",reason:"auth_store_read_failed"});
+    return authStoreUnavailableResponse();
+  }
 };
 
 export const logout=()=>new Response(null,{status:204,headers:{"set-cookie":revokedCookie}});

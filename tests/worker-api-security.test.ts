@@ -6,7 +6,7 @@ const secret="test-session-secret-at-least-32-characters";
 const enc=new TextEncoder();
 const base64url=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const sessionCookie=async(userId:string)=>{
-  const payload=base64url(enc.encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+3600})));
+  const payload=base64url(enc.encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+3600,authVersion:0})));
   const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const sig=base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,enc.encode(payload))));
   return `mahjong_session=${payload}.${sig}`;
@@ -39,6 +39,10 @@ class FakeDb{
   prepare(sql:string){this.preparedSql.push(sql);return new FakeStatement(this,sql);}
   async batch(statements:FakeStatement[]){if(this.failNextBatch){this.failNextBatch=false;return statements.map((_,i)=>({meta:{changes:i===0?0:1}}));}return statements.map(()=>({meta:{changes:this.forceStale?0:1}}));}
   first(sql:string,values:unknown[]){
+    if(sql.includes("SELECT id,auth_version AS authVersion FROM users WHERE id=?")){
+      const id=String(values[0]);
+      return this.users[id]?{id,authVersion:0}:null;
+    }
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'")){
       return this.users[String(values[0])]?.systemAdmin?{ok:1}:null;
     }

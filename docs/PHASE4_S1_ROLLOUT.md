@@ -59,3 +59,30 @@
 - Phase 4提案詳細設計／ADR：PR #336（Proposed, 未マージ）
 - 本PR：S1の実装差分（Draft、mainとProductionへ未反映）
 - Notion：三麻スコア基本設計の現在地
+
+## 2026-10-22｜S1認証障害のHTTP 503化とProduction Preflight
+
+### S1 Draft修正／動作範囲
+
+- 認証DBのUser/auth_version照合時にD1読取が失敗したら、保護APIと`/api/auth/me`、管理者初期設定入口は **503 + `auth_service_unavailable` + `Cache-Control: no-store` + `Retry-After: 30`** を返す。Cookieの`Max-Age=0`での削除はしない。認証障害の監査イベントを記録する（DB例外そのもの、Cookie、Tokenを記録しない）。
+- 401（失効／期限切れ）と503（一時的な認証ストア障害）を別として、ブラウザの認証状態を障害だけで消さない。`AuthStatus`は再確認ボタンで明示的に再試行できる。入力途中のMutationは自動再送しない。
+- 回帰テストは署名Cookieが正常でもD1接続が失敗する状態を作り、保護API、`/api/auth/me`、管理者初期設定入口が403/401ではなく503、`set-cookie`なし、`retry-after`と固定エラーコードを返すことを検証。WorkerApiClientは503を`retryable=true`とし「セッション期限切れ」の案内を出さない。
+- この変更は**認証判定時の障害**を扱う。認可後の他テーブル読取・書込失敗、外部LINE API障害を全て503に統一する保証はない。サービス全体のerror handler拡張は別スコープ。
+- App CI Run #39641213305 / HEAD `4894b47e374aff75c37eac94ca393857f8588c07`：**155 PASS / 0 FAIL**、Lint、Build、Local D1 Migration、既存Data不変回帰検査SUCCESS。以後変更した場合は最終HEADの再検証が必要。
+
+### Production Preflight Checklist（**未実施**、当日は値を記録して別承認）
+
+1. [ ] Cloudflareに認証済みの権限で、対象repoの`wrangler.jsonc`の**Production DB binding**と操作対象を照合。Preview DBと混同しない。認証済み操作手段が用意できない場合、Remote確認は**未確認**のままSTOP。
+2. [ ] 最新のMigrationファイルを持つ作業ブランチから **read-only** `npx wrangler d1 migrations list DB --remote` を実行し、Productionの未適用候補が**0011のみ**か確認（2026-10-03のRun #37107283293は0010適用の履歴根拠だが現時点の証明ではない）。Previewの確認は別の `npx wrangler d1 migrations list DB --remote --preview`。いずれも`apply`/`execute`は事前承認なしに実行しない。
+3. [ ] `wrangler.jsonc`は現在`vars.LINE_CHANNEL_ID`を持つが**`AUTH_LEGACY_SESSION_ACCEPT_UNTIL`を宣言していない**。Cloudflare公式によれば、Dashboardにのみ保存した通常のWorker環境変数は`wrangler deploy`で上書きされ得る。Secretsは別挙動。**Dashboardで設定するだけでは安全な切替を保証できない。**
+4. [ ] Cookie互換を保つ場合はHumanが本番リリース時刻を確定し、その時刻から24時間以内の**Unix秒による終了時刻**を決定。コード側でも24時間超の期限を拒否する。値をいつ・どの構成正本へ・どの環境に設定するか、`keep_vars`利用の要否と既存LINE_CHANNEL_ID等への影響を別レビューで決定。次回deployの際に変数が失われないことを検証。**設定未確認のままmainをmergeしない。**
+5. [ ] GitHub mainへのpushは`.github/workflows/deploy-production.yml`によって**Production D1 MigrationとWorker deployを自動実行し得る**。MigrationとWorkerの適用順、Recovery Point、Error Smoke、実LINEログイン・cookie移行・401/503切り分け、rollback（旧WorkerにはauthVersion検査がなくセッション失効保証を壊す）を事前に構成。通常のPRテスト成功だけで安全なmain pushとはしない。
+6. [ ] Previewのリハーサルは**明示的に対象Preview D1とWorkerを別承認・別スコープ**で実施。PasskeyのS0試験workerは本番Credentialの永続保存にも利用しない。
+7. [ ] 自動Rollback・再ログイン・大量の認証失敗を検知した際のSTOPを定義する。ログに`session`Cookieや`Credential ID`、LINE token、Challenge生値、招待Token全文を出さない。
+
+### Evidence / Docs
+
+- Cloudflare D1 migration commands（list = 未適用migrationの確認）: https://developers.cloudflare.com/d1/wrangler-commands/
+- Wrangler配置構成と`keep_vars`（Dashboard varsの上書き防止）: https://developers.cloudflare.com/workers/wrangler/configuration/
+- `wrangler deploy --keep-vars`等の方法は**今すぐ設定変更する案ではない**。HumanによるConfig/Security/デプロイの別承認で方針を決める。
+- S1 Draft PRはこのチェックが完了するまでOpen/Draft維持。main・Production・Remote D1・Secretsへの操作はこのドキュメント更新では一切許可されない。

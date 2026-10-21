@@ -7,11 +7,12 @@ export const appliedProductionMigrations = Object.freeze({
   "0006_line_login_states.sql": "0d0adb422f002fe7343d9954ae01c942a85b84b2",
   "0007_single_active_session.sql": "19f69b72fa970b4fe4acdc2eecc87f290d8b92dd",
   "0008_configurable_mahjong_rules.sql": "4de66d2d305e51e881fcfe8c292319f69bb4283e",
-  "0009_ios_pwa_auth_handoff.sql": "5f284359ff4cb2b92022f1c444fad135379699ea"
+  "0009_ios_pwa_auth_handoff.sql": "5f284359ff4cb2b92022f1c444fad135379699ea",
+  "0010_game_result_placement.sql": "3c1323e949185c85d13a558a53c46e92204e7bce"
 });
 
 export const appliedProductionMigrationNames = Object.freeze(
   Object.keys(appliedProductionMigrations).sort(),
 );
 
-export const latestAppliedProductionMigrationNumber = 9;
+export const latestAppliedProductionMigrationNumber = 10;

@@ -97,10 +97,24 @@ test("S1 rejects malformed version even with a correctly signed cookie",async()=
   assert.equal((await call("/api/no-such-route",db,signed)).status,401);
 });
 
-test("S1 fails closed when D1 is unavailable, even if the cookie signature is correct",async()=>{
+test("S1 returns retryable 503, not 401, when D1 session verification is unavailable",async()=>{
   const db=new FakeDb();db.down=true;
   const session=await cookie("user1",future(),0);
-  await assert.rejects(()=>call("/api/no-such-route",db,session),/D1 temporarily unavailable/);
+  for(const path of ["/api/no-such-route","/api/auth/me"]){
+    const response=await call(path,db,session);
+    assert.equal(response.status,503);
+    assert.equal(response.headers.get("set-cookie"),null,"Store outage must not erase a valid session");
+    assert.equal(response.headers.get("cache-control"),"no-store");
+    assert.equal(response.headers.get("retry-after"),"30");
+    assert.deepEqual(await response.json(),{error:{code:"auth_service_unavailable",message:"Authentication is temporarily unavailable"}});
+  }
+  // The admin bootstrap authentication gate shares the same safe error response.
+  const admin=await worker.fetch(new Request("https://mahjong.test/api/auth/bootstrap-admin",{
+    method:"POST",headers:{cookie:session},
+  }),env(db));
+  assert.equal(admin.status,503);
+  assert.equal(admin.headers.get("set-cookie"),null);
+  assert.equal((await admin.json() as {error:{code:string}}).error.code,"auth_service_unavailable");
 });
 
 test("S1 rejects correctly signed null and array JSON instead of raising an unhandled error",async()=>{

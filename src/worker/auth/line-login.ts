@@ -54,7 +54,7 @@ export const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:s
   }catch{return "conflict";}
 };
 
-type SessionResolution={userId:string|null;expiresAt:number|null;authVersion?:number;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"legacy_cutoff"|"version_mismatch"|"user_missing"|"valid"};
+type SessionResolution={userId:string|null;expiresAt:number|null;authVersion?:number;wasLegacy?:boolean;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"legacy_cutoff"|"version_mismatch"|"user_missing"|"valid"};
 const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolution>=>{
   if(!env.AUTH_SESSION_SECRET)return {userId:null,expiresAt:null,status:"secret_missing"};
   const raw=cookie(request,"mahjong_session");
@@ -67,6 +67,7 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
     const padded=payload.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(payload.length/4)*4,"=");
     data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0))));
   }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
+    if(!data||typeof data!=="object"||Array.isArray(data))return {userId:null,expiresAt:null,status:"invalid_payload"};
     if(typeof data.userId!=="string"||!data.userId||typeof data.exp!=="number"||!Number.isSafeInteger(data.exp))return {userId:null,expiresAt:null,status:"invalid_payload"};
     const nowSeconds=Math.floor(Date.now()/1000);
     if(data.exp<=nowSeconds)return {userId:null,expiresAt:data.exp,status:"expired"};
@@ -75,7 +76,7 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
       // Explicit rollout end must be set before accepting any legacy signed cookie.
       // Keep the rollout <=24 hours after schema/Worker deployment. No default bypass.
       const deadline=Number(env.AUTH_LEGACY_SESSION_ACCEPT_UNTIL??"0");
-      if(!Number.isSafeInteger(deadline)||deadline<=nowSeconds)return {userId:null,expiresAt:data.exp,status:"legacy_cutoff"};
+      if(!Number.isSafeInteger(deadline)||deadline<=nowSeconds||deadline-nowSeconds>AUTH_SESSION_TTL_SECONDS)return {userId:null,expiresAt:data.exp,status:"legacy_cutoff"};
       cookieVersion=0;
     }else if(typeof data.authVersion==="number"&&Number.isSafeInteger(data.authVersion)&&data.authVersion>=0){
       cookieVersion=data.authVersion;
@@ -84,7 +85,7 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
     const currentVersion=await userAuthVersion(env,data.userId);
     if(currentVersion===null)return {userId:null,expiresAt:data.exp,status:"user_missing"};
     if(currentVersion!==cookieVersion)return {userId:null,expiresAt:data.exp,status:"version_mismatch"};
-    return {userId:data.userId,expiresAt:data.exp,authVersion:currentVersion,status:"valid"};
+    return {userId:data.userId,expiresAt:data.exp,authVersion:currentVersion,wasLegacy:data.authVersion===undefined,status:"valid"};
 };
 
 const duplicateCallbackWaitPage=()=>new Response("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"1;url=/\"><title>三麻スコア</title></head><body><p>ログインを完了しています…</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","referrer-policy":"no-referrer"}});
@@ -198,10 +199,10 @@ export const authMe=async(request:Request,env:AuthEnv)=>{
   const anyAdmin=await env.DB.prepare("SELECT 1 AS ok FROM users WHERE system_role='admin' LIMIT 1").first();
   const headers=new Headers({"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
   const nowSeconds=Math.floor(Date.now()/1000);
-  if(session.expiresAt!==null&&session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS&&env.AUTH_SESSION_SECRET){
+  if(session.expiresAt!==null&&(session.wasLegacy===true||session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS)&&env.AUTH_SESSION_SECRET){
     const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,session.authVersion!,nowSeconds);
     headers.set("set-cookie",sessionCookieValue(renewed));
-    auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:"sliding_expiration"});
+    auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:session.wasLegacy?"legacy_cookie_upgrade":"sliding_expiration"});
   }
   return new Response(JSON.stringify({authenticated:true,user,memberships:memberships.results,canBootstrapAdmin:!anyAdmin}),{headers});
 };

@@ -95,3 +95,9 @@ test("S1 rejects malformed version even with a correctly signed cookie",async()=
   const signed=await cookie("user1",future(),-2);
   assert.equal((await call("/api/no-such-route",db,signed)).status,401);
 });
+
+test("S1 fails closed when D1 is unavailable, even if the cookie signature is correct",async()=>{
+  const db=new FakeDb();db.down=true;
+  const session=await cookie("user1",future(),0);
+  await assert.rejects(()=>call("/api/no-such-route",db,session),/D1 temporarily unavailable/);
+});

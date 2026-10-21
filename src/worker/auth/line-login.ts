@@ -1,5 +1,5 @@
 import { requestCorrelationId, writeAuditLog } from "../audit";
-interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
+interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; AUTH_LEGACY_SESSION_ACCEPT_UNTIL?: string; }
 type LineToken={id_token?:string};
 type LineIdentity={sub?:string;name?:string};
 type LineError={error?:string;error_description?:string};
@@ -19,7 +19,15 @@ const safeEqual=(a:string,b:string)=>{if(a.length!==b.length)return false;let x=
 export const AUTH_SESSION_TTL_SECONDS=24*60*60;
 export const AUTH_SESSION_RENEW_WINDOW_SECONDS=12*60*60;
 const sessionCookieValue=(value:string,maxAge=AUTH_SESSION_TTL_SECONDS)=>`mahjong_session=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
-const makeSession=async(userId:string,secret:string,nowSeconds=Math.floor(Date.now()/1000))=>{const payload=base64url(enc.encode(JSON.stringify({userId,exp:nowSeconds+AUTH_SESSION_TTL_SECONDS})));return payload+"."+await sign(payload,secret);};
+const makeSession=async(userId:string,secret:string,authVersion:number,nowSeconds=Math.floor(Date.now()/1000))=>{
+  const payload=base64url(enc.encode(JSON.stringify({userId,exp:nowSeconds+AUTH_SESSION_TTL_SECONDS,authVersion})));
+  return payload+"."+await sign(payload,secret);
+};
+const revokedCookie="mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+const userAuthVersion=async(env:AuthEnv,userId:string)=>{
+  const user=await env.DB.prepare("SELECT id,auth_version AS authVersion FROM users WHERE id=?").bind(userId).first<{id:string;authVersion:number}>();
+  return user&&Number.isSafeInteger(user.authVersion)&&user.authVersion>=0?user.authVersion:null;
+};
 const lineFailure=async(request:Request,response:Response,stage:string,oauthFlowId?:string)=>{let details:LineError={};try{details=await response.json() as LineError;}catch{details={};}auditAuth(request,"line_login_failure","failure",{reason:stage,oauthFlowId});return new Response(JSON.stringify({error:{code:"line_"+stage+"_failed",message:details.error_description??details.error??"LINE request failed",lineStatus:response.status}}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});};
 
 const activeInvitation=async(env:AuthEnv,token:string)=>{
@@ -46,7 +54,7 @@ export const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:s
   }catch{return "conflict";}
 };
 
-type SessionResolution={userId:string|null;expiresAt:number|null;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"valid"};
+type SessionResolution={userId:string|null;expiresAt:number|null;authVersion?:number;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"legacy_cutoff"|"version_mismatch"|"user_missing"|"valid"};
 const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolution>=>{
   if(!env.AUTH_SESSION_SECRET)return {userId:null,expiresAt:null,status:"secret_missing"};
   const raw=cookie(request,"mahjong_session");
@@ -56,10 +64,25 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
   if(!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return {userId:null,expiresAt:null,status:"bad_signature"};
   try{
     const padded=payload.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(payload.length/4)*4,"=");
-    const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0)))) as {userId?:string;exp?:number};
-    if(!data.userId||!data.exp)return {userId:null,expiresAt:null,status:"invalid_payload"};
-    if(data.exp<=Math.floor(Date.now()/1000))return {userId:null,expiresAt:data.exp,status:"expired"};
-    return {userId:data.userId,expiresAt:data.exp,status:"valid"};
+    const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0)))) as {userId?:unknown;exp?:unknown;authVersion?:unknown};
+    if(typeof data.userId!=="string"||!data.userId||typeof data.exp!=="number"||!Number.isSafeInteger(data.exp))return {userId:null,expiresAt:null,status:"invalid_payload"};
+    const nowSeconds=Math.floor(Date.now()/1000);
+    if(data.exp<=nowSeconds)return {userId:null,expiresAt:data.exp,status:"expired"};
+    let cookieVersion:number;
+    if(data.authVersion===undefined){
+      // Explicit rollout end must be set before accepting any legacy signed cookie.
+      // Keep the rollout <=24 hours after schema/Worker deployment. No default bypass.
+      const deadline=Number(env.AUTH_LEGACY_SESSION_ACCEPT_UNTIL??"0");
+      if(!Number.isSafeInteger(deadline)||deadline<=nowSeconds)return {userId:null,expiresAt:data.exp,status:"legacy_cutoff"};
+      cookieVersion=0;
+    }else if(typeof data.authVersion==="number"&&Number.isSafeInteger(data.authVersion)&&data.authVersion>=0){
+      cookieVersion=data.authVersion;
+    }else return {userId:null,expiresAt:data.exp,status:"invalid_payload"};
+    // Fail closed if D1 cannot confirm the User and its current authentication generation.
+    const currentVersion=await userAuthVersion(env,data.userId);
+    if(currentVersion===null)return {userId:null,expiresAt:data.exp,status:"user_missing"};
+    if(currentVersion!==cookieVersion)return {userId:null,expiresAt:data.exp,status:"version_mismatch"};
+    return {userId:data.userId,expiresAt:data.exp,authVersion:currentVersion,status:"valid"};
   }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
 };
 
@@ -148,7 +171,9 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   }
 
   const inviteResult=loginState.invitationId?await redeemInvitationById(env,loginState.invitationId,row.userId):null;
-  const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET);
+  const currentVersion=await userAuthVersion(env,row.userId);
+  if(currentVersion===null)return new Response("User is not available",{status:503});
+  const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET,currentVersion);
   const destination=new URL("/",url.origin);
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
@@ -160,12 +185,12 @@ export const authMe=async(request:Request,env:AuthEnv)=>{
   const session=await resolveSession(request,env),userId=session.userId;
   if(!userId){
     auditAuth(request,"auth_session_resolved","failure",{resourceType:"authentication",reason:"session_"+session.status});
-    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});
+    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8",...(session.status!=="cookie_missing"&&session.status!=="secret_missing"?{"set-cookie":revokedCookie}:{})}});
   }
   const user=await env.DB.prepare("SELECT id,display_name AS displayName,system_role AS systemRole FROM users WHERE id=?").bind(userId).first();
   if(!user){
     auditAuth(request,"auth_session_resolved","failure",{userId,resourceType:"authentication",reason:"session_user_missing"});
-    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8","set-cookie":"mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}});
+    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8","set-cookie":revokedCookie}});
   }
   const memberships=await env.DB.prepare("SELECT gm.group_id AS groupId,g.name AS groupName,gm.role,gp.player_id AS playerId,p.display_name AS playerDisplayName FROM group_memberships gm JOIN groups g ON g.id=gm.group_id LEFT JOIN group_players gp ON gp.group_id=gm.group_id AND gp.user_id=gm.user_id LEFT JOIN players p ON p.id=gp.player_id WHERE gm.user_id=? ORDER BY gm.created_at,gm.group_id").bind(userId).all();
   auditAuth(request,"auth_session_resolved","success",{userId,resourceType:"authentication",reason:"membership_count="+memberships.results.length});
@@ -173,7 +198,7 @@ export const authMe=async(request:Request,env:AuthEnv)=>{
   const headers=new Headers({"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
   const nowSeconds=Math.floor(Date.now()/1000);
   if(session.expiresAt!==null&&session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS&&env.AUTH_SESSION_SECRET){
-    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,nowSeconds);
+    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,session.authVersion!,nowSeconds);
     headers.set("set-cookie",sessionCookieValue(renewed));
     auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:"sliding_expiration"});
   }
@@ -192,4 +217,4 @@ export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
   return authMe(request,env);
 };
 
-export const logout=()=>new Response(null,{status:204,headers:{"set-cookie":"mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}});
+export const logout=()=>new Response(null,{status:204,headers:{"set-cookie":revokedCookie}});

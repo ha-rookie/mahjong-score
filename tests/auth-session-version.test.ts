@@ -5,13 +5,14 @@ import worker from "../src/worker";
 const enc=new TextEncoder();
 const secret="S1-test-session-secret-longer-than-32-chars";
 const b64=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64url");
-const cookie=async(userId:string,exp:number,authVersion?:number)=>{
-  const value=authVersion===undefined?{userId,exp}:{userId,exp,authVersion};
+const signedPayload=async(value:unknown)=>{
   const payload=b64(enc.encode(JSON.stringify(value)));
   const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const sig=b64(new Uint8Array(await crypto.subtle.sign("HMAC",key,enc.encode(payload))));
   return "mahjong_session="+payload+"."+sig;
 };
+const cookie=async(userId:string,exp:number,authVersion?:number)=>
+  signedPayload(authVersion===undefined?{userId,exp}:{userId,exp,authVersion});
 class Statement {
   private args:unknown[]=[];
   constructor(private db:FakeDb,private sql:string){}
@@ -100,4 +101,29 @@ test("S1 fails closed when D1 is unavailable, even if the cookie signature is co
   const db=new FakeDb();db.down=true;
   const session=await cookie("user1",future(),0);
   await assert.rejects(()=>call("/api/no-such-route",db,session),/D1 temporarily unavailable/);
+});
+
+test("S1 rejects correctly signed null and array JSON instead of raising an unhandled error",async()=>{
+  const db=new FakeDb();
+  for(const payload of [null,[],[{"userId":"user1"}]]){
+    const signed=await signedPayload(payload);
+    const response=await call("/api/auth/me",db,signed);
+    assert.equal(response.status,401);
+    assert.match(response.headers.get("set-cookie")??"",/Max-Age=0/);
+  }
+});
+test("S1 eagerly upgrades legacy cookies even when over 12 hours remain",async()=>{
+  const db=new FakeDb(),exp=Math.floor(Date.now()/1000)+13*60*60;
+  const old=await cookie("user1",exp);
+  const response=await call("/api/auth/me",db,old,Math.floor(Date.now()/1000)+240);
+  assert.equal(response.status,200);
+  const renewed=response.headers.get("set-cookie");
+  assert.ok(renewed);
+  const data=JSON.parse(Buffer.from(renewed.split("=")[1].split(".")[0],"base64url").toString("utf8"));
+  assert.equal(data.authVersion,0);
+  assert.ok(data.exp>exp);
+});
+test("S1 rejects an excessively distant legacy cutoff even if a config is supplied",async()=>{
+  const db=new FakeDb(),old=await cookie("user1",future());
+  assert.equal((await call("/api/auth/me",db,old,Math.floor(Date.now()/1000)+7*24*60*60)).status,401);
 });

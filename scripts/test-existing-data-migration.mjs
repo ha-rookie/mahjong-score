@@ -56,10 +56,18 @@ INSERT INTO segment_players(segment_id,player_id,seat_order) VALUES
 ('guard-segment','guard-player-3',3);
 INSERT INTO games(id,session_id,segment_id,sequence,played_at,version)
 VALUES('guard-game','guard-session','guard-segment',1,'2026-09-29T01:30:00Z',1);
+${appliedProductionMigrationNames.includes("0010_game_result_placement.sql")?
+`-- Placement is already part of the schema in applied Production migration 0010.
+-- Test representative current rows, including validated placement and last-place marker.
+INSERT INTO game_results(game_id,player_id,rank,score_point,placement,is_last) VALUES
+('guard-game','guard-player-1',1,10,1,0),
+('guard-game','guard-player-2',2,0,2,0),
+('guard-game','guard-player-3',3,-10,3,1);`:
+`-- Historical fixture before migration 0010 backfills placement and last-place marker.
 INSERT INTO game_results(game_id,player_id,rank,score_point) VALUES
 ('guard-game','guard-player-1',1,10),
 ('guard-game','guard-player-2',2,0),
-('guard-game','guard-player-3',3,-10);
+('guard-game','guard-player-3',3,-10);`}
 INSERT INTO chip_results(session_id,player_id,chip_count) VALUES
 ('guard-session','guard-player-1',2),
 ('guard-session','guard-player-2',-1),

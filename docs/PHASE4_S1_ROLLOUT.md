@@ -21,6 +21,28 @@
 6. Passkey初回招待の原子的なUser＋Credential＋Player＋Membership登録や、未ログイン状態のdiscoverable Credential IDからのUser解決は**S2**。現S1で実現したと扱わない。
 7. **本PRとCIの成功は実際のデプロイ許可ではない**。S0 Previewの一時Mapを本番認証へ流用しない。
 
+## 2026-10-21 15時台｜専門家レビュー結果・Migration適用履歴の訂正
+
+### Production Migration状態（確定ログと未確認を分離）
+
+- `scripts/migration-safety-policy.mjs` が従来0001〜0009で止まっていたのは **管理台帳の取り込み漏れ**。2026-10-03 Production Workflow [Run #37107283293](https://github.com/ha-rookie/mahjong-score/actions/runs/37107283293) は `Apply D1 migrations to Production database`=SUCCESS、実行ログは **`✅ No migrations to apply!`** と記録。同runでProduction D1 recovery point取得、Worker deploy/binding/security header検証もSUCCESS。
+- 0010ファイルは2026-09-30にmainへ取り込み済み。よって**2026-10-03の時点では0010までProduction適用済みだったという強い履歴根拠**がある。いま現在のRemote D1に読み取り専用コマンドを実行したわけではないため現況は未確認と明記する。
+- PR #344に0010の正本Git blob SHA `3c1323e949185c85d13a558a53c46e92204e7bce` をimmutable台帳へ追加（0001〜0010を既存適用済みとして保護）。**以後のCIのfuture migrationは0011のみ**。
+- 台帳同期に伴い、既存データ回帰テストのfixtureを「0010適用済みSchema」に更新。Game placement/is_lastの実データ形状を維持して検証し、以前の「0010前にfixture投入してからBackfill」という誤った時点前提を解消。
+- Production本番適用前の最後の真偽確認は認証済みWranglerで `npx wrangler d1 migrations list DB --remote` を**読み取り専用**実行する。Previewは別コマンド `npx wrangler d1 migrations list DB --remote --preview`。**`apply` や `execute` は実行しない**。現ChatGPT接続にはCloudflare認証済みの直接Readツールがないため、正確な現在のRemote結果は未取得。
+
+### セキュリティ／LINE後方互換レビュー修正
+
+- `resolveSession` に渡るHMAC署名済みCookieのJSONが `null` / 配列のときにも、未処理TypeErrorで500にならずinvalid_payload相当の401。これはテスト用正当署名の異常値で確認。
+- `AUTH_LEGACY_SESSION_ACCEPT_UNTIL` の上限をコード上も **現在から最大24h以内**に制限。未設定・期限切れ・遠過ぎる設定は旧Cookieを拒否。
+- **旧Cookieは`/api/auth/me`へのアクセス時に残TTLにかかわらずauthVersion付きへ即時交換**。従来の12h sliding更新だけでは移行期間中の旧Cookieを変換できないケースを解消。
+- 現在の共通認証判定はDB lookupが不能な場合は守る側でエラーとし、Cookie署名だけでUserを通さない。認証サービスの運用上のHTTP 503化・障害時UXは次の検証項目。
+- 新規CI [Run #39557087754](https://github.com/ha-rookie/mahjong-score/actions/runs/39557087754): 154 tests PASS、Migration immutability 10件、Future Migration 0011のみ、隔離Local D1の既存データ保持とSchema guard PASS。
+
+### リリースのSTOPは維持
+
+- リモートD1の現在の適用状況／Recovery Pointの更新確認、24h以内のCookie移行期限値、過去成績バックアップ、Production Smoke、Rollback条件は**引き続きHumanによる事前審査**。
+- PR #344はDraft。S2/S3のPasskey処理、失効API、招待原子性、iOS実機は未実装／未達。
 ## 回帰・確認事項
 
 - S1 Session テスト：version一致許可、version増分による複数Cookie失効、旧Cookie期限内/外、DB User不存在、slidingでversion付きCookie発行。

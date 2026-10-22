@@ -86,3 +86,26 @@
 - Wrangler配置構成と`keep_vars`（Dashboard varsの上書き防止）: https://developers.cloudflare.com/workers/wrangler/configuration/
 - `wrangler deploy --keep-vars`等の方法は**今すぐ設定変更する案ではない**。HumanによるConfig/Security/デプロイの別承認で方針を決める。
 - S1 Draft PRはこのチェックが完了するまでOpen/Draft維持。main・Production・Remote D1・Secretsへの操作はこのドキュメント更新では一切許可されない。
+
+
+## 2026-10-22｜D1 read-only確認スクリプト（GitHub PR #344の付属ツール）
+
+S1の本番migration状態を確認するため、`scripts/s1-d1-remote-preflight.mjs`を追加。**初期動作はdry-run（Cloudflareアクセスなし）**。認証済みWrangler環境でのみ、Operatorが`--run`を明示して`d1 migrations list`の2種類を順次実行する。script自体にMigration適用、任意SQL実行、Worker deploy、Secret変更、GitHub workflow dispatchは実装しない。
+
+```bash
+# 対象は必ずPR #344の最新HEADをcheckoutし、git statusで意図しない差分がないことを確認
+git rev-parse HEAD
+
+# これはオフラインの確認。Cloudflareには接続しない
+node scripts/s1-d1-remote-preflight.mjs
+
+# Cloudflare認証済みの作業環境で実行する場合のみ（読み取り専用）
+node scripts/s1-d1-remote-preflight.mjs --run
+```
+
+- 対象DBは`wrangler.jsonc`の`DB`で、Production=`mahjong-score-prod`、Preview=`mahjong-score-preview`と別IDを検証してから実行する。
+- `--run`時は対象branch名 `feat/issue-343-s1-auth-foundation` を照合し、trackedな未コミット変更がある場合はSTOP。PR最新HEADとの完全一致は**人間が`git rev-parse HEAD`とGitHub PR HEADを比較**して確かめる。
+- Productionの**未適用ファイルが0011のみ**を期待。異なる場合（0010が出る・0011が出ない・ほかのMigrationが出る等）NO-GOとし、ログとD1実体を人間が照合する。Previewの結果も個別に保管し、Productionと混ぜない。
+- `list`は**ローカルmigrationとの突合**であり、schema実体やUser/Player/Score整合性の全面保証ではない。Migration一覧が期待どおりでも、Recovery Point、旧Cookie期限vars、Smoke、Rollback、Human Merge＋本番Deploy Gateを別に通す。
+- 成功/失敗にかかわらずCloudflare API Token・Secretsはログへ写さない。Remote実測が完了するまで「検証済み」とは記載しない。
+- スクリプトdry-run/引数拒否の自動テストは`tests/s1-d1-remote-preflight.test.ts`。**自動CIでは`--run`を実行しない**ため、このテスト成功をRemote D1の直接確認と混同しない。

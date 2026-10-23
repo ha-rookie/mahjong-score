@@ -29,23 +29,24 @@ class FakeD1 {
   down = false;
   prepare(sql: string) {
     this.statements.push(sql);
-    const db = this;
+    const rows = this.rows;
+    const unavailable = () => this.down;
     let args: unknown[] = [];
     return {
       bind(...values: unknown[]) { args = values; return this; },
       async run() {
-        if (db.down) throw new Error("D1 down");
+        if (unavailable()) throw new Error("D1 down");
         if (!sql.startsWith("INSERT INTO auth_challenges")) throw new Error("Unexpected write");
         const [id,hash,purpose,user,invite,expectedOrigin,rpId,createdAt,expiresAt] = args as string[];
-        if (db.rows.has(id)) throw new Error("Duplicate challenge");
-        db.rows.set(id, {
+        if (rows.has(id)) throw new Error("Duplicate challenge");
+        rows.set(id, {
           id,challengeHash:hash,purpose,userId:user??null,invitationId:invite??null,
           expectedOrigin,rpId,createdAt,expiresAt,consumedAt:null,
         });
         return { success: true };
       },
       async first<T>(): Promise<T | null> {
-        if (db.down) throw new Error("D1 down");
+        if (unavailable()) throw new Error("D1 down");
         const matches=(r:Row,purpose:unknown,user:unknown,invite:unknown,
           expectedOrigin:unknown,rpId:unknown,now:unknown) =>
             r.purpose===purpose && r.userId===user && r.invitationId===invite &&
@@ -53,13 +54,13 @@ class FakeD1 {
             r.consumedAt===null && r.expiresAt>String(now);
         if (sql.startsWith("SELECT challenge_hash")) {
           const [id,purpose,user,invite,o,rp,now] = args;
-          const row=db.rows.get(String(id));
+          const row=rows.get(String(id));
           return row&&matches(row,purpose,user,invite,o,rp,now)?
             { challengeHash:row.challengeHash,expectedOrigin:row.expectedOrigin,rpId:row.rpId } as T:null;
         }
         if (sql.startsWith("UPDATE auth_challenges") && sql.includes("RETURNING id")) {
           const [at,id,hash,purpose,user,invite,o,rp,now] = args;
-          const row=db.rows.get(String(id));
+          const row=rows.get(String(id));
           if (!row||row.challengeHash!==hash||!matches(row,purpose,user,invite,o,rp,now)) return null;
           row.consumedAt=String(at);
           return {id:row.id} as T;

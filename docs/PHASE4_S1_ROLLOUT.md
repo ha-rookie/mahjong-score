@@ -110,6 +110,47 @@ node scripts/s1-d1-remote-preflight.mjs --run
 - 成功/失敗にかかわらずCloudflare API Token・Secretsはログへ写さない。Remote実測が完了するまで「検証済み」とは記載しない。
 - スクリプトdry-run/引数拒否の自動テストは`tests/s1-d1-remote-preflight.test.ts`。**自動CIでは`--run`を実行しない**ため、このテスト成功をRemote D1の直接確認と混同しない。
 
+## 2026-10-23｜実DBデータ保全の最終Read-only検査
+
+**利用者前提**：直近24時間に麻雀開催／利用の予定がなく、旧Cookieを維持するための24時間猶予は不要。再ログインは許容する。これは「実際の全ユーザーが操作しない」と断定したものではない。**本番変更直前に対局入力が行われていないことを最終確認**し、変更中は新規登録・点数入力を避ける。
+
+**今回の最小Release Gate**：①最新PR HEAD一致／CI PASS、②Production/PreviewのDB ID分離とProductionの未適用0011のみ（`scripts/s1-d1-remote-preflight.mjs --run`：Cloudflare認証済み端末のみ）、③本番DBのRead-only集計とTime Travel bookmark、④Human承認後のmain pushでMigration→Worker deploy、⑤同一SQL集計の前後一致、LINE再ログイン→既存グループ・Player・履歴表示、401/503確認。**既存データ・認証情報を削除したり手動リセットしない。**
+
+`0011_phase4_auth_foundation.sql` は `users.auth_version` に DEFAULT 0 の列を追加し、`passkey_credentials`／`auth_challenges`の新規テーブルと索引だけを作る。既存Session、Game、Score、LINE紐付けへのUPDATE/DELETE/DROPはない。ローカルの既存データ回帰テストはPASS。ただし本番のデータ実体はCloudflareで未実測のため、以下を行う。
+
+### 本番D1の集計（個人情報を表示しない）
+
+Cloudflareに認証済みで、対象が`mahjong-score-prod`（`DB` binding）と確認済みの作業端末から**本番変更直前**と**デプロイ直後**に同一SQLを実行する。コマンドはSELECTのみ、Previewには実行しない。
+
+```bash
+npx wrangler d1 execute DB --remote --json --command "
+SELECT
+  (SELECT COUNT(*) FROM users) AS users_count,
+  (SELECT COUNT(*) FROM external_identities) AS identities_count,
+  (SELECT COUNT(*) FROM groups) AS groups_count,
+  (SELECT COUNT(*) FROM group_memberships) AS memberships_count,
+  (SELECT COUNT(*) FROM players) AS players_count,
+  (SELECT COUNT(*) FROM group_players) AS group_players_count,
+  (SELECT COUNT(*) FROM sessions) AS sessions_count,
+  (SELECT COUNT(*) FROM participant_segments) AS segments_count,
+  (SELECT COUNT(*) FROM games) AS games_count,
+  (SELECT COUNT(*) FROM game_results) AS results_count,
+  (SELECT COUNT(*) FROM chip_results) AS chips_count,
+  (SELECT COUNT(*) FROM game_tags) AS tags_count,
+  (SELECT COUNT(*) FROM session_participant_notes) AS notes_count,
+  (SELECT COALESCE(SUM(score_point),0) FROM game_results) AS score_total,
+  (SELECT COALESCE(SUM(score_point * rank),0) FROM game_results) AS ranked_score_total,
+  (SELECT COUNT(*) FROM game_results r LEFT JOIN games g ON g.id=r.game_id WHERE g.id IS NULL) AS orphan_results,
+  (SELECT COUNT(*) FROM external_identities e LEFT JOIN users u ON u.id=e.user_id WHERE u.id IS NULL) AS orphan_identities;
+"
+```
+
+- 書込のないリリース区間では**件数・点数合計・順位重み付き合計が前後一致**し、孤立行が新たに増えていないことが条件。これらの集計は意図しない変更の検知用で、全レコードの完全一致の暗号学的証明ではない。既存不整合を`0011`が直すと期待しない
+- Recovery Pointの現在bookmarkを適用直前に `npx wrangler d1 time-travel info DB --json` で取得して保管する。**`restore` は実行しない**。Time TravelのrestoreはDB全体を指定時点へ上書きし、その後の書込を失わせる可能性があるため、復旧時は影響範囲と書込差分を確認し個別Human承認を取る
+- SQL／CLI結果には個人名・LINE subject・明細データ・Secretsを出さず、SHA、時刻、集計数値、実行結果だけをIssueへ記録
+- 旧Cookieは変数 `AUTH_LEGACY_SESSION_ACCEPT_UNTIL` を**設定しない**ため401→LINE再ログインする。既存LINE identityとの紐付けはDBから解決され、新しい `authVersion` 付きCookieで元のUser/Group/Playerを参照する。ログイン後に新規ユーザーや招待待ちになる場合は**STOP**し、成績・Identityを変更せず調査する
+- データ保全が確認できても**main mergeは別途Human承認が必要**。この準備で本番Migration／Worker deployは実行しない
+
 ## 2026-10-23｜本番リリース方針の確定（旧Cookieは強制再ログイン）
 
 - **利用者判断**：リリース日時はいつでもよく、**LINE再ログインは許容**。最優先はUser/Player/Group/対局履歴/成績が消えないこと。Cookie移行のための24h猶予は採用しない。

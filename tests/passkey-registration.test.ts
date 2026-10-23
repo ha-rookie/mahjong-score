@@ -25,15 +25,18 @@ class FakeD1 {
   down=false;
   prepare(sql:string){
     let params:unknown[]=[];
-    const fake=this;
+    const rows=this.rows;
+    const credentials=this.credentials;
+    const users=this.users;
+    const unavailable=()=>this.down;
     return {
       bind(...p:unknown[]){params=p;return this;},
       async first<T>():Promise<T|null>{
-        if(fake.down)throw new Error("D1 down");
-        if(sql==="SELECT id FROM users WHERE id=?")return fake.users.has(String(params[0]))?{id:params[0]} as T:null;
+        if(unavailable())throw new Error("D1 down");
+        if(sql==="SELECT id FROM users WHERE id=?")return users.has(String(params[0]))?{id:params[0]} as T:null;
         if(sql.startsWith("SELECT challenge_hash")) {
           const [id,purpose,user,invitation,expectedOrigin,rpId,when]=params;
-          const row=fake.rows.get(String(id));
+          const row=rows.get(String(id));
           return row && row.purpose===purpose && row.userId===user && row.invitationId===invitation &&
             row.expectedOrigin===expectedOrigin && row.rpId===rpId &&
             row.consumedAt===null && row.expiresAt>String(when)
@@ -43,17 +46,17 @@ class FakeD1 {
         throw new Error("Unexpected query");
       },
       async all<T>():Promise<{results:T[]}>{
-        if(fake.down)throw new Error("D1 down");
-        if(sql.startsWith("SELECT credential_id"))return{results:fake.credentials.filter(c=>c.userId===params[0]).map(c=>({
+        if(unavailable())throw new Error("D1 down");
+        if(sql.startsWith("SELECT credential_id"))return{results:credentials.filter(c=>c.userId===params[0]).map(c=>({
           credentialId:c.credentialId,transports:c.transports,
         })) as T[]};
         throw new Error("Unexpected SELECT");
       },
       async run(){
-        if(fake.down)throw new Error("D1 down");
+        if(unavailable())throw new Error("D1 down");
         if(sql.startsWith("INSERT INTO auth_challenges")) {
           const [id,challengeHash,purpose,userId,invitationId,expectedOrigin,rpId,createdAt,expiresAt] = params;
-          fake.rows.set(String(id),{
+          rows.set(String(id),{
             id:String(id),challengeHash:String(challengeHash),purpose:String(purpose),
             userId:userId as string|null,invitationId:invitationId as string|null,
             expectedOrigin:String(expectedOrigin),rpId:String(rpId),

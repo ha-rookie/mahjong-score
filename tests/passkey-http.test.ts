@@ -106,3 +106,18 @@ test("S2-B no proof means OPTIONS and VERIFY are denied; wrong content type is r
   assert.equal(noVerify.status,403);
   assert.equal(db.stepups,0);
 });
+
+test("S2-B read-only capability is disabled unless server explicitly enables it",async()=>{
+  const db=new FakeDb();
+  const disabled=await req("/api/auth/passkey/capabilities",db,false,{method:"GET",cookie:null});
+  assert.equal(disabled.status,200);
+  assert.deepEqual(await disabled.json(),{registrationEnabled:false});
+  assert.equal(disabled.headers.get("cache-control"),"no-store");
+  const enabled=await req("/api/auth/passkey/capabilities",db,true,{method:"GET",cookie:null});
+  assert.equal(enabled.status,200);
+  assert.deepEqual(await enabled.json(),{registrationEnabled:true});
+  const write=await req("/api/auth/passkey/capabilities",db,true,{method:"POST",json:true});
+  assert.equal(write.status,405);
+  assert.equal(db.stepups,0);
+  assert.deepEqual(db.prepared,[]);
+});

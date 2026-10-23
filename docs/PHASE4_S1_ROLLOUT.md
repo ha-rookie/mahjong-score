@@ -14,7 +14,7 @@
 ## Production rollout STOP（個別Human Gateが必要）
 
 1. **DB Migration先行**。本番D1のRecovery Point、実DB binding対象、プレビュー/本番DBの分離を確認。Rollback計画はadditive SQLでも必須。
-2. **旧セッションの維持方針を確定**。従来Cookieは`{userId,exp}`でauthVersionがない。本PRのコードは環境変数 `AUTH_LEGACY_SESSION_ACCEPT_UNTIL`（Unix epoch seconds）**未設定時には旧Cookieを拒否**する。旧ログインの一斉切断を避ける場合、リリース時刻から最大1 Session TTL (24h) の期限だけを**別途承認のCloudflare設定で指定**する。期限が過ぎれば旧形式は拒否し、新形式へrefreshしたCookieだけ継続可。世代が1以上のUserの旧Cookieは期限内でも常に拒否。
+2. **旧セッションは強制再ログイン（2026-10-23決定）**。利用者は既存Cookieの失効・LINE再ログインを許容。`AUTH_LEGACY_SESSION_ACCEPT_UNTIL`は**設定しない**。従来形式 `{userId,exp}` は全て401（必要に応じCookie削除）となり、新規LINEログインでauthVersion付きCookieを発行する。User/Player/Scoreの削除・再作成は行わない。旧Cookieを維持するための24h期限設定は今回のProduction Release Gateから除外。
 3. **古いWorkerへのRollback**は新形式Cookieの`authVersion`追加フィールドを旧コードが無視して署名検証可能なため、認証失効のゲートが消える。**認証方式失効機能の本番開始後は無条件Rollbackしてはいけない**。Rollout時点では失効APIをまだ公開しない。
 4. **セッション失効は認証判定の次リクエストから有効**。既に認可済みの同時実行リクエストを戻す保証はない。Version増分とCredential無効化の同一D1トランザクションは後続Sliceの受入条件。
 5. `users.auth_version`の更新を他APIに自動追加しない。旧LINEログインを単純なCredential0件判定で拒否しない（LINEはexternal_identitiesで管理）。
@@ -74,8 +74,8 @@
 
 1. [ ] Cloudflareに認証済みの権限で、対象repoの`wrangler.jsonc`の**Production DB binding**と操作対象を照合。Preview DBと混同しない。認証済み操作手段が用意できない場合、Remote確認は**未確認**のままSTOP。
 2. [ ] 最新のMigrationファイルを持つ作業ブランチから **read-only** `npx wrangler d1 migrations list DB --remote` を実行し、Productionの未適用候補が**0011のみ**か確認（2026-10-03のRun #37107283293は0010適用の履歴根拠だが現時点の証明ではない）。Previewの確認は別の `npx wrangler d1 migrations list DB --remote --preview`。いずれも`apply`/`execute`は事前承認なしに実行しない。
-3. [ ] `wrangler.jsonc`は現在`vars.LINE_CHANNEL_ID`を持つが**`AUTH_LEGACY_SESSION_ACCEPT_UNTIL`を宣言していない**。Cloudflare公式によれば、Dashboardにのみ保存した通常のWorker環境変数は`wrangler deploy`で上書きされ得る。Secretsは別挙動。**Dashboardで設定するだけでは安全な切替を保証できない。**
-4. [ ] Cookie互換を保つ場合はHumanが本番リリース時刻を確定し、その時刻から24時間以内の**Unix秒による終了時刻**を決定。コード側でも24時間超の期限を拒否する。値をいつ・どの構成正本へ・どの環境に設定するか、`keep_vars`利用の要否と既存LINE_CHANNEL_ID等への影響を別レビューで決定。次回deployの際に変数が失われないことを検証。**設定未確認のままmainをmergeしない。**
+3. [ ] **設定なしを確認**：`wrangler.jsonc`と本番Worker構成で`AUTH_LEGACY_SESSION_ACCEPT_UNTIL`が未設定であることを確認（旧Cookieは401→LINE再ログイン）。既存`LINE_CHANNEL_ID`とSecret等は維持し、意図しないvars変更をしない。
+4. [ ] **再ログイン導線を検証**：既存Cookieから`/api/auth/me`が401になってもログイン導線を利用でき、LINEで元の同一User ID・Group/Playerに戻ることを確認。保存済み成績は不変。未保存スコアはリリース時の入力/再ログインで失われない運用を確認。認証DB障害による503は401と区別する。
 5. [ ] GitHub mainへのpushは`.github/workflows/deploy-production.yml`によって**Production D1 MigrationとWorker deployを自動実行し得る**。MigrationとWorkerの適用順、Recovery Point、Error Smoke、実LINEログイン・cookie移行・401/503切り分け、rollback（旧WorkerにはauthVersion検査がなくセッション失効保証を壊す）を事前に構成。通常のPRテスト成功だけで安全なmain pushとはしない。
 6. [ ] Previewのリハーサルは**明示的に対象Preview D1とWorkerを別承認・別スコープ**で実施。PasskeyのS0試験workerは本番Credentialの永続保存にも利用しない。
 7. [ ] 自動Rollback・再ログイン・大量の認証失敗を検知した際のSTOPを定義する。ログに`session`Cookieや`Credential ID`、LINE token、Challenge生値、招待Token全文を出さない。
@@ -109,3 +109,11 @@ node scripts/s1-d1-remote-preflight.mjs --run
 - `list`は**ローカルmigrationとの突合**であり、schema実体やUser/Player/Score整合性の全面保証ではない。Migration一覧が期待どおりでも、Recovery Point、旧Cookie期限vars、Smoke、Rollback、Human Merge＋本番Deploy Gateを別に通す。
 - 成功/失敗にかかわらずCloudflare API Token・Secretsはログへ写さない。Remote実測が完了するまで「検証済み」とは記載しない。
 - スクリプトdry-run/引数拒否の自動テストは`tests/s1-d1-remote-preflight.test.ts`。**自動CIでは`--run`を実行しない**ため、このテスト成功をRemote D1の直接確認と混同しない。
+
+## 2026-10-23｜本番リリース方針の確定（旧Cookieは強制再ログイン）
+
+- **利用者判断**：リリース日時はいつでもよく、**LINE再ログインは許容**。最優先はUser/Player/Group/対局履歴/成績が消えないこと。Cookie移行のための24h猶予は採用しない。
+- **コードは変更不要**：現行S1実装では`AUTH_LEGACY_SESSION_ACCEPT_UNTIL`を未設定にすると従来Cookieが401になり、`/api/auth/me`は不要Cookieを削除する。LINE OAuth callbackはDB側`auth_version`で新Cookieを発行する。この挙動はローカル回帰テスト対象。強制再ログインにUserや成績の削除は伴わない。
+- **Gateの削減**：固定Unix秒の確定、`vars`への猶予変数追加、期限管理は不要。ただし、既存LINE認証関連vars/Secretsの保持と旧Cookie拒否→LINEログイン→元のUser/Player/Group復帰のSmokeは必須。未保存の入力への影響は別に扱う。
+- **維持するSTOP**：Production/Preview Remote D1 migration現況未照会、Migration 0011実DB適用前のRecovery Point、既存データ保持・参照整合性、書込中の差分消失と復旧リスク、401/503、main pushの本番自動Migration/Deployに対するHuman一括承認。再ログイン許容は本番操作の承認ではない。
+- **以前の2026-10-22の猶予変数推奨案は、この2026-10-23方針により上書き**。過去の検証経緯は残す。S2/S3は引き続き対象外。

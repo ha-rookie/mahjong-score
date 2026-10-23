@@ -84,7 +84,7 @@ export const beginExistingUserPasskeyRegistration = async (
     rpID: PASSKEY_PRODUCTION_RP_ID,
     userName: "sanma-" + as64(new Uint8Array(digest)).slice(0, 16),
     userID: new Uint8Array(digest),
-    challenge: decoder(challenge.challenge), // pass BYTES, not UTF8 of base64url
+    challenge: new Uint8Array(decoder(challenge.challenge)), // pass ArrayBuffer-backed BYTES, not UTF8 of base64url
     attestationType: "none",
     supportedAlgorithmIDs: [-7],
     timeout: 120_000,

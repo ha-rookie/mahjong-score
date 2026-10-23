@@ -28,7 +28,7 @@ test("S2-B native WebAuthn codec passes decoded options and posts JSON-safe atte
 
 test("S2-B native WebAuthn rejects incomplete options, user cancellation and invalid authenticator",async()=>{
   await assert.rejects(getRegistrationAttestation(null,()=>parsed,async()=>null),/missing_options/);
-  const invalid={challenge:new Uint8Array([1]),rp:{name:"missing RP ID"},user:{id:new Uint8Array([1]),name:"x"}} as PublicKeyCredentialCreationOptions;
+  const invalid={...parsed,rp:{name:"missing RP ID"}} as PublicKeyCredentialCreationOptions;
   await assert.rejects(getRegistrationAttestation(options,()=>invalid,async()=>null),/invalid_webauthn_options/);
   await assert.rejects(getRegistrationAttestation(options,()=>parsed,async()=>null),/invalid_webauthn_credential/);
   await assert.rejects(getRegistrationAttestation(options,()=>parsed,async()=>{

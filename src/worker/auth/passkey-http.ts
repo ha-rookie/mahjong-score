@@ -77,10 +77,20 @@ const checkedProof=async(request:Request,env:PasskeyHttpEnv,verified:{
 export const handleS2BPasskeyRequest=async (
   request:Request,env:PasskeyHttpEnv,
 ):Promise<Response|null>=>{
+  const url=new URL(request.url);
+  // Read-only capability probe. It never exposes private credentials, session
+  // tokens or a way to change the server-controlled feature flag.
+  if(url.pathname==="/api/auth/passkey/capabilities"){
+    if(request.method!=="GET")return error("method_not_allowed",405);
+    return reply({
+      registrationEnabled:env.PASSKEY_REGISTRATION_ENABLED==="true" &&
+        url.origin===PASSKEY_LINE_STEPUP_ORIGIN,
+    },200);
+  }
   // An unset (or anything other than the exact string "true") flag cannot
   // enable routes, including by accident in a Production deployment.
   if(env.PASSKEY_REGISTRATION_ENABLED!=="true")return null;
-  const url=new URL(request.url),isCallback=url.pathname==="/api/auth/line/callback"&&
+  const isCallback=url.pathname==="/api/auth/line/callback"&&
     isPasskeyStepUpState(url.searchParams.get("state"));
   if(!isCallback&&!paths.has(url.pathname))return null;
 

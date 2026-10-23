@@ -122,6 +122,8 @@ export const handleS2BPasskeyRequest=async (
         status:200,headers:{...noStore,"set-cookie":clearProof},
       });
     }
+    if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
+      return error("invalid_content_type",415);
     const proof=await checkedProof(request,env,session);
     if(!proof){audit(request,"passkey_stepup_required",userId);return error("passkey_recent_line_required",403);}
     if(url.pathname==="/api/auth/passkey/register/options"){

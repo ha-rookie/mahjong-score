@@ -136,7 +136,7 @@ test("S2-A rejects invalid fixed RP/origin config and challenge encoding",async(
   for(const scope of [
     {...register(),expectedOrigin:"http://mahjong-score.ha-rookie.workers.dev"},
     {...register(),rpId:"evil.example"},
-    {...register(),expectedOrigin:"https://mahjong-score.ha-rookie.workers.dev.evil.example",rpId:"mahjong-score.ha-rookie.workers.dev.evil.example"},
+    {...register(),expectedOrigin:"https://mahjong-score.ha-rookie.workers.dev/extra"},
     {...register(),purpose:"login" as const},
     {...register(),userId:null},
     {...register(),invitationId:"unexpected"},

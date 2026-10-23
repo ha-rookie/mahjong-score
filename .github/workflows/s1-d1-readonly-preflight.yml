@@ -51,7 +51,7 @@ jobs:
           node-version: '24'
 
       - name: Install reviewed dependencies without install scripts
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Production and Preview migration inventory (read-only)
         env:

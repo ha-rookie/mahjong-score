@@ -49,6 +49,7 @@ Design Preview / Design Portalはレビュー面であり、正本そのもの�
 | `23_D1_PERFORMANCE_BENCHMARK.md` | Historical Preview D1 benchmark evidence。現在の実行手順ではない |
 | `23_PERFORMANCE_D1_TEST.md` | Current local / isolated Performance D1 test strategy、query-count guardrail、smartphone scenario |
 | `24_SESSION_RESULT_SHARING.md` | finalized Session結果の汎用共有、共有本文、Web Share / Clipboard fallback |
+| `25_PHASE4_AUTH_DESIGN.md` | **Proposed / #335**: LINE・Passkey併用、資格情報管理、招待、セッション失効の詳細設計案（未承認） |
 
 ## 4. Cross-project Standards
 

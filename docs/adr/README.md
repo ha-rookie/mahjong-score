@@ -39,3 +39,7 @@ Accepted ADRは理由を上書きして歴史を消さない。判断変更時�
 ## Template
 
 `ADR-0000-template.md` をコピーして使用する。
+
+## Proposed decisions
+
+- `ADR-0002-identity-credential-lifecycle.md`: LINE/Passkeyの同一User併用、Credential 0件、認証情報削除後のsession失効（Issue #335 / Proposed）

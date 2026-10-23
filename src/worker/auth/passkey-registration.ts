@@ -144,6 +144,9 @@ export const finishExistingUserPasskeyRegistration = async (
     .bind(context.sessionUserId).first<{ id: string }>();
   if (user?.id !== context.sessionUserId) throw new Error("User no longer exists");
 
+  // Re-evaluate the wall clock after expensive attestation verification.
+  // A challenge that expires while verification is running must stay expired.
+  const claimAt = new Date(Math.max(now.getTime(), Date.now()));
   // Claim before insert. A failed insert may consume the challenge, requiring
   // retrying a NEW flow, but MUST NOT create an orphaned credential.
   const claimed = await consumePasskeyChallenge(db, flowId, binding, 
@@ -154,7 +157,7 @@ export const finishExistingUserPasskeyRegistration = async (
       const obj = JSON.parse(new TextDecoder().decode(bytes)) as { challenge?: unknown };
       if (typeof obj.challenge !== "string") throw new Error("WebAuthn challenge missing");
       return obj.challenge;
-    })(), now);
+    })(), claimAt);
   if (!claimed) throw new Error("Registration challenge already used");
   await db.prepare(
     "INSERT INTO passkey_credentials(id,user_id,credential_id,public_key,sign_count,transports,device_type,backed_up,created_at) VALUES(?,?,?,?,?,?,?,?,?)"

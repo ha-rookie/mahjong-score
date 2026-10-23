@@ -1,0 +1,133 @@
+name: S1 Production D1 read-only one-shot
+
+on:
+  push:
+    branches:
+      - ops/s1-d1-readonly-20261023
+    paths:
+      - .github/workflows/s1-d1-readonly-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify-readonly:
+    if: github.ref == 'refs/heads/ops/s1-d1-readonly-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Check out exact reviewed S1 source
+        uses: actions/checkout@v6
+        with:
+          ref: 7e82c77a0e1802bc8840b04071d9f533126fdc5d
+          persist-credentials: false
+
+      - name: Pin source and verify D1 separation before credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "7e82c77a0e1802bc8840b04071d9f533126fdc5d"
+          git checkout -B feat/issue-343-s1-auth-foundation "7e82c77a0e1802bc8840b04071d9f533126fdc5d"
+          git status --porcelain
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const c = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+          const prod = c.d1_databases.find(x => x.binding === "DB");
+          const prev = c.previews.d1_databases.find(x => x.binding === "DB");
+          if (prod?.database_name !== "mahjong-score-prod" ||
+              prod.database_id !== "95a84e69-692e-45f1-9762-0b71b298199b" ||
+              prev?.database_name !== "mahjong-score-preview" ||
+              prev.database_id !== "2494979f-57d5-4ba5-bde7-bc5ec674b8eb" ||
+              prod.database_id === prev.database_id) {
+            throw new Error("STOP unexpected Production/Preview DB binding");
+          }
+          console.log("Production/Preview D1 binding verification: PASS");
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install reviewed dependencies without install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Production and Preview migration inventory (read-only)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          node scripts/s1-d1-remote-preflight.mjs --run
+
+      - name: Production D1 legacy rows fingerprint and recovery bookmark (read-only)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          import { createHash } from "node:crypto";
+          
+          const tables = [
+            ["users", "id,display_name,created_at,updated_at,system_role"],
+            ["external_identities", "*"],
+            ["group_memberships", "*"],
+            ["groups", "*"],
+            ["players", "*"],
+            ["group_players", "*"],
+            ["sessions", "*"],
+            ["participant_segments", "*"],
+            ["segment_players", "*"],
+            ["games", "*"],
+            ["game_results", "*"],
+            ["chip_results", "*"],
+            ["game_tags", "*"],
+            ["session_participant_notes", "*"],
+            ["invitations", "*"],
+          ];
+          function query(sql) {
+            // Read-only, hard-coded SELECT. Never show query results in the public log.
+            const out = execFileSync("npx", [
+              "--no-install", "wrangler", "d1", "execute", "DB",
+              "--remote", "--json", "--command", sql
+            ], { encoding: "utf8", timeout: 90000, maxBuffer: 48 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            const firstJson = Math.min(
+              ...["[", "{"].map(ch => { const i = out.indexOf(ch); return i === -1 ? Infinity : i; })
+            );
+            if (!Number.isFinite(firstJson)) throw new Error("D1 returned no JSON result");
+            const data = JSON.parse(out.slice(firstJson));
+            const parts = Array.isArray(data) ? data : [data];
+            if (!parts.length || parts.some(part => part?.success === false || !Array.isArray(part?.results))) {
+              throw new Error("D1 query failed or returned an unexpected shape");
+            }
+            return parts.flatMap(part => part.results);
+          }
+          try {
+            // The schema is validated with existing Production migrations before this step.
+            const digest = createHash("sha256");
+            for (const [table, columns] of tables) {
+              if (!/^[a-z_]+$/.test(table) || !/^[a-z_,*]+$/.test(columns)) {
+                throw new Error("Invalid fixed read-only table/column selection");
+              }
+              const rows = query("SELECT " + columns + " FROM " + table + " ORDER BY rowid");
+              digest.update(table + "\n");
+              digest.update(JSON.stringify(rows) + "\n");
+            }
+            const raw = execFileSync("npx", [
+              "--no-install", "wrangler", "d1", "time-travel", "info", "DB", "--json"
+            ], { encoding: "utf8", timeout: 90000, maxBuffer: 2 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            if (!raw.includes('"bookmark"')) throw new Error("Recovery bookmark was not returned");
+            console.log("PRODUCTION_D1_READ_ONLY_BASELINE=PASS");
+            console.log("Checked established data tables:", tables.map(t => t[0]).join(", "));
+            console.log("Legacy data fingerprint SHA256:", digest.digest("hex"));
+            console.log("Current Production Time Travel bookmark: AVAILABLE (value withheld)");
+            console.log("PII and actual record values intentionally not logged.");
+          } catch {
+            console.error("STOP: Production D1 read-only baseline unavailable or incomplete.");
+            process.exitCode = 1;
+          }
+          NODE

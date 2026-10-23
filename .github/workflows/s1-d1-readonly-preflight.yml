@@ -154,3 +154,17 @@ jobs:
             process.exitCode = 1;
           }
           NODE
+      - name: Production HTTP GET smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://mahjong-score.ha-rookie.workers.dev"
+          root_status="$(curl --silent --show-error --max-time 25 --output /dev/null --write-out '%{http_code}' "$base/")"
+          test "$root_status" = "200" || { echo "STOP: root status is $root_status"; exit 1; }
+          health_status="$(curl --silent --show-error --max-time 25 --output /tmp/s1-health.json --write-out '%{http_code}' "$base/api/health")"
+          test "$health_status" = "200" || { echo "STOP: health status is $health_status"; exit 1; }
+          grep -Eq '"ok"[[:space:]]*:[[:space:]]*true' /tmp/s1-health.json || { echo "STOP: health body mismatch"; exit 1; }
+          auth_status="$(curl --silent --show-error --max-time 25 --output /tmp/s1-auth.json --write-out '%{http_code}' "$base/api/auth/me")"
+          test "$auth_status" = "401" || { echo "STOP: unauthenticated auth/me status is $auth_status"; exit 1; }
+          grep -Eq '"authenticated"[[:space:]]*:[[:space:]]*false' /tmp/s1-auth.json || { echo "STOP: unauthenticated auth/me body mismatch"; exit 1; }
+          echo "PRODUCTION_HTTP_GET_SMOKE=PASS (root=200, health=200, unauthenticated auth/me=401)"

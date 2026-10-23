@@ -7,7 +7,7 @@ const secret="test-session-secret-at-least-32-characters";
 const enc=new TextEncoder();
 const base64url=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const signedCookie=async(userId:string,exp:number)=>{
-  const payload=base64url(enc.encode(JSON.stringify({userId,exp})));
+  const payload=base64url(enc.encode(JSON.stringify({userId,exp,authVersion:0})));
   const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const sig=base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,enc.encode(payload))));
   return `mahjong_session=${payload}.${sig}`;
@@ -17,7 +17,7 @@ class AuthStatement {
   constructor(private readonly sql:string){}
   bind(){return this;}
   async first<T>():Promise<T|null>{
-    if(this.sql.includes("FROM users WHERE id=?"))return {id:"u1",displayName:"User",systemRole:"user"} as T;
+    if(this.sql.includes("FROM users WHERE id=?"))return {id:"u1",authVersion:0,displayName:"User",systemRole:"user"} as T;
     if(this.sql.includes("system_role='admin'"))return {ok:1} as T;
     return null;
   }

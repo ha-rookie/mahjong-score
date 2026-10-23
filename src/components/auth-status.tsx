@@ -28,9 +28,10 @@ export function AuthStatus() {
     try{
       const response=await fetch("/api/auth/me",{credentials:"same-origin"});
       if(response.status===401){setAuth(null);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:null}));setLoading(false);return;}
+      if(response.status===503){setError("認証サーバーが一時的に利用できません。少し後で再確認してください。");setLoading(false);return;}
       if(!response.ok)throw new Error("auth status");
       const payload=await response.json() as AuthPayload;setAuth(payload);window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:payload}));
-    }catch{setError("認証状態を確認できませんでした。");window.dispatchEvent(new CustomEvent("mahjong:auth-state",{detail:null}));}
+    }catch{setError("認証状態を確認できませんでした。再確認してください。");}
     setLoading(false);
   };
 
@@ -84,7 +85,7 @@ export function AuthStatus() {
   };
 
   if(loading)return <div className="auth-status auth-status--loading">認証確認中</div>;
-  if(!auth)return error?<div className="auth-status"><span className="auth-status__error">{error}</span></div>:null;
+  if(!auth)return error?<div className="auth-status"><span className="auth-status__error">{error}</span><button type="button" onClick={()=>void load()}>再確認</button></div>:null;
 
   const membership=auth.memberships[0]??null;
   const roleLabel=auth.user.systemRole==="admin"?"管理者":membership?.role==="group_admin"?"グループ管理者":membership?"メンバー":"招待待ち";

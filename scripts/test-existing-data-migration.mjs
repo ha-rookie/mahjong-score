@@ -56,10 +56,18 @@ INSERT INTO segment_players(segment_id,player_id,seat_order) VALUES
 ('guard-segment','guard-player-3',3);
 INSERT INTO games(id,session_id,segment_id,sequence,played_at,version)
 VALUES('guard-game','guard-session','guard-segment',1,'2026-09-29T01:30:00Z',1);
+${appliedProductionMigrationNames.includes("0010_game_result_placement.sql")?
+`-- Placement is already part of the schema in applied Production migration 0010.
+-- Test representative current rows, including validated placement and last-place marker.
+INSERT INTO game_results(game_id,player_id,rank,score_point,placement,is_last) VALUES
+('guard-game','guard-player-1',1,10,1,0),
+('guard-game','guard-player-2',2,0,2,0),
+('guard-game','guard-player-3',3,-10,3,1);`:
+`-- Historical fixture before migration 0010 backfills placement and last-place marker.
 INSERT INTO game_results(game_id,player_id,rank,score_point) VALUES
 ('guard-game','guard-player-1',1,10),
 ('guard-game','guard-player-2',2,0),
-('guard-game','guard-player-3',3,-10);
+('guard-game','guard-player-3',3,-10);`}
 INSERT INTO chip_results(session_id,player_id,chip_count) VALUES
 ('guard-session','guard-player-1',2),
 ('guard-session','guard-player-2',-1),
@@ -118,7 +126,10 @@ SELECT
   (SELECT COUNT(*) FROM chip_results WHERE session_id='guard-session') AS chips_count,
   (SELECT COUNT(*) FROM session_participant_notes WHERE session_id='guard-session') AS participant_notes_count,
   (SELECT COUNT(*) FROM sessions s LEFT JOIN games g ON g.session_id=s.id WHERE s.group_id='guard-group' AND s.status='finalized' GROUP BY s.id) AS history_game_count,
-  (SELECT SUM(gr.score_point) FROM game_results gr JOIN games g ON g.id=gr.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='guard-group' AND s.status='finalized') AS performance_total;
+  (SELECT SUM(gr.score_point) FROM game_results gr JOIN games g ON g.id=gr.game_id JOIN sessions s ON s.id=g.session_id WHERE s.group_id='guard-group' AND s.status='finalized') AS performance_total,
+  (SELECT auth_version FROM users WHERE id='guard-user') AS auth_version_default,
+  (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='passkey_credentials') AS passkey_credentials_table,
+  (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='auth_challenges') AS auth_challenges_table;
 `;
 
   const raw = runWrangler(
@@ -171,6 +182,9 @@ SELECT
     participant_notes_count: 1,
     history_game_count: 1,
     performance_total: 0,
+    auth_version_default: 0,
+    passkey_credentials_table: 1,
+    auth_challenges_table: 1,
   };
   for (const [key, expected] of Object.entries(expectedCounts)) {
     if (Number(row[key]) !== expected) {
@@ -182,6 +196,29 @@ SELECT
   if (row.session_note !== "migration-guard-session-note") {
     throw new Error("Existing Session Memo changed during migration regression");
   }
+
+  // S1 contract: an already-revoked Credential ID can never be reassigned.
+  // Execute on the isolated --local D1 only, never Preview/Production.
+  const localArgs=(query)=>["d1","execute","DB","--local","--persist-to",persistDir,"--command",query];
+  runWrangler(localArgs(
+    "INSERT INTO users(id,display_name,created_at,updated_at) VALUES('guard-other-user','Other','2026-09-29T00:00:00Z','2026-09-29T00:00:00Z');"+
+    "INSERT INTO passkey_credentials(id,user_id,credential_id,public_key,created_at,revoked_at) VALUES('credential-1','guard-user','stable-id',x'010203','2026-09-29T00:00:00Z','2026-09-29T00:00:00Z');"
+  ),{capture:true});
+  let duplicateRejected=false;
+  try {
+    runWrangler(localArgs(
+      "INSERT INTO passkey_credentials(id,user_id,credential_id,public_key,created_at) VALUES('credential-2','guard-other-user','stable-id',x'010203','2026-09-29T00:00:00Z')"
+    ),{capture:true});
+  }catch{duplicateRejected=true;}
+  if(!duplicateRejected)throw new Error("S1 Credential ID uniqueness was not enforced across Users and revoked credentials");
+  let purposeRejected=false;
+  try {
+    runWrangler(localArgs(
+      "INSERT INTO auth_challenges(id,challenge_hash,purpose,expected_origin,rp_id,created_at,expires_at) VALUES('invalid-challenge','hash','unknown-purpose','https://example.test','example.test','2026-09-29T00:00:00Z','2026-09-30T00:00:00Z')"
+    ),{capture:true});
+  }catch{purposeRejected=true;}
+  if(!purposeRejected)throw new Error("S1 Challenge purpose restriction was not enforced");
+  console.log("S1 local D1 schema guard passed: auth_version default, unique revoked Credential ID, challenge purpose, legacy data intact.");
 
   console.log(
     `Existing-data migration regression passed: representative Production-shaped data survived ${futureMigrations.length} future migration(s), including placement backfill invariants.`,

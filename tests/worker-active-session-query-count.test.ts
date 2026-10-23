@@ -6,7 +6,7 @@ const secret="test-session-secret-at-least-32-characters";
 const enc=new TextEncoder();
 const base64url=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const sessionCookie=async(userId:string)=>{
-  const payload=base64url(enc.encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+3600})));
+  const payload=base64url(enc.encode(JSON.stringify({userId,exp:Math.floor(Date.now()/1000)+3600,authVersion:0})));
   const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const sig=base64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,enc.encode(payload))));
   return `mahjong_session=${payload}.${sig}`;
@@ -30,6 +30,7 @@ class FakeDb{
   }
 
   first(sql:string,values:unknown[]){
+    if(sql.includes("SELECT id,auth_version AS authVersion FROM users WHERE id=?"))return values[0]==="member"?{id:"member",authVersion:0}:null;
     if(sql.includes("FROM users WHERE id=? AND system_role='admin'"))return null;
     if(sql.includes("SELECT role FROM group_memberships")&&values[0]==="member"&&values[1]==="g1")return {role:"member"};
     if(sql.includes("FROM sessions WHERE group_id=? AND status='active'")){

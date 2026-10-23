@@ -1,5 +1,5 @@
 import { requestCorrelationId, writeAuditLog } from "../audit";
-interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
+interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; AUTH_LEGACY_SESSION_ACCEPT_UNTIL?: string; }
 type LineToken={id_token?:string};
 type LineIdentity={sub?:string;name?:string};
 type LineError={error?:string;error_description?:string};
@@ -19,7 +19,20 @@ const safeEqual=(a:string,b:string)=>{if(a.length!==b.length)return false;let x=
 export const AUTH_SESSION_TTL_SECONDS=24*60*60;
 export const AUTH_SESSION_RENEW_WINDOW_SECONDS=12*60*60;
 const sessionCookieValue=(value:string,maxAge=AUTH_SESSION_TTL_SECONDS)=>`mahjong_session=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
-const makeSession=async(userId:string,secret:string,nowSeconds=Math.floor(Date.now()/1000))=>{const payload=base64url(enc.encode(JSON.stringify({userId,exp:nowSeconds+AUTH_SESSION_TTL_SECONDS})));return payload+"."+await sign(payload,secret);};
+const makeSession=async(userId:string,secret:string,authVersion:number,nowSeconds=Math.floor(Date.now()/1000))=>{
+  const payload=base64url(enc.encode(JSON.stringify({userId,exp:nowSeconds+AUTH_SESSION_TTL_SECONDS,authVersion})));
+  return payload+"."+await sign(payload,secret);
+};
+const revokedCookie="mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+// Authentication store outages are NOT session expiry. Never revoke a Cookie on a 503.
+export const authStoreUnavailableResponse=()=>new Response(JSON.stringify({error:{code:"auth_service_unavailable",message:"Authentication is temporarily unavailable"}}),{
+  status:503,
+  headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","retry-after":"30"},
+});
+const userAuthVersion=async(env:AuthEnv,userId:string)=>{
+  const user=await env.DB.prepare("SELECT id,auth_version AS authVersion FROM users WHERE id=?").bind(userId).first<{id:string;authVersion:number}>();
+  return user&&Number.isSafeInteger(user.authVersion)&&user.authVersion>=0?user.authVersion:null;
+};
 const lineFailure=async(request:Request,response:Response,stage:string,oauthFlowId?:string)=>{let details:LineError={};try{details=await response.json() as LineError;}catch{details={};}auditAuth(request,"line_login_failure","failure",{reason:stage,oauthFlowId});return new Response(JSON.stringify({error:{code:"line_"+stage+"_failed",message:details.error_description??details.error??"LINE request failed",lineStatus:response.status}}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});};
 
 const activeInvitation=async(env:AuthEnv,token:string)=>{
@@ -46,7 +59,7 @@ export const redeemInvitationById=async(env:AuthEnv,invitationId:string,userId:s
   }catch{return "conflict";}
 };
 
-type SessionResolution={userId:string|null;expiresAt:number|null;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"valid"};
+type SessionResolution={userId:string|null;expiresAt:number|null;authVersion?:number;wasLegacy?:boolean;status:"secret_missing"|"cookie_missing"|"malformed"|"bad_signature"|"invalid_payload"|"expired"|"legacy_cutoff"|"version_mismatch"|"user_missing"|"valid"};
 const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolution>=>{
   if(!env.AUTH_SESSION_SECRET)return {userId:null,expiresAt:null,status:"secret_missing"};
   const raw=cookie(request,"mahjong_session");
@@ -54,13 +67,30 @@ const resolveSession=async(request:Request,env:AuthEnv):Promise<SessionResolutio
   const [payload,sig,...extra]=raw.split(".");
   if(!payload||!sig||extra.length)return {userId:null,expiresAt:null,status:"malformed"};
   if(!safeEqual(await sign(payload,env.AUTH_SESSION_SECRET),sig))return {userId:null,expiresAt:null,status:"bad_signature"};
+  let data:{userId?:unknown;exp?:unknown;authVersion?:unknown};
   try{
     const padded=payload.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(payload.length/4)*4,"=");
-    const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0)))) as {userId?:string;exp?:number};
-    if(!data.userId||!data.exp)return {userId:null,expiresAt:null,status:"invalid_payload"};
-    if(data.exp<=Math.floor(Date.now()/1000))return {userId:null,expiresAt:data.exp,status:"expired"};
-    return {userId:data.userId,expiresAt:data.exp,status:"valid"};
+    data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded),c=>c.charCodeAt(0))));
   }catch{return {userId:null,expiresAt:null,status:"invalid_payload"};}
+    if(!data||typeof data!=="object"||Array.isArray(data))return {userId:null,expiresAt:null,status:"invalid_payload"};
+    if(typeof data.userId!=="string"||!data.userId||typeof data.exp!=="number"||!Number.isSafeInteger(data.exp))return {userId:null,expiresAt:null,status:"invalid_payload"};
+    const nowSeconds=Math.floor(Date.now()/1000);
+    if(data.exp<=nowSeconds)return {userId:null,expiresAt:data.exp,status:"expired"};
+    let cookieVersion:number;
+    if(data.authVersion===undefined){
+      // Explicit rollout end must be set before accepting any legacy signed cookie.
+      // Keep the rollout <=24 hours after schema/Worker deployment. No default bypass.
+      const deadline=Number(env.AUTH_LEGACY_SESSION_ACCEPT_UNTIL??"0");
+      if(!Number.isSafeInteger(deadline)||deadline<=nowSeconds||deadline-nowSeconds>AUTH_SESSION_TTL_SECONDS)return {userId:null,expiresAt:data.exp,status:"legacy_cutoff"};
+      cookieVersion=0;
+    }else if(typeof data.authVersion==="number"&&Number.isSafeInteger(data.authVersion)&&data.authVersion>=0){
+      cookieVersion=data.authVersion;
+    }else return {userId:null,expiresAt:data.exp,status:"invalid_payload"};
+    // Fail closed if D1 cannot confirm the User and its current authentication generation.
+    const currentVersion=await userAuthVersion(env,data.userId);
+    if(currentVersion===null)return {userId:null,expiresAt:data.exp,status:"user_missing"};
+    if(currentVersion!==cookieVersion)return {userId:null,expiresAt:data.exp,status:"version_mismatch"};
+    return {userId:data.userId,expiresAt:data.exp,authVersion:currentVersion,wasLegacy:data.authVersion===undefined,status:"valid"};
 };
 
 const duplicateCallbackWaitPage=()=>new Response("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"1;url=/\"><title>三麻スコア</title></head><body><p>ログインを完了しています…</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","referrer-policy":"no-referrer"}});
@@ -148,7 +178,9 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   }
 
   const inviteResult=loginState.invitationId?await redeemInvitationById(env,loginState.invitationId,row.userId):null;
-  const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET);
+  const currentVersion=await userAuthVersion(env,row.userId);
+  if(currentVersion===null)return new Response("User is not available",{status:503});
+  const session=await makeSession(row.userId,env.AUTH_SESSION_SECRET,currentVersion);
   const destination=new URL("/",url.origin);
   destination.searchParams.set("login","success");
   if(inviteResult)destination.searchParams.set("invite",inviteResult);
@@ -156,31 +188,39 @@ export const finishLineLogin=async(request:Request,env:AuthEnv)=>{
   return new Response(null,{status:302,headers:{location:destination.toString(),"set-cookie":sessionCookieValue(session)}});
 };
 
-export const authMe=async(request:Request,env:AuthEnv)=>{
+const authMeUnchecked=async(request:Request,env:AuthEnv)=>{
   const session=await resolveSession(request,env),userId=session.userId;
   if(!userId){
     auditAuth(request,"auth_session_resolved","failure",{resourceType:"authentication",reason:"session_"+session.status});
-    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});
+    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8",...(session.status!=="cookie_missing"&&session.status!=="secret_missing"?{"set-cookie":revokedCookie}:{})}});
   }
   const user=await env.DB.prepare("SELECT id,display_name AS displayName,system_role AS systemRole FROM users WHERE id=?").bind(userId).first();
   if(!user){
     auditAuth(request,"auth_session_resolved","failure",{userId,resourceType:"authentication",reason:"session_user_missing"});
-    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8","set-cookie":"mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}});
+    return new Response(JSON.stringify({authenticated:false}),{status:401,headers:{"content-type":"application/json; charset=utf-8","set-cookie":revokedCookie}});
   }
   const memberships=await env.DB.prepare("SELECT gm.group_id AS groupId,g.name AS groupName,gm.role,gp.player_id AS playerId,p.display_name AS playerDisplayName FROM group_memberships gm JOIN groups g ON g.id=gm.group_id LEFT JOIN group_players gp ON gp.group_id=gm.group_id AND gp.user_id=gm.user_id LEFT JOIN players p ON p.id=gp.player_id WHERE gm.user_id=? ORDER BY gm.created_at,gm.group_id").bind(userId).all();
   auditAuth(request,"auth_session_resolved","success",{userId,resourceType:"authentication",reason:"membership_count="+memberships.results.length});
   const anyAdmin=await env.DB.prepare("SELECT 1 AS ok FROM users WHERE system_role='admin' LIMIT 1").first();
   const headers=new Headers({"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
   const nowSeconds=Math.floor(Date.now()/1000);
-  if(session.expiresAt!==null&&session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS&&env.AUTH_SESSION_SECRET){
-    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,nowSeconds);
+  if(session.expiresAt!==null&&(session.wasLegacy===true||session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS)&&env.AUTH_SESSION_SECRET){
+    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,session.authVersion!,nowSeconds);
     headers.set("set-cookie",sessionCookieValue(renewed));
-    auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:"sliding_expiration"});
+    auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:session.wasLegacy?"legacy_cookie_upgrade":"sliding_expiration"});
   }
   return new Response(JSON.stringify({authenticated:true,user,memberships:memberships.results,canBootstrapAdmin:!anyAdmin}),{headers});
 };
 
-export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
+export const authMe=async(request:Request,env:AuthEnv)=>{
+  try{return await authMeUnchecked(request,env);}
+  catch{
+    auditAuth(request,"authentication_service_unavailable","failure",{resourceType:"authentication",reason:"auth_store_read_failed"});
+    return authStoreUnavailableResponse();
+  }
+};
+
+const bootstrapAdminUnchecked=async(request:Request,env:AuthEnv)=>{
   const userId=await authenticatedUserId(request,env);
   if(!userId){auditAuth(request,"authentication_failure","failure",{reason:"bootstrap_admin_without_session"});return new Response(JSON.stringify({error:{code:"unauthorized",message:"Authentication required"}}),{status:401,headers:{"content-type":"application/json; charset=utf-8"}});}
   const current=await env.DB.prepare("SELECT system_role AS systemRole FROM users WHERE id=?").bind(userId).first<{systemRole:"admin"|"user"}>();
@@ -192,4 +232,12 @@ export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
   return authMe(request,env);
 };
 
-export const logout=()=>new Response(null,{status:204,headers:{"set-cookie":"mahjong_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}});
+export const bootstrapAdmin=async(request:Request,env:AuthEnv)=>{
+  try{return await bootstrapAdminUnchecked(request,env);}
+  catch{
+    auditAuth(request,"authentication_service_unavailable","failure",{resourceType:"authentication",reason:"auth_store_read_failed"});
+    return authStoreUnavailableResponse();
+  }
+};
+
+export const logout=()=>new Response(null,{status:204,headers:{"set-cookie":revokedCookie}});

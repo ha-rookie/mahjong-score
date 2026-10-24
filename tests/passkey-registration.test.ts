@@ -149,3 +149,20 @@ test("S2-B fresh identity can be checked without creating a challenge",()=>{
     sessionUserId:"same-user",lineIdentity:{reauthenticatedUserId:"same-user",authenticationTimeSeconds:seconds-302}
   },seconds),/Recent explicit/);
 });
+
+test("S2-B Preview registration keeps challenge stored under Preview RP and never Production RP",async()=>{
+  const fake=new FakeD1();
+  const previewConfig={
+    PASSKEY_AUTH_ENVIRONMENT:"isolated-preview",
+    PASSKEY_PREVIEW_ORIGIN:"https://s2b-preview.ha-rookie.workers.dev",
+    LINE_CHANNEL_ID:"9876543210",
+    LINE_CHANNEL_SECRET:"test-preview-secret",
+  };
+  const output=await beginExistingUserPasskeyRegistration(db(fake),withIdentity(),now,previewConfig);
+  const row=fake.rows.get(output.flowId);
+  assert.equal(output.options.rp.id,"s2b-preview.ha-rookie.workers.dev");
+  assert.equal(row?.expectedOrigin,"https://s2b-preview.ha-rookie.workers.dev");
+  assert.equal(row?.rpId,"s2b-preview.ha-rookie.workers.dev");
+  assert.notEqual(row?.rpId,PASSKEY_PRODUCTION_RP_ID);
+  assert.equal(fake.credentials.length,0);
+});

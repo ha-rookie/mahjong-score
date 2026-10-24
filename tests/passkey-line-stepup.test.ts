@@ -164,6 +164,8 @@ test("S2-B older authentication, auto login or wrong nonce never supplies proof"
   for(const bad of [
     {auth_time:Math.floor(current.getTime()/1000)-301},
     {amr:["lineautologin"]},
+    {amr:[]},
+    {amr:["unknown"]},
     {nonce:"wrong-nonce"},
     {aud:"another-channel"},
   ]){
@@ -173,6 +175,16 @@ test("S2-B older authentication, auto login or wrong nonce never supplies proof"
     assert.equal(fake.rows[0].proofHash,null);
   }
 });
+test("S2-B accepted documented interactive amr does not weaken signed same-user verification",async()=>{
+  for(const method of ["pwd","lineqr","linesso","mfa"]){
+    const fake=new FakeD1(),url=await begin(fake);
+    const proof=await finishPasskeyLineStepUp(env(fake),url.searchParams.get("state")!,"code",
+      "user-1","signed.session.cookie",current,provider(fake.rows[0].nonce,{amr:[method]}));
+    assert.equal(proof.userId,"user-1");
+    assert.ok(proof.proofToken);
+  }
+});
+
 test("S2-B callback expires and proof expires; D1 outage cannot issue new state",async()=>{
   const fake=new FakeD1(),url=await begin(fake);
   const later=new Date(current.getTime()+600_000);

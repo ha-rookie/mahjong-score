@@ -6,3 +6,5 @@ dist
 .env*
 !.env.example
 .DS_Store
+# Generated from separately approved Preview Worker/D1/LINE values; never commit live manifest
+wrangler.passkey-isolated.jsonc

@@ -16,9 +16,11 @@ const signedCookie=async(userId="user-1")=>{
 class FakeDb{
   readonly prepared:string[]=[];
   stepups=0;
+  proofAvailable=false;
   prepare(sql:string){
     this.prepared.push(sql);
     const inc=()=>{this.stepups++;};
+    const hasProof=()=>this.proofAvailable;
     let args:unknown[]=[];
     return {
       bind(...values:unknown[]){args=values;return this;},
@@ -29,6 +31,9 @@ class FakeDb{
           return {ok:1} as T;
         if(sql.includes("SELECT COUNT(*) AS total FROM passkey_line_stepups"))
           return {total:0} as T;
+        if(sql.startsWith("SELECT user_id AS userId,reauth_at AS reauthAt")){
+          return hasProof()?{userId:args[1],reauthAt:new Date().toISOString()} as T:null;
+        }
         return null;
       },
       async run(){if(sql.startsWith("INSERT INTO passkey_line_stepups")){inc();return{meta:{changes:1}};}
@@ -120,4 +125,26 @@ test("S2-B read-only capability is disabled unless server explicitly enables it"
   assert.equal(write.status,405);
   assert.equal(db.stepups,0);
   assert.deepEqual(db.prepared,[]);
+});
+
+test("S2-B proof status GET verifies same-session HttpOnly proof, not a URL marker",async()=>{
+  const db=new FakeDb();
+  const noProof=await req("/api/auth/passkey/stepup/status",db,true,{method:"GET"});
+  assert.equal(noProof.status,200);
+  assert.deepEqual(await noProof.json(),{verified:false});
+  db.proofAvailable=true;
+  // A browser cannot read HttpOnly, but it automatically sends the cookie.
+  const cookie=await signedCookie()+"; mahjong_passkey_stepup="+"A".repeat(43);
+  const hasProof=await req("/api/auth/passkey/stepup/status",db,true,{method:"GET",cookie});
+  assert.equal(hasProof.status,200);
+  assert.deepEqual(await hasProof.json(),{verified:true});
+  assert.equal(hasProof.headers.get("cache-control"),"no-store");
+  assert.equal(hasProof.headers.get("set-cookie"),null);
+  const signedOut=await req("/api/auth/passkey/stepup/status",db,true,{method:"GET",cookie:null});
+  assert.equal(signedOut.status,401);
+  const postStatus=await req("/api/auth/passkey/stepup/status",db,true,{method:"POST",origin:host,json:true,cookie});
+  assert.equal(postStatus.status,405);
+  const disabled=await req("/api/auth/passkey/stepup/status",db,false,{method:"GET",cookie});
+  assert.equal(disabled.status,404);
+  assert.equal(db.stepups,0);
 });

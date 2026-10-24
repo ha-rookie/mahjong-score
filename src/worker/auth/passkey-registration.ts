@@ -7,6 +7,11 @@
  * Neither a normal 24h session nor cookie sliding renewal proves freshness.
  */
 import { generateRegistrationOptions, verifyRegistrationResponse } from "@simplewebauthn/server";
+import {
+  resolvePasskeyRelyingParty,
+  type PasskeyRelyingPartyEnv,
+} from "./passkey-rp-config";
+export { PASSKEY_PRODUCTION_ORIGIN, PASSKEY_PRODUCTION_RP_ID } from "./passkey-rp-config";
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import {
   hashPasskeyChallenge,
@@ -29,19 +34,16 @@ export type ExistingUserContext = {
 };
 
 export const PASSKEY_STEP_UP_MAX_AGE_SECONDS = 300;
-export const PASSKEY_PRODUCTION_ORIGIN = "https://mahjong-score.ha-rookie.workers.dev";
-export const PASSKEY_PRODUCTION_RP_ID = "mahjong-score.ha-rookie.workers.dev";
-
-const decoder = (text: string): Uint8Array =>
+ const decoder = (text: string): Uint8Array =>
   Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=")), char => char.charCodeAt(0));
 const as64 = (bytes: Uint8Array): string =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const canonicalCredentialId = (id: string) =>
   /^[A-Za-z0-9_-]{1,2048}$/.test(id) && id.length % 4 !== 1 &&
     as64(decoder(id)) === id;
-const scope = (userId: string): ChallengeScope => ({
+const scope = (userId: string, rp=resolvePasskeyRelyingParty({})): ChallengeScope => ({
   purpose: "register_user", userId, invitationId: null,
-  expectedOrigin: PASSKEY_PRODUCTION_ORIGIN, rpId: PASSKEY_PRODUCTION_RP_ID,
+  expectedOrigin: rp.origin, rpId: rp.rpId,
 });
 
 export const assertRecentLineReauthentication = (
@@ -61,7 +63,9 @@ export const assertRecentLineReauthentication = (
 export const beginExistingUserPasskeyRegistration = async (
   db: D1Database, context: ExistingUserContext,
   now = new Date(),
+  authConfig:PasskeyRelyingPartyEnv = {},
 ) => {
+  const rp=resolvePasskeyRelyingParty(authConfig);
   assertRecentLineReauthentication(context, Math.floor(now.getTime() / 1000));
   const userId = context.sessionUserId;
   const user = await db.prepare("SELECT id FROM users WHERE id=?")
@@ -78,10 +82,10 @@ export const beginExistingUserPasskeyRegistration = async (
 
   // The binary stable user handle deliberately does not disclose the D1 User ID.
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("sanma:user:" + userId));
-  const challenge = await issuePasskeyChallenge(db, scope(userId), now);
+  const challenge = await issuePasskeyChallenge(db, scope(userId,rp), now);
   const options = await generateRegistrationOptions({
     rpName: "三麻スコア",
-    rpID: PASSKEY_PRODUCTION_RP_ID,
+    rpID: rp.rpId,
     userName: "sanma-" + as64(new Uint8Array(digest)).slice(0, 16),
     userID: new Uint8Array(digest),
     challenge: new Uint8Array(decoder(challenge.challenge)), // pass ArrayBuffer-backed BYTES, not UTF8 of base64url
@@ -105,7 +109,9 @@ export const finishExistingUserPasskeyRegistration = async (
   flowId: string,
   response: RegistrationResponseJSON,
   now = new Date(),
+  authConfig:PasskeyRelyingPartyEnv = {},
 ): Promise<{ credentialId: string }> => {
+  const rp=resolvePasskeyRelyingParty(authConfig);
   assertRecentLineReauthentication(context, Math.floor(now.getTime() / 1000));
   if (typeof flowId !== "string" || !/^[0-9a-f-]{36}$/.test(flowId)) {
     throw new Error("Invalid passkey flow identifier");
@@ -113,7 +119,7 @@ export const finishExistingUserPasskeyRegistration = async (
   if (!response || typeof response !== "object" || typeof response.id !== "string" ||
       !canonicalCredentialId(response.id)) throw new Error("Invalid registration response");
 
-  const binding = scope(context.sessionUserId);
+  const binding = scope(context.sessionUserId,rp);
   const pending = await readPasskeyChallenge(db, flowId, binding, now);
   if (!pending) throw new Error("Registration challenge missing or expired");
 

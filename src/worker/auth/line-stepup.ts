@@ -125,8 +125,12 @@ export const finishPasskeyLineStepUp = async (
       identity.auth_time>nowSec+30 ||
       nowSec-identity.auth_time>STEPUP_PROOF_TTL_SECONDS ||
       !Number.isFinite(createdSec) || identity.auth_time < createdSec-30 ||
-      !Array.isArray(identity.amr) ||
-      identity.amr.includes("lineautologin")) {
+      // LINE documents that amr can be absent. Until a real provider
+      // integration is reviewed, fail closed rather than infer user presence.
+      // Reject empty, auto-login and unknown authentication methods.
+      !Array.isArray(identity.amr) || identity.amr.length===0 ||
+      identity.amr.some(method=>typeof method!=="string" ||
+        !["pwd","lineqr","linesso","mfa"].includes(method))) {
     throw new Error("LINE step-up freshness or token claims invalid");
   }
   const linked=await env.DB.prepare(

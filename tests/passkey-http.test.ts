@@ -49,7 +49,10 @@ const makeEnv=(db:FakeDb,enabled:boolean)=>({
   AUTH_SESSION_SECRET:sessionSecret,
   LINE_CHANNEL_ID:"12345678",
   LINE_CHANNEL_SECRET:"test-line-secret",
-  ...(enabled?{PASSKEY_REGISTRATION_ENABLED:"true"}:{}),
+  ...(enabled?{
+    PASSKEY_AUTH_ENVIRONMENT:"production",
+    PASSKEY_REGISTRATION_ENABLED:"true",
+  }:{}),
 });
 const req=async(path:string,db:FakeDb,enabled:boolean,options:{
   method?:string;origin?:string;cookie?:string|null;json?:boolean;
@@ -147,4 +150,30 @@ test("S2-B proof status GET verifies same-session HttpOnly proof, not a URL mark
   const disabled=await req("/api/auth/passkey/stepup/status",db,false,{method:"GET",cookie});
   assert.equal(disabled.status,404);
   assert.equal(db.stepups,0);
+});
+
+test("S2-B Preview capability rejects Production channel and mismatched origin before D1 access",async()=>{
+  const db=new FakeDb(),previewOrigin="https://s2b-preview.ha-rookie.workers.dev";
+  const previewEnv={
+    ...makeEnv(db,true),
+    PASSKEY_AUTH_ENVIRONMENT:"isolated-preview",
+    PASSKEY_PREVIEW_ORIGIN:previewOrigin,
+    LINE_CHANNEL_ID:"9876543210",
+  };
+  const fetchAt=(url:string,env:typeof previewEnv)=>worker.fetch(
+    new Request(url,{method:"GET"}),env);
+  const allowed=await fetchAt(previewOrigin+"/api/auth/passkey/capabilities",previewEnv);
+  assert.equal(allowed.status,200);
+  assert.deepEqual(await allowed.json(),{registrationEnabled:true});
+  const other=await fetchAt(host+"/api/auth/passkey/capabilities",previewEnv);
+  assert.deepEqual(await other.json(),{registrationEnabled:false});
+  const contaminated=await fetchAt(previewOrigin+"/api/auth/passkey/capabilities",{
+    ...previewEnv,LINE_CHANNEL_ID:"2011726648",
+  });
+  assert.deepEqual(await contaminated.json(),{registrationEnabled:false});
+  const missingMode=await fetchAt(previewOrigin+"/api/auth/passkey/capabilities",{
+    ...previewEnv,PASSKEY_AUTH_ENVIRONMENT:""
+  });
+  assert.deepEqual(await missingMode.json(),{registrationEnabled:false});
+  assert.deepEqual(db.prepared,[]);
 });

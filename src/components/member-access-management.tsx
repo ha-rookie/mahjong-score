@@ -31,6 +31,7 @@ type InvitationResult = {
   playerDisplayName:string;
   inviteUrl:string;
   expiresAt:string;
+  recovery?:boolean;
 };
 
 interface Props {
@@ -97,6 +98,25 @@ export function MemberAccessManagement({group,players}:Props){
       setInvite(payload.invitation);
       setNotice(`${player.displayName}さん用の招待URLを発行しました。`);
     }catch{setError("招待URLを発行できませんでした。");}
+    setBusyPlayerId(null);
+  };
+
+  const createRecovery=async(player:Player,userId:string)=>{
+    if(!window.confirm(`${player.displayName}さんの既存Userにパスキーを追加する復旧リンクを発行します。本人確認が済んでいることを確認してください。今までのUser・Player・成績は変更しません。発行しますか？`))return;
+    setBusyPlayerId(player.id);setInvite(null);setNotice(null);setError(null);
+    try{
+      const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/players/${encodeURIComponent(player.id)}/passkey-recovery`,{
+        method:"POST",headers:{"content-type":"application/json"},credentials:"same-origin",
+        body:JSON.stringify({expectedUserId:userId}),
+      });
+      const payload=await response.json() as {recovery?:{
+        playerId:string;groupId:string;recoveryUrl:string;expiresAt:string;
+      };error?:{message?:string}};
+      if(!response.ok||!payload.recovery)throw new Error(payload.error?.message??"recovery");
+      setInvite({id:"",playerId:player.id,playerDisplayName:player.displayName,
+        inviteUrl:payload.recovery.recoveryUrl,expiresAt:payload.recovery.expiresAt,recovery:true});
+      setNotice(`${player.displayName}さんの元のUserに登録する復旧URLを発行しました。本人へ直接伝えてください。`);
+    }catch{setError("復旧URLを発行できませんでした。User・Playerの紐付けをご確認ください。");}
     setBusyPlayerId(null);
   };
 
@@ -174,6 +194,7 @@ export function MemberAccessManagement({group,players}:Props){
           <div className="member-access-row__actions">
             {canInvite&&!userId?<button className="member-invite-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void createInvite(player)}>{busyPlayerId===player.id?"発行中…":"招待URLを発行"}</button>:null}
             {isSystemAdmin&&!userId?<button className="member-link-button" type="button" disabled={busyPlayerId!==null} onClick={()=>{setLinkingPlayerId(linkingPlayerId===player.id?null:player.id);setSelectedUserId("");}}>既存User</button>:null}
+            {isSystemAdmin&&userId&&users.find(x=>x.id===userId)?.systemRole!=="admin"?<button className="member-invite-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void createRecovery(player,userId)}>パスキー復旧</button>:null}
             {isSystemAdmin&&userId?<select className="member-role-select" aria-label={`${player.displayName}の権限`} value={role} disabled={busyPlayerId!==null} onChange={e=>void changeRole(player,e.target.value as GroupRole)}><option value="member">Member</option><option value="group_admin">Group Admin</option></select>:null}
             {isSystemAdmin&&userId?<button className="member-unlink-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void unlinkPlayer(player)}>{busyPlayerId===player.id?"解除中…":"連携解除"}</button>:null}
           </div>
@@ -191,7 +212,7 @@ export function MemberAccessManagement({group,players}:Props){
     </ul>
 
     {invite?<div className="member-invite-result">
-      <div><strong>{invite.playerDisplayName}さん用</strong><span>7日間有効・1回限り</span></div>
+      <div><strong>{invite.playerDisplayName}さん用</strong><span>{invite.recovery?"24時間有効・1回限り（既存Userの復旧）":"7日間有効・1回限り"}</span></div>
       <textarea readOnly value={invite.inviteUrl} aria-label="招待URL"/>
       <button type="button" onClick={()=>void copyInvite()}>URLをコピー</button>
     </div>:null}

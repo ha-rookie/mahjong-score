@@ -18,6 +18,7 @@ class FakeD1 {
   scoreFingerprint="1999|old-p|+150";
   writes:string[]=[];
   prepare(sql:string){
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self=this;
     let args:unknown[]=[];
     return{

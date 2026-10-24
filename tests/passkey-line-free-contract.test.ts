@@ -18,6 +18,7 @@ class FakeDb{
   prepare(sql:string){
     this.calls.push(sql);
     let args:unknown[]=[];
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const parent=this;
     return{
       bind(...v:unknown[]){args=v;return this;},

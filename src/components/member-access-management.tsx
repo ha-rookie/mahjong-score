@@ -68,7 +68,7 @@ export function MemberAccessManagement({group,players}:Props){
           setUsers(payload.users);
         }else setUsers([]);
       }else setUsers([]);
-    }catch{setError("メンバーのLINE連携状態を読み込めませんでした。");}
+    }catch{setError("メンバーのユーザー連携状態を読み込めませんでした。");}
   };
 
   useEffect(()=>{void load();},[group.id]);
@@ -101,15 +101,15 @@ export function MemberAccessManagement({group,players}:Props){
   };
 
   const unlinkPlayer=async(player:Player)=>{
-    if(!window.confirm(`${player.displayName}さんのLINE連携を解除しますか？一般メンバーの場合は、このグループへの参加も解除されます。`))return;
+    if(!window.confirm(`${player.displayName}さんのユーザー連携を解除しますか？一般メンバーの場合は、このグループへの参加も解除されます。`))return;
     setBusyPlayerId(player.id);setInvite(null);setNotice(null);setError(null);
     try{
       const response=await fetch(`/api/admin/groups/${encodeURIComponent(group.id)}/players/${encodeURIComponent(player.id)}/link?expectedUserId=${encodeURIComponent(cloudPlayer(player.id)?.userId??"")}`,{method:"DELETE",credentials:"same-origin"});
       const payload=await response.json() as {ok?:boolean;error?:{message?:string}};
       if(!response.ok||!payload.ok){if(response.status===409){await load();setError("他の端末で連携状態が更新されました。最新状態を確認して再操作してください。");setBusyPlayerId(null);return;}throw new Error(payload.error?.message??"unlink");}
-      setNotice(`${player.displayName}さんのLINE連携を解除しました。`);
+      setNotice(`${player.displayName}さんのユーザー連携を解除しました。`);
       await load();
-    }catch{setError("LINE連携を解除できませんでした。");}
+    }catch{setError("ユーザー連携を解除できませんでした。");}
     setBusyPlayerId(null);
   };
 
@@ -165,14 +165,14 @@ export function MemberAccessManagement({group,players}:Props){
           <div className="member-access-list__identity">
             <strong>{player.displayName}</strong>
             <div className="member-access__states">
-              <span className={userId?"member-link-state member-link-state--linked":"member-link-state"}>{userId?"LINE連携済み":"未連携"}</span>
+              <span className={userId?"member-link-state member-link-state--linked":"member-link-state"}>{userId?"ユーザー連携済み":"未連携"}</span>
               {userId&&cp?.linkedUserDisplayName?<span className="member-linked-user">{cp.linkedUserDisplayName}</span>:null}
               {userId&&role==="group_admin"?<span className="member-role-state">Group Admin</span>:null}
             </div>
           </div>
 
           <div className="member-access-row__actions">
-            {canInvite&&!userId?<button className="member-invite-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void createInvite(player)}>{busyPlayerId===player.id?"発行中…":"LINEで招待"}</button>:null}
+            {canInvite&&!userId?<button className="member-invite-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void createInvite(player)}>{busyPlayerId===player.id?"発行中…":"招待URLを発行"}</button>:null}
             {isSystemAdmin&&!userId?<button className="member-link-button" type="button" disabled={busyPlayerId!==null} onClick={()=>{setLinkingPlayerId(linkingPlayerId===player.id?null:player.id);setSelectedUserId("");}}>既存User</button>:null}
             {isSystemAdmin&&userId?<select className="member-role-select" aria-label={`${player.displayName}の権限`} value={role} disabled={busyPlayerId!==null} onChange={e=>void changeRole(player,e.target.value as GroupRole)}><option value="member">Member</option><option value="group_admin">Group Admin</option></select>:null}
             {isSystemAdmin&&userId?<button className="member-unlink-button" type="button" disabled={busyPlayerId!==null} onClick={()=>void unlinkPlayer(player)}>{busyPlayerId===player.id?"解除中…":"連携解除"}</button>:null}

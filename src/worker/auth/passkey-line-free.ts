@@ -160,7 +160,7 @@ export const finishPasskeyLogin=async(
     credential:{
       id:row.credentialId,publicKey:new Uint8Array(row.publicKey),
       counter:row.signCount,
-      transports:row.transports?JSON.parse(row.transports) as AuthenticatorTransportFuture[]:[],
+      transports:row.transports?JSON.parse(row.transports) as AuthenticatorTransport[]:[],
     },
     requireUserVerification:true,
   });

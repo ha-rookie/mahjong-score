@@ -51,7 +51,7 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
         if(typeof b.token!=="string"||typeof b.flowId!=="string"||!asObject(b.credential))
           return fail("invalid_registration",400);
         const result=await finishInvitePasskey(env.DB,b.token,b.flowId,
-          b.credential as RegistrationResponseJSON);
+          b.credential as unknown as RegistrationResponseJSON);
         return json({registered:true,playerId:result.playerId,groupId:result.groupId},201,
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,result.userId));
       }
@@ -61,7 +61,7 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
         if(typeof b.flowId!=="string"||!asObject(b.credential))
           return fail("invalid_authentication",400);
         const result=await finishPasskeyLogin(env.DB,b.flowId,
-          b.credential as AuthenticationResponseJSON);
+          b.credential as unknown as AuthenticationResponseJSON);
         return json({authenticated:true},200,
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,result.userId));
       }

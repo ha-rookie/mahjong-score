@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PasskeyEnrollment } from "./passkey-enrollment";
 
 type Membership = {
   groupId: string;
@@ -103,6 +104,7 @@ export function AuthStatus() {
         </div>
         {auth.canBootstrapAdmin?<button type="button" disabled={busy} onClick={()=>void bootstrap()}>初期管理者に設定</button>:null}
         {auth.user.systemRole==="admin"&&hasLegacyData?<button type="button" disabled={busy} onClick={()=>void migrateToD1()}>D1へ移行</button>:null}
+        <PasskeyEnrollment />
         <button type="button" disabled={busy} onClick={()=>void logout()}>ログアウト</button>
         {error?<span className="auth-status__error">{error}</span>:null}
       </div>

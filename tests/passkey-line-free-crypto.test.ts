@@ -171,7 +171,7 @@ class FakeD1{
              this.memberUser!==userId||this.targetUser!==userId||
              this.credentials.has(id))throw new Error("Atomic enrollment guard violation");
           this.credentials.set(id,{id:String(values[0]),userId,credentialId:id,
-            publicKey:values[3] as Uint8Array,signCount:Number(values[14]),revoked:false});
+            publicKey:values[3] as Uint8Array,signCount:Number(values[13]),revoked:false});
           result.push({meta:{changes:1}});
         }else throw new Error("unknown batch SQL");
       }

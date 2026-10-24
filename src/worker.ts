@@ -3,6 +3,7 @@ import { validateAppDataSchema } from "./infrastructure/storage/app-data-schema"
 import { authMe, authenticatedUserId, authStoreUnavailableResponse, bootstrapAdmin, finishLineLogin, logout, startLineLogin } from "./worker/auth/line-login";
 import { requestCorrelationId, writeAuditLog } from "./worker/audit";
 import { handleLineFreePasskey } from "./worker/auth/passkey-line-free-http";
+import {createPasskeyRecoveryGrant} from "./worker/auth/passkey-recovery";
 interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
 const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data),{...init,headers:{"content-type":"application/json; charset=utf-8",...init.headers}});
 const bad=(code:string,message:string,status=400)=>json({error:{code,message}},{status});
@@ -203,6 +204,24 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
      if((rs[0]?.meta.changes??0)!==1)return bad("stale_update","Player link was updated by another client",409);
      auditSuccess("player_user_unlinked",{groupId,resourceType:"player",resourceId:playerId});return json({ok:true,userId});
    }catch{return bad("player_unlink_failed","Player link could not be removed",409);}
+ }
+ // System administrator must choose the EXACT existing Group/Player/User.
+ // No new User or unlink action is allowed on this path.
+ const recovery=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)\/players\/([^/]+)\/passkey-recovery$/);
+ if(request.method==="POST"&&recovery){
+   if(!await isSystemAdmin(env,authUserId))return deny("System admin required for existing User recovery");
+   if(request.headers.get("origin")!==url.origin||
+      request.headers.get("sec-fetch-site")==="cross-site")
+     return bad("origin_denied","Same-origin request required",403);
+   const groupId=decodeURIComponent(recovery[1]),playerId=decodeURIComponent(recovery[2]);
+   const b=await body(request),expectedUserId=textValue(b?.expectedUserId);
+   if(!expectedUserId)return bad("invalid_recovery_target","Existing User selection is required");
+   try{
+     const grant=await createPasskeyRecoveryGrant(env.DB,authUserId,groupId,playerId,expectedUserId);
+     const recoveryUrl=new URL("/",url.origin);recoveryUrl.searchParams.set("recover",grant.token);
+     auditSuccess("passkey_recovery_link_created",{groupId,resourceType:"player",resourceId:playerId});
+     return json({recovery:{playerId,groupId,recoveryUrl:recoveryUrl.toString(),expiresAt:grant.expiresAt}},{status:201,headers:{"cache-control":"no-store"}});
+   }catch{return bad("recovery_not_available","Linked User/Player was changed or recovery is unavailable",409);}
  }
  const playerInvites=url.pathname.match(/^\/api\/groups\/([^/]+)\/players\/([^/]+)\/invitations$/);
  if(request.method==="POST"&&playerInvites){

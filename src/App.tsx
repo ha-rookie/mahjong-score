@@ -16,6 +16,7 @@ import { calculateSessionResultMetrics } from "./application/use-cases/session-r
 import { createBrowserServices } from "./infrastructure/composition";
 import { Button, Section, TextField } from "./components/ui";
 import { AuthStatus } from "./components/auth-status";
+import { PasskeyGuestAccess } from "./components/passkey-guest-access";
 import { MemberAccessManagement } from "./components/member-access-management";
 import { SessionMemoEditor } from "./components/session-memo-editor";
 import { FinalizedGameCorrection } from "./components/finalized-game-correction";
@@ -313,7 +314,7 @@ function App() {
     </div>:null}
     <main className="page">
       {authState==="checking"?<div className="loading" role="status" aria-live="polite">認証を確認しています…</div>:
-      authState==="unauthenticated"?<section className="login-gate"><p className="screen-eyebrow">WELCOME</p><h1>三麻スコアへログイン</h1><p>このアプリはLINEアカウントで利用者を確認します。招待を受けた方は、届いた招待URLからログインしてください。</p><button className="login-gate__button" type="button" onClick={()=>window.location.assign("/api/auth/line/start")}>LINEでログイン</button><p className="login-gate__note">ログイン前は、端末に残っている過去データやグループ情報を表示しません。</p></section>:
+      authState==="unauthenticated"?<section className="login-gate"><p className="screen-eyebrow">WELCOME</p><h1>三麻スコアへログイン</h1><p>LINEまたはパスキーでログインできます。LINEが使えない方も、招待URLからパスキーを登録して参加できます。</p><button className="login-gate__button" type="button" onClick={()=>{const token=new URL(window.location.href).searchParams.get("invite");const url=new URL("/api/auth/line/start",window.location.origin);if(token&&/^[A-Za-z0-9_-]{43}$/.test(token))url.searchParams.set("invite",token);window.location.assign(url.toString());}}>LINEでログイン</button><PasskeyGuestAccess /><p className="login-gate__note">ログイン前は、端末に残っている過去データやグループ情報を表示しません。</p></section>:
       <>
       {isLoading?<div className="loading">記録を読み込んでいます…</div>:
       view==="results"&&sessionResults?<section className="score-session">

@@ -13,7 +13,7 @@ const concat=(...arrays:Uint8Array[])=>{
   const b=new Uint8Array(arrays.reduce((sum,x)=>sum+x.length,0));
   let i=0;for(const x of arrays){b.set(x,i);i+=x.length;}return b;
 };
-const hash=async(v:Uint8Array)=>new Uint8Array(await crypto.subtle.digest("SHA-256",v));
+const hash=async(v:Uint8Array)=>new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(v)));
 const encodeCBOR=(v:unknown):Uint8Array=>{
   const head=(major:number,n:number):Uint8Array=>{
     if(n<24)return Uint8Array.of(major*32+n);
@@ -73,7 +73,7 @@ const buildAuthenticator=async()=>{
       a,Uint8Array.of(0x02,b.length),b);
     return {id:identity,rawId:identity,type:"public-key",
       response:{clientDataJSON:b64(client),authenticatorData:b64(auth),
-        signature:b64(der),userHandle:null},clientExtensionResults:{}} as AuthenticationResponseJSON;
+        signature:b64(der),userHandle:null},clientExtensionResults:{}} as unknown as AuthenticationResponseJSON;
   };
   return {create,authenticate,identity};
 };

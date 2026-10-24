@@ -5,6 +5,7 @@ import {
   PASSKEY_ORIGIN,
 } from "./passkey-line-free";
 import {issuePasskeySessionCookie} from "./line-login";
+import {beginExistingUserRecovery,finishExistingUserRecovery} from "./passkey-recovery";
 
 type Env={DB:D1Database;AUTH_SESSION_SECRET?:string};
 const routes=new Set([
@@ -12,6 +13,8 @@ const routes=new Set([
   "/api/auth/passkey/invite/verify",
   "/api/auth/passkey/login/options",
   "/api/auth/passkey/login/verify",
+  "/api/auth/passkey/recovery/options",
+  "/api/auth/passkey/recovery/verify",
 ]);
 const json=(value:unknown,status=200,session?:string)=>new Response(JSON.stringify(value),{
   status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store",
@@ -54,6 +57,18 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
           b.credential as unknown as RegistrationResponseJSON);
         return json({registered:true,playerId:result.playerId,groupId:result.groupId},201,
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,result.userId));
+      }
+      case "/api/auth/passkey/recovery/options":{
+        if(typeof b.token!=="string")return fail("invalid_recovery",400);
+        return json(await beginExistingUserRecovery(env.DB,b.token));
+      }
+      case "/api/auth/passkey/recovery/verify":{
+        if(typeof b.token!=="string"||typeof b.flowId!=="string"||!asObject(b.credential))
+          return fail("invalid_recovery",400);
+        const saved=await finishExistingUserRecovery(env.DB,b.token,b.flowId,
+          b.credential as unknown as RegistrationResponseJSON);
+        return json({registered:true,playerId:saved.playerId,groupId:saved.groupId},201,
+          await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,saved.userId));
       }
       case "/api/auth/passkey/login/options":
         return json(await beginPasskeyLogin(env.DB));

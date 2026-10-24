@@ -9,7 +9,7 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { authenticatedUserId, authStoreUnavailableResponse } from "./line-login";
 import {
-  PASSKEY_LINE_STEPUP_ORIGIN, beginPasskeyLineStepUp, consumePasskeyStepUpProof,
+  beginPasskeyLineStepUp, consumePasskeyStepUpProof,
   finishPasskeyLineStepUp, isPasskeyStepUpState, readPasskeyStepUpProof,
 } from "./line-stepup";
 import {
@@ -17,11 +17,13 @@ import {
   finishExistingUserPasskeyRegistration,
 } from "./passkey-registration";
 import { requestCorrelationId, writeAuditLog } from "../audit";
+import {
+  resolvePasskeyRelyingParty, isPasskeyEnrollmentActive,
+  type PasskeyRelyingPartyEnv,
+} from "./passkey-rp-config";
 
-export interface PasskeyHttpEnv {
+export interface PasskeyHttpEnv extends PasskeyRelyingPartyEnv {
   DB:D1Database;
-  LINE_CHANNEL_ID?:string;
-  LINE_CHANNEL_SECRET?:string;
   AUTH_SESSION_SECRET?:string;
   PASSKEY_REGISTRATION_ENABLED?:string;
 }
@@ -55,8 +57,9 @@ const safeJSONBody=async(request:Request):Promise<unknown>=>{
   if(raw.length>24_000)throw new Error("Passkey request too large");
   return JSON.parse(raw) as unknown;
 };
-const sameOrigin=(request:Request)=>request.headers.get("origin")===PASSKEY_LINE_STEPUP_ORIGIN &&
-  new URL(request.url).origin===PASSKEY_LINE_STEPUP_ORIGIN &&
+const sameOrigin=(request:Request,expectedOrigin:string)=>
+  request.headers.get("origin")===expectedOrigin &&
+  new URL(request.url).origin===expectedOrigin &&
   !["cross-site","same-site"].includes(request.headers.get("sec-fetch-site")??"");
 const secureSession=async(request:Request,env:PasskeyHttpEnv)=>{
   const sessionCookie=cookieValue(request,"mahjong_session");
@@ -79,28 +82,29 @@ export const handleS2BPasskeyRequest=async (
   request:Request,env:PasskeyHttpEnv,
 ):Promise<Response|null>=>{
   const url=new URL(request.url);
+  const active=isPasskeyEnrollmentActive(env);
+  const rp=active?resolvePasskeyRelyingParty(env):null;
   // Read-only capability probe. It never exposes private credentials, session
   // tokens or a way to change the server-controlled feature flag.
   if(url.pathname==="/api/auth/passkey/capabilities"){
     if(request.method!=="GET")return error("method_not_allowed",405);
     return reply({
-      registrationEnabled:env.PASSKEY_REGISTRATION_ENABLED==="true" &&
-        url.origin===PASSKEY_LINE_STEPUP_ORIGIN,
+      registrationEnabled:active && url.origin===rp?.origin,
     },200);
   }
   // An unset (or anything other than the exact string "true") flag cannot
   // enable routes, including by accident in a Production deployment.
-  if(env.PASSKEY_REGISTRATION_ENABLED!=="true")return null;
+  if(!active||!rp)return null;
   const isCallback=url.pathname==="/api/auth/line/callback"&&
     isPasskeyStepUpState(url.searchParams.get("state"));
   const isProofStatus=url.pathname==="/api/auth/passkey/stepup/status";
   if(!isCallback&&!paths.has(url.pathname))return null;
 
-  if(url.origin!==PASSKEY_LINE_STEPUP_ORIGIN)return error("invalid_passkey_origin",403);
+  if(url.origin!==rp.origin)return error("invalid_passkey_origin",403);
   // Status is read-only and cannot consume a proof; authenticated Cookie is
   // required later. Every mutating route still requires POST + CSRF Origin.
   if(isProofStatus&&request.method!=="GET")return error("method_not_allowed",405);
-  if(!isCallback&&!isProofStatus && (request.method!=="POST" || !sameOrigin(request))){
+  if(!isCallback&&!isProofStatus && (request.method!=="POST" || !sameOrigin(request,rp.origin))){
     audit(request,"passkey_origin_failure");
     return error("passkey_origin_denied",403);
   }
@@ -127,7 +131,7 @@ export const handleS2BPasskeyRequest=async (
       if(proof.userId!==userId)return error("passkey_line_stepup_invalid",403);
       audit(request,"passkey_stepup_success",userId);
       return new Response(null,{status:302,headers:{
-        "location":PASSKEY_LINE_STEPUP_ORIGIN+"/?passkey_stepup=verified",
+        "location":rp.origin+"/?passkey_stepup=verified",
         "set-cookie":secureProof(proof.proofToken),
         "cache-control":"no-store","referrer-policy":"no-referrer",
       }});
@@ -148,7 +152,7 @@ export const handleS2BPasskeyRequest=async (
     if(url.pathname==="/api/auth/passkey/register/options"){
       const options=await beginExistingUserPasskeyRegistration(env.DB,{
         sessionUserId:userId,lineIdentity:proof.identity,
-      });
+      },new Date(),env);
       return reply(options,200);
     }
     // POST verify: proof is one-shot BEFORE credential insert. Bad response
@@ -163,7 +167,7 @@ export const handleS2BPasskeyRequest=async (
       return error("passkey_recent_line_required",403);
     const result=await finishExistingUserPasskeyRegistration(env.DB,{
       sessionUserId:userId,lineIdentity:proof.identity,
-    },b.flowId,b.credential as RegistrationResponseJSON);
+    },b.flowId,b.credential as RegistrationResponseJSON,new Date(),env);
     audit(request,"passkey_registration_success",userId);
     return new Response(JSON.stringify({registered:true,credentialId:result.credentialId}),{
       status:201,headers:{...noStore,"set-cookie":clearProof},

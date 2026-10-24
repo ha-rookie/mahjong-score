@@ -2,6 +2,7 @@ import { DEFAULT_MAHJONG_RULES, CHIP_COUNT_ABS_MAX, GAME_SCORE_ABS_MAX, GROUP_NA
 import { validateAppDataSchema } from "./infrastructure/storage/app-data-schema";
 import { authMe, authenticatedUserId, authStoreUnavailableResponse, bootstrapAdmin, finishLineLogin, logout, startLineLogin } from "./worker/auth/line-login";
 import { requestCorrelationId, writeAuditLog } from "./worker/audit";
+import { handleLineFreePasskey } from "./worker/auth/passkey-line-free-http";
 interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
 const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data),{...init,headers:{"content-type":"application/json; charset=utf-8",...init.headers}});
 const bad=(code:string,message:string,status=400)=>json({error:{code,message}},{status});
@@ -17,7 +18,7 @@ const canUseGroup=async(env:Env,userId:string,groupId:string)=>await isSystemAdm
 const sessionGroup=async(env:Env,sessionId:string)=>env.DB.prepare("SELECT group_id AS groupId FROM sessions WHERE id=?").bind(sessionId).first<{groupId:string}>();
 const canInvite=async(env:Env,userId:string,groupId:string)=>await isSystemAdmin(env,userId)||(await groupRole(env,userId,groupId))?.role==="group_admin";
 export default { async fetch(request:Request,env:Env):Promise<Response>{
- const url=new URL(request.url),requestId=requestCorrelationId(request); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return finishLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/me")return authMe(request,env); if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(); if(request.method==="POST"&&url.pathname==="/api/auth/bootstrap-admin")return bootstrapAdmin(request,env);
+ const url=new URL(request.url),requestId=requestCorrelationId(request); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); const passkeyResponse=await handleLineFreePasskey(request,env); if(passkeyResponse)return passkeyResponse; if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return finishLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/me")return authMe(request,env); if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(); if(request.method==="POST"&&url.pathname==="/api/auth/bootstrap-admin")return bootstrapAdmin(request,env);
  if(request.method==="GET"&&url.pathname==="/api/health"){const row=await env.DB.prepare("SELECT 1 AS ok").first<{ok:number}>();return json({ok:row?.ok===1});}
  let authUserId:string|null;
  try{authUserId=await authenticatedUserId(request,env);}
@@ -215,7 +216,8 @@ export default { async fetch(request:Request,env:Env):Promise<Response>{
      env.DB.prepare("UPDATE invitations SET revoked_at=? WHERE group_id=? AND player_id=? AND used_at IS NULL AND revoked_at IS NULL").bind(now.toISOString(),groupId,playerId),
      env.DB.prepare("INSERT INTO invitations(id,token_hash,group_id,player_id,role,created_by_user_id,expires_at,created_at) VALUES(?,?,?,?,'member',?,?,?)").bind(id,tokenHash,groupId,playerId,authUserId,expires.toISOString(),now.toISOString()),
    ]);
-   const inviteUrl=new URL("/api/auth/line/start",url.origin);inviteUrl.searchParams.set("invite",token);
+   // One invitation link lets a participant choose LINE or passkey; the original LINE route remains compatible.
+   const inviteUrl=new URL("/",url.origin);inviteUrl.searchParams.set("invite",token);
    auditSuccess("invitation_created",{groupId,resourceType:"invitation",resourceId:id});return json({invitation:{id,groupId,playerId,playerDisplayName:player.displayName,inviteUrl:inviteUrl.toString(),expiresAt:expires.toISOString()}},{status:201});
  }
  const groupInvites=url.pathname.match(/^\/api\/groups\/([^/]+)\/invitations$/);

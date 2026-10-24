@@ -35,15 +35,14 @@ export function PasskeyEnrollment(){
 
   useEffect(()=>{
     let live=true;
-    // A URL marker is UX only. It is NOT trusted as proof of reauthentication:
-    // the server always checks the HttpOnly one-shot proof + current session.
+    // The URL marker is only a display hint. Never show "verified" based on
+    // query parameters: an attacker can append them without LINE authentication.
     const url=new URL(window.location.href);
     const returned=url.searchParams.get("passkey_stepup")==="verified";
     if(url.searchParams.has("passkey_stepup")){
       url.searchParams.delete("passkey_stepup");
       window.history.replaceState({}, "", url.pathname+url.search+url.hash);
     }
-    if(returned)setVerified(true);
     void (async()=>{
       try{
         const res=await fetch("/api/auth/passkey/capabilities",{
@@ -51,9 +50,35 @@ export function PasskeyEnrollment(){
         });
         if(!res.ok)return;
         const cap=await res.json() as Capability;
-        if(live)setEnabled(cap.registrationEnabled===true);
+        if(!live||cap.registrationEnabled!==true)return;
+        setEnabled(true);
+        // Authoritative fresh proof status comes from the Worker, requiring
+        // the original verified signed-in User and unconsumed HttpOnly proof.
+        const status=await fetch("/api/auth/passkey/stepup/status",{
+          credentials:"same-origin",cache:"no-store",
+        });
+        if(!live)return;
+        if(!status.ok){
+          if(returned){
+            setMessage("本人確認を確認できませんでした。LINEで本人確認からやり直してください。");
+            setFailed(true);
+          }
+          return;
+        }
+        const payload=await status.json() as {verified?:unknown};
+        if(!live)return;
+        if(payload.verified===true){
+          setVerified(true);
+        }else if(returned){
+          setMessage("本人確認の期限が切れたか、別のセッションです。もう一度LINEで本人確認してください。");
+          setFailed(true);
+        }
       }catch{
-        // Capability unknown -> feature stays unavailable. No fallback override.
+        // Fail closed if either capability or proof-status API is unavailable.
+        if(live&&returned){
+          setMessage("本人確認を確認できませんでした。もう一度LINEで本人確認してください。");
+          setFailed(true);
+        }
       }
     })();
     return()=>{live=false;};

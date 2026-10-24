@@ -93,6 +93,7 @@ class FakeD1{
   batchInvocations=0;
   prepare(sql:string){
     let args:unknown[]=[];
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const db=this;
     return {
       bind(...v:unknown[]){args=v;return this;},

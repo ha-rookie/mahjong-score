@@ -70,9 +70,11 @@ export function PasskeyGuestAccess(){
         });
         if(result.authenticated!==true)throw new Error("Authentication not confirmed");
       }
-      // Both endpoints issue the existing authVersion cookie. Reload ensures
-      // the app reads memberships and stored scores through the existing APIs.
-      window.location.assign("/");
+      // Reuse the existing LINE success transition. On a fresh device without
+      // legacy local data, AuthStatus switches persistence to cloud D1 before
+      // rendering groups and historical scores; locally preserved data remains
+      // untouched for users who still have old local records.
+      window.location.assign("/?login=success");
     }catch(error){
       const cancelled=error instanceof Error&&["NotAllowedError","AbortError"].includes(error.name);
       setNotice(cancelled?"認証をキャンセルしました。もう一度お試しください。":

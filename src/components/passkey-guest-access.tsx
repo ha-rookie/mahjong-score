@@ -29,8 +29,10 @@ export function PasskeyGuestAccess(){
   const [notice,setNotice]=useState("");
   const invite=new URL(window.location.href).searchParams.get("invite");
   const hasInvite=Boolean(invite&&/^[A-Za-z0-9_-]{43}$/.test(invite));
+  const recoveryToken=new URL(window.location.href).searchParams.get("recover");
+  const hasRecovery=Boolean(recoveryToken&&/^[A-Za-z0-9_-]{43}$/.test(recoveryToken));
 
-  const execute=async(mode:"register"|"login")=>{
+  const execute=async(mode:"register"|"login"|"recover")=>{
     if(busy)return;
     setBusy(true);setNotice("");
     try{
@@ -47,6 +49,16 @@ export function PasskeyGuestAccess(){
           token:invite,flowId:flow.flowId,credential:attestation,
         });
         if(result.registered!==true)throw new Error("Registration not confirmed");
+      }else if(mode==="recover"){
+        if(!hasRecovery)throw new Error("Recovery link required");
+        flow=parseOptions(await post("/api/auth/passkey/recovery/options",{token:recoveryToken}));
+        const creation=PublicKeyCredential.parseCreationOptionsFromJSON(
+          flow.options as PublicKeyCredentialCreationOptionsJSON);
+        const credential=await navigator.credentials.create({publicKey:creation});
+        const result=await post("/api/auth/passkey/recovery/verify",{
+          token:recoveryToken,flowId:flow.flowId,credential:toJSON(credential),
+        });
+        if(result.registered!==true)throw new Error("Recovery registration failed");
       }else{
         flow=parseOptions(await post("/api/auth/passkey/login/options",{}));
         const request=PublicKeyCredential.parseRequestOptionsFromJSON(
@@ -64,11 +76,17 @@ export function PasskeyGuestAccess(){
     }catch(error){
       const cancelled=error instanceof Error&&["NotAllowedError","AbortError"].includes(error.name);
       setNotice(cancelled?"認証をキャンセルしました。もう一度お試しください。":
+        mode==="recover"?"復旧できませんでした。管理者から受け取ったリンクの期限と対象を確認してください。":
         mode==="register"?"登録できませんでした。招待の期限や端末の設定をご確認ください。":
           "ログインできませんでした。登録したパスキーを選択して再試行してください。");
     }finally{setBusy(false);}
   };
   return <div className="passkey-guest">
+    {hasRecovery?<div>
+      <p>管理者から届いた復旧リンクです。元のUser・Player・成績を引き継いでパスキーを追加します。LINEログインは不要です。</p>
+      <button type="button" className="login-gate__button" disabled={busy}
+        onClick={()=>void execute("recover")}>元のアカウントにパスキーを登録</button>
+    </div>:null}
     {hasInvite?<div>
       <p>招待を受けた方はLINEを使わず、端末のパスキーで参加できます。</p>
       <button type="button" className="login-gate__button" disabled={busy}

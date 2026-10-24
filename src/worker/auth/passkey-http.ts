@@ -27,6 +27,7 @@ export interface PasskeyHttpEnv {
 }
 const paths=new Set([
   "/api/auth/passkey/stepup/start",
+  "/api/auth/passkey/stepup/status",
   "/api/auth/passkey/register/options",
   "/api/auth/passkey/register/verify",
 ]);
@@ -92,10 +93,14 @@ export const handleS2BPasskeyRequest=async (
   if(env.PASSKEY_REGISTRATION_ENABLED!=="true")return null;
   const isCallback=url.pathname==="/api/auth/line/callback"&&
     isPasskeyStepUpState(url.searchParams.get("state"));
+  const isProofStatus=url.pathname==="/api/auth/passkey/stepup/status";
   if(!isCallback&&!paths.has(url.pathname))return null;
 
   if(url.origin!==PASSKEY_LINE_STEPUP_ORIGIN)return error("invalid_passkey_origin",403);
-  if(!isCallback && (request.method!=="POST" || !sameOrigin(request))){
+  // Status is read-only and cannot consume a proof; authenticated Cookie is
+  // required later. Every mutating route still requires POST + CSRF Origin.
+  if(isProofStatus&&request.method!=="GET")return error("method_not_allowed",405);
+  if(!isCallback&&!isProofStatus && (request.method!=="POST" || !sameOrigin(request))){
     audit(request,"passkey_origin_failure");
     return error("passkey_origin_denied",403);
   }
@@ -111,6 +116,10 @@ export const handleS2BPasskeyRequest=async (
 
   const {userId,sessionCookie}=session;
   try{
+    if(isProofStatus){
+      const proof=await checkedProof(request,env,session);
+      return reply({verified:proof!==null},200);
+    }
     if(isCallback){
       const state=url.searchParams.get("state"),code=url.searchParams.get("code");
       if(!state||!code)return error("passkey_line_stepup_invalid",400);

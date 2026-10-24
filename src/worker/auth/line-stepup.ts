@@ -7,9 +7,13 @@
  * Never reuse the regular LINE login callback's User-creation behavior.
  * Never log state, nonce, authorization code, ID token or proof secret.
  */
-import { PASSKEY_PRODUCTION_ORIGIN, PASSKEY_PRODUCTION_RP_ID } from "./passkey-registration";
+import {
+  resolvePasskeyRelyingParty,
+  PASSKEY_PRODUCTION_ORIGIN, PASSKEY_PRODUCTION_RP_ID,
+  type PasskeyRelyingPartyEnv,
+} from "./passkey-rp-config";
 
-type Config = { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string };
+type Config = PasskeyRelyingPartyEnv & { DB:D1Database };
 type VerifiedLineToken = {
   iss?: unknown; aud?: unknown; sub?: unknown; nonce?: unknown;
   exp?: unknown; iat?: unknown; auth_time?: unknown; amr?: unknown;
@@ -27,7 +31,6 @@ const digest = async (token: string): Promise<string> => {
   return btoa(String.fromCharCode(...new Uint8Array(bytes)))
     .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 };
-const callbackURL = PASSKEY_PRODUCTION_ORIGIN + "/api/auth/line/callback";
 const validState = (s: string) => /^s2b_[A-Za-z0-9_-]{43}$/.test(s);
 const validNow = (d: Date) => Number.isFinite(d.getTime());
 const requireBinding = (userId: string, sessionCookieValue: string) => {
@@ -42,6 +45,7 @@ export const beginPasskeyLineStepUp = async (
   now = new Date(),
 ): Promise<{ authorizationUrl: string }> => {
   requireBinding(userId,signedSessionCookie);
+  const rp=resolvePasskeyRelyingParty(env);
   if (!validNow(now) || !env.LINE_CHANNEL_ID || !env.LINE_CHANNEL_SECRET)
     throw new Error("LINE step-up configuration unavailable");
   const identity = await env.DB.prepare(
@@ -64,7 +68,7 @@ export const beginPasskeyLineStepUp = async (
     now.toISOString(),expires).run();
   const to=new URL("https://access.line.me/oauth2/v2.1/authorize");
   to.search=new URLSearchParams({
-    response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:callbackURL,
+    response_type:"code",client_id:env.LINE_CHANNEL_ID,redirect_uri:rp.callbackUrl,
     state,scope:"profile openid",nonce,prompt:"login",max_age:"0",
   }).toString();
   return {authorizationUrl:to.toString()};
@@ -84,6 +88,7 @@ export const finishPasskeyLineStepUp = async (
   fetchProvider: typeof fetch = fetch,
 ): Promise<StepUpProof> => {
   requireBinding(sessionUserId,signedSessionCookie);
+  const rp=resolvePasskeyRelyingParty(env);
   if (!validState(state) || !code || code.length>4096 || !validNow(now) ||
       !env.LINE_CHANNEL_ID || !env.LINE_CHANNEL_SECRET)
     throw new Error("Invalid LINE step-up callback");
@@ -99,7 +104,7 @@ export const finishPasskeyLineStepUp = async (
   const tokenResp=await fetchProvider("https://api.line.me/oauth2/v2.1/token",{
     method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},
     body:new URLSearchParams({
-      grant_type:"authorization_code",code,redirect_uri:callbackURL,
+      grant_type:"authorization_code",code,redirect_uri:rp.callbackUrl,
       client_id:env.LINE_CHANNEL_ID,client_secret:env.LINE_CHANNEL_SECRET,
     }),
   });

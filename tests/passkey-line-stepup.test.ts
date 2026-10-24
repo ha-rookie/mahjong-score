@@ -194,3 +194,35 @@ test("S2-B callback expires and proof expires; D1 outage cannot issue new state"
   fake.unavailable=true;
   await assert.rejects(begin(fake),/D1 unavailable/);
 });
+
+test("S2-B isolated Preview uses only its reviewed callback and never Production redirect URI",async()=>{
+  const fake=new FakeD1(),stageEnv={
+    ...env(fake),
+    PASSKEY_AUTH_ENVIRONMENT:"isolated-preview",
+    PASSKEY_PREVIEW_ORIGIN:"https://s2b-preview.ha-rookie.workers.dev",
+  };
+  const {authorizationUrl}=await beginPasskeyLineStepUp(stageEnv,"user-1","signed.session.cookie",current);
+  const url=new URL(authorizationUrl);
+  assert.equal(url.searchParams.get("redirect_uri"),
+    "https://s2b-preview.ha-rookie.workers.dev/api/auth/line/callback");
+  assert.notEqual(url.searchParams.get("redirect_uri"),
+    "https://mahjong-score.ha-rookie.workers.dev/api/auth/line/callback");
+  let actualRedirectUri="";
+  const fetchPreview:typeof fetch=async (input,init)=>{
+    if(String(input).endsWith("/token")){
+      actualRedirectUri=new URLSearchParams(init?.body as string).get("redirect_uri")??"";
+      return Response.json({id_token:"preview-only-test-id-token"});
+    }
+    return Response.json({
+      iss:"https://access.line.me",aud:"12345678",sub:"line-sub-1",
+      nonce:fake.rows[0].nonce,exp:Math.floor(current.getTime()/1000)+300,
+      iat:Math.floor(current.getTime()/1000),auth_time:Math.floor(current.getTime()/1000),
+      amr:["pwd"],
+    });
+  };
+  const result=await finishPasskeyLineStepUp(stageEnv,url.searchParams.get("state")!,
+    "preview-code","user-1","signed.session.cookie",current,fetchPreview);
+  assert.equal(result.userId,"user-1");
+  assert.equal(actualRedirectUri,
+    "https://s2b-preview.ha-rookie.workers.dev/api/auth/line/callback");
+});

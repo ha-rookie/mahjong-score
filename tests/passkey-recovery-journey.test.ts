@@ -162,7 +162,7 @@ test("P0 full journey: system admin creates recovery URL -> real WebAuthn -> old
     const issued=await worker.fetch(makePost(
       "/api/admin/groups/g/players/p/passkey-recovery",
       {expectedUserId:"existing-user"},adminCookie),env);
-    assert.equal(issued.status,201,await issued.text());
+    assert.equal(issued.status,201,await issued.clone().text());
     const result=await issued.json() as {recovery:{recoveryUrl:string;playerId:string;groupId:string}};
     const token=new URL(result.recovery.recoveryUrl).searchParams.get("recover");
     assert.ok(token);
@@ -171,7 +171,7 @@ test("P0 full journey: system admin creates recovery URL -> real WebAuthn -> old
     assert.deepEqual(db.snapshot(),initial,"admin may only create grant, not rewrite User, Player or scores");
 
     const optionsRes=await guest(env,"/api/auth/passkey/recovery/options",{token});
-    assert.equal(optionsRes.status,200,await optionsRes.text());
+    assert.equal(optionsRes.status,200,await optionsRes.clone().text());
     const options=await optionsRes.json() as {
       flowId:string; options:{challenge:string;rp:{id:string}}
     };
@@ -182,7 +182,7 @@ test("P0 full journey: system admin creates recovery URL -> real WebAuthn -> old
     const registered=await guest(env,"/api/auth/passkey/recovery/verify",{
       token,flowId:options.flowId,credential:authenticator.create(options.options.challenge),
     });
-    assert.equal(registered.status,201,await registered.text());
+    assert.equal(registered.status,201,await registered.clone().text());
     const payload=await registered.json() as {registered:boolean;playerId:string;groupId:string};
     assert.equal(payload.registered,true);
     assert.equal(payload.playerId,"p");assert.equal(payload.groupId,"g");
@@ -206,7 +206,7 @@ test("P0 full journey: system admin creates recovery URL -> real WebAuthn -> old
     const loggedIn=await guest(env,"/api/auth/passkey/login/verify",{
       flowId:challenge.flowId,credential:signed,
     });
-    assert.equal(loggedIn.status,200,await loggedIn.text());
+    assert.equal(loggedIn.status,200,await loggedIn.clone().text());
     const loginCookie=cookie(loggedIn.headers.get("set-cookie")!);
     assert.equal(await currentUser(env,loginCookie),"existing-user");
     assert.equal((await guest(env,"/api/auth/passkey/login/verify",{

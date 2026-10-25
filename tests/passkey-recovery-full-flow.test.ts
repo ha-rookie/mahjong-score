@@ -41,7 +41,7 @@ const makeAuthenticator=async()=>{
       const a=trim(sig.slice(0,32)),b=trim(sig.slice(32));
       const der=concat(Uint8Array.of(0x30,4+a.length+b.length,2,a.length),a,Uint8Array.of(2,b.length),b);
       return {id:identity,rawId:identity,type:"public-key",clientExtensionResults:{},
-        response:{clientDataJSON:b64(client),authenticatorData:b64(auth),signature:b64(der),userHandle:null}} as AuthenticationResponseJSON;
+        response:{clientDataJSON:b64(client),authenticatorData:b64(auth),signature:b64(der),userHandle:null}} as unknown as AuthenticationResponseJSON;
     },
   };
 };

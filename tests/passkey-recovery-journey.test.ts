@@ -34,7 +34,8 @@ class RealSqliteD1 {
   }
   close(){this.sqlite.close();}
   direct(sql:string,...args:unknown[]){
-    return this.sqlite.prepare(sql).all(...args.map(this.convert)) as Array<Record<string,unknown>>;
+    // Node SQLite returns null-prototype rows; normalize only for snapshot assertions.
+    return this.sqlite.prepare(sql).all(...args.map(this.convert)).map(row=>({...row})) as Array<Record<string,unknown>>;
   }
   readonly convert=(value:unknown):SQLInputValue=>{
     if(value instanceof Uint8Array)return Buffer.from(value);

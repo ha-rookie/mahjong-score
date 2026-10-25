@@ -7,7 +7,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import {DatabaseSync} from "node:sqlite";
+import {DatabaseSync,type SQLInputValue} from "node:sqlite";
 import {readFileSync,readdirSync} from "node:fs";
 import {buildAuthenticator} from "./support/passkey-test-authenticator";
 import worker from "../src/worker";
@@ -36,7 +36,7 @@ class RealSqliteD1 {
   direct(sql:string,...args:unknown[]){
     return this.sqlite.prepare(sql).all(...args.map(this.convert)) as Array<Record<string,unknown>>;
   }
-  readonly convert=(value:unknown)=>{
+  readonly convert=(value:unknown):SQLInputValue=>{
     if(value instanceof Uint8Array)return Buffer.from(value);
     if(value===null||typeof value==="string"||typeof value==="number"||typeof value==="bigint")
       return value;
@@ -118,7 +118,7 @@ class RealSqliteD1 {
 const environment=(d:RealSqliteD1)=>({
   DB:d as unknown as D1Database,AUTH_SESSION_SECRET:secret,
   ASSETS:{fetch:async()=>new Response("not used")},
-});
+}) as unknown as Parameters<typeof worker.fetch>[1];
 const makePost=(path:string,body:unknown,cookie?:string)=>new Request(ORIGIN+path,{
   method:"POST",headers:{
     "origin":ORIGIN,"content-type":"application/json",

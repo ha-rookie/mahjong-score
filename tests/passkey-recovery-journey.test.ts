@@ -44,6 +44,7 @@ class RealSqliteD1 {
     throw new Error("Unexpected SQLite bind type "+typeof value);
   };
   prepare(sql:string):Statement {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const db=this;
     const command=this.sqlite.prepare(sql);
     this.statements.push(sql);

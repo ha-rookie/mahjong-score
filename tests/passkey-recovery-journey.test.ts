@@ -48,7 +48,7 @@ class RealSqliteD1 {
     const db=this;
     const command=this.sqlite.prepare(sql);
     this.statements.push(sql);
-    let args:unknown[]=[];
+    let args:SQLInputValue[]=[];
     const stmt:Statement={
       bind(...values){args=values.map(db.convert);return stmt;},
       async first<T>(){

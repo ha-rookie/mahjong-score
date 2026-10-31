@@ -50,8 +50,9 @@ export function AuthStatus() {
     if(inviteResult==="accepted")window.dispatchEvent(new CustomEvent("mahjong:notice",{detail:"招待を受け付け、Playerと紐付けました。"}));
     if(inviteResult==="invalid")window.dispatchEvent(new CustomEvent("mahjong:error",{detail:"招待URLは無効または期限切れです。"}));
     if(inviteResult==="conflict")window.dispatchEvent(new CustomEvent("mahjong:error",{detail:"このLINEアカウントは別のPlayerに紐付いています。"}));
-    if(url.searchParams.has("login")||url.searchParams.has("invite")){
-      url.searchParams.delete("login");url.searchParams.delete("invite");
+    if(url.searchParams.has("login")||["accepted","invalid","conflict"].includes(inviteResult??"")){
+      url.searchParams.delete("login");
+      if(["accepted","invalid","conflict"].includes(inviteResult??""))url.searchParams.delete("invite");
       window.history.replaceState({}, "", url.pathname+url.search+url.hash);
     }
   },[]);

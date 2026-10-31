@@ -44,9 +44,9 @@ export const buildAuthenticator=async()=>{
   const attestObj=encodeCBOR(new Map<string,unknown>([
     ["fmt","none"],["attStmt",new Map()],["authData",authData],
   ]));
-  const create=(challenge:string):RegistrationResponseJSON=>{
+  const create=(challenge:string,origin=PASSKEY_ORIGIN):RegistrationResponseJSON=>{
     const client=encoder.encode(JSON.stringify({
-      type:"webauthn.create",challenge,origin:PASSKEY_ORIGIN,crossOrigin:false,
+      type:"webauthn.create",challenge,origin,crossOrigin:false,
     }));
     return {id:identity,rawId:identity,type:"public-key",
       response:{clientDataJSON:b64(client),attestationObject:b64(attestObj)},

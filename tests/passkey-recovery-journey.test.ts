@@ -179,6 +179,18 @@ test("P0 full journey: system admin creates recovery URL -> real WebAuthn -> old
     assert.equal(options.options.rp.id,"mahjong-score.ha-rookie.workers.dev");
     const authenticator=await buildAuthenticator();
 
+    // Keep the unique negative-origin assertion from the retired #357 test.
+    // An invalid origin must not register a key, consume the recovery grant,
+    // or change any existing User/Player/Group/LINE/Score rows.
+    const forged=await guest(env,"/api/auth/passkey/recovery/verify",{
+      token,flowId:options.flowId,
+      credential:authenticator.create(options.options.challenge,"https://attacker.example"),
+    });
+    assert.equal(forged.status,409);
+    assert.equal(db.direct("SELECT count(*) AS n FROM passkey_credentials")[0].n,0);
+    assert.equal(db.direct("SELECT used_at AS usedAt FROM passkey_recovery_grants")[0].usedAt,null);
+    assert.deepEqual(db.snapshot(),initial,"Forged WebAuthn origin must not modify old records");
+
     // Cryptographic attestation is independently verified by SimpleWebAuthn.
     const registered=await guest(env,"/api/auth/passkey/recovery/verify",{
       token,flowId:options.flowId,credential:authenticator.create(options.options.challenge),

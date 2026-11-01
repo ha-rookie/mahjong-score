@@ -5,17 +5,16 @@
 
 ## 現在の判定：NO-GO（実機で操作しない）
 
-PR #358の現状では `src/worker/auth/passkey-line-free.ts` の
-`PASSKEY_ORIGIN=https://mahjong-score.ha-rookie.workers.dev` と
-`PASSKEY_RP_ID=mahjong-score.ha-rookie.workers.dev` が固定値であり、
-`passkey-line-free-http.ts` は受信HTTP RequestのoriginとOriginヘッダーも
-この値に完全一致させる。**本番のURLではDraftのコードが稼働していない**。
-別Preview URL・トンネル・Android上のlocalhostにブラウザでアクセスしても
-RP IDとOriginが一致しないため登録・署名ログインは検証できない。
-安全に実機テストするには、**本番とは異なる固定HTTPSホスト/RP IDをサーバー側の
-環境別設定として厳密に割り当てる準備**と、**合意された隔離DB**が必要。
-端末側からOrigin/RP IDを指定できる構成、無条件の任意Origin許可、
-本番ホストへの別ルート、Cookie共有・DB共有での代用は禁止。
+**Phase 2更新：UAT専用のサーバー固定RP ID/Origin、専用Wrangler設定、生成物のD1誤接続防止ガードとCIをDraftブランチに追加済み。** 本番は従来の固定値を維持し、UATだけ`PASSKEY_ENV=android-uat`を指定する。ブラウザのOrigin/Host/パラメータから信頼するRPを決めない。
+
+| 環境 | Server-owned Origin | RP ID |
+| --- | --- | --- |
+| 本番（維持） | `https://mahjong-score.ha-rookie.workers.dev` | `mahjong-score.ha-rookie.workers.dev` |
+| Android UAT（未構築） | `https://mahjong-score-android-uat.ha-rookie.workers.dev` | `mahjong-score-android-uat.ha-rookie.workers.dev` |
+
+UATの`wrangler.android-uat.jsonc`には**未発行の仮D1 ID**（`00000000-0000-4000-8000-000000000000`）が残っている。CIではこの仮IDの生成物検証は通るが、デプロイ用ゲートは拒否する。独立したRemote D1の発行、アクセス制御、専用Secret、合成データの準備、UAT Workerの実デプロイは**未実施・未承認**。**CI成功≠実機テスト可能・受入合格**。
+
+本番ホストへDraftを配信すること、既存Previewや本番D1を流用すること、本番LINE設定や認証情報をUATへコピーすることは禁止。UAT用固定HTTPSホストとRP IDの一致、DB分離、実際に配信されたコミット、権限とログ取扱いが確認できるまでは**ENV-01=NO-GO**とする。実機試験開始にはリモート環境の作成・設定・Migration・デプロイについて別途明示承認が必要。
 
 ### 実機前のGO判定（すべて満たすまでは操作禁止）
 

@@ -21,11 +21,15 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:recovery:preview": "bash scripts/d1-recovery-rehearsal.sh",
     "db:performance:preview": "node scripts/d1-performance-benchmark.mjs",
-    "deploy:performance": "npm run build && wrangler deploy --config wrangler.performance.jsonc"
+    "deploy:performance": "npm run build && wrangler deploy --config wrangler.performance.jsonc",
+    "test:android-uat:guard": "node --test scripts/test-uat-artifact-policy.mjs",
+    "build:android-uat:ci": "node scripts/build-android-uat-ci.mjs",
+    "check:android-uat:deploy-gate": "node scripts/check-uat-artifact.mjs deploy"
   },
   "dependencies": {
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@simplewebauthn/server": "14.0.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.57.3",

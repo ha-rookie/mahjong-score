@@ -6,6 +6,12 @@ const authControlPaths=new Set([
   "/api/auth/line/start",
   "/api/auth/line/callback",
   "/api/auth/logout",
+  "/api/auth/passkey/invite/options",
+  "/api/auth/passkey/invite/verify",
+  "/api/auth/passkey/login/options",
+  "/api/auth/passkey/login/verify",
+  "/api/auth/passkey/recovery/options",
+  "/api/auth/passkey/recovery/verify",
 ]);
 
 export const isProtectedApiPath=(pathname:string):boolean=>

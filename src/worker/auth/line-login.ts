@@ -108,6 +108,14 @@ const duplicateLineCallbackResponse=async(request:Request,env:AuthEnv,url:URL,oa
 };
 
 export const authenticatedUserId=async(request:Request,env:AuthEnv)=>(await resolveSession(request,env)).userId;
+/** Issue #345: reuse the SAME authVersion-checked LINE session format for passkeys. */
+export const issuePasskeySessionCookie=async(db:D1Database,secret:string|undefined,userId:string)=>{
+  if(!secret)throw new Error("AUTH_SESSION_SECRET missing");
+  const authVersion=await userAuthVersion({DB:db},userId);
+  if(authVersion===null)throw new Error("Cannot issue session for nonexistent User");
+  return sessionCookieValue(await makeSession(userId,secret,authVersion));
+};
+
 
 export const startLineLogin=async(request:Request,env:AuthEnv)=>{
   if(!env.LINE_CHANNEL_ID)return new Response("LINE Login is not configured",{status:503});

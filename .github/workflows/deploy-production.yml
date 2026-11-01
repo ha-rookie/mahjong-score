@@ -129,3 +129,20 @@ jobs:
           grep -Eqi "^referrer-policy: *strict-origin-when-cross-origin" <<<"$headers"
           grep -Eqi "^permissions-policy:" <<<"$headers"
           grep -Eqi "^x-permitted-cross-domain-policies: *none" <<<"$headers"
+
+  # Android-UAT is artifact-only. This PR job has no Cloudflare credentials.
+  validate-android-uat:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify UAT negative security cases
+        run: npm run test:android-uat:guard
+      - name: Build with dedicated UAT config and inspect generated artifact (NO DEPLOY)
+        run: npm run build:android-uat:ci

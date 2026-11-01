@@ -15,8 +15,8 @@ import {
   hashPasskeyChallenge,type ChallengeScope,
 } from "./passkey-challenge";
 
-export const PASSKEY_ORIGIN="https://mahjong-score.ha-rookie.workers.dev";
-export const PASSKEY_RP_ID="mahjong-score.ha-rookie.workers.dev";
+import {PRODUCTION_PASSKEY,type PasskeyRelyingParty} from "./passkey-rp";
+export {PASSKEY_ORIGIN,PASSKEY_RP_ID} from "./passkey-rp";
 export const PASSKEY_INVITE_TTL_MS=120_000;
 const encoder=new TextEncoder();
 const b64=(bytes:Uint8Array)=>btoa(String.fromCharCode(...bytes))
@@ -30,12 +30,12 @@ const validToken=(value:unknown):value is string=>typeof value==="string"&&
 const validFlow=(value:unknown):value is string=>typeof value==="string"&&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const hashToken=async(token:string)=>b64(new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(token))));
-const registerScope=(invitationId:string):ChallengeScope=>({
-  purpose:"register_invite",userId:null,invitationId,expectedOrigin:PASSKEY_ORIGIN,rpId:PASSKEY_RP_ID,
+const registerScope=(invitationId:string,rp:PasskeyRelyingParty):ChallengeScope=>({
+  purpose:"register_invite",userId:null,invitationId,expectedOrigin:rp.origin,rpId:rp.rpId,
 });
-const loginScope:ChallengeScope={
-  purpose:"login",userId:null,invitationId:null,expectedOrigin:PASSKEY_ORIGIN,rpId:PASSKEY_RP_ID,
-};
+const loginScope=(rp:PasskeyRelyingParty):ChallengeScope=>({
+  purpose:"login",userId:null,invitationId:null,expectedOrigin:rp.origin,rpId:rp.rpId,
+});
 const challengeFrom=(response:{response:{clientDataJSON:string}})=>{
   const object=JSON.parse(new TextDecoder().decode(un64(response.response.clientDataJSON))) as {challenge?:unknown};
   if(!canonical(object.challenge))throw new Error("WebAuthn challenge missing");
@@ -51,14 +51,16 @@ export const findUnclaimedInvite=async(db:D1Database,token:string,now=new Date()
     "SELECT i.id,i.group_id AS groupId,i.player_id AS playerId,p.display_name AS playerName,g.name AS groupName,i.expires_at AS expiresAt FROM invitations i JOIN group_players gp ON gp.group_id=i.group_id AND gp.player_id=i.player_id JOIN players p ON p.id=i.player_id JOIN groups g ON g.id=i.group_id WHERE i.token_hash=? AND i.used_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>? AND gp.active=1 AND gp.user_id IS NULL"
   ).bind(await hashToken(token),now.toISOString()).first<Invite>();
 };
-export const beginInvitePasskey=async(db:D1Database,token:string,now=new Date())=>{
+export const beginInvitePasskey=async(
+  db:D1Database,token:string,now=new Date(),rp:PasskeyRelyingParty=PRODUCTION_PASSKEY,
+)=>{
   const invite=await findUnclaimedInvite(db,token,now);
   if(!invite)throw new Error("Invite invalid, linked or expired");
-  const challenge=await issuePasskeyChallenge(db,registerScope(invite.id),now);
+  const challenge=await issuePasskeyChallenge(db,registerScope(invite.id,rp),now);
   const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
     encoder.encode("sanma:invitation:"+invite.id)));
   const options=await generateRegistrationOptions({
-    rpName:"三麻スコア",rpID:PASSKEY_RP_ID,
+    rpName:"三麻スコア",rpID:rp.rpId,
     userName:"sanma-"+b64(digest).slice(0,16),
     userID:digest,challenge:un64(challenge.challenge),
     attestationType:"none",supportedAlgorithmIDs:[-7],timeout:120_000,
@@ -75,13 +77,14 @@ export const beginInvitePasskey=async(db:D1Database,token:string,now=new Date())
  * Checking meta.changes AFTER batch alone does NOT rollback anything.
  */
 export const finishInvitePasskey=async(
-  db:D1Database,token:string,flowId:string,response:RegistrationResponseJSON,now=new Date(),
+  db:D1Database,token:string,flowId:string,response:RegistrationResponseJSON,
+  now=new Date(),rp:PasskeyRelyingParty=PRODUCTION_PASSKEY,
 ):Promise<{userId:string;playerId:string;groupId:string}>=>{
   if(!validToken(token)||!validFlow(flowId)||!response||!canonical(response.id))
     throw new Error("Invalid invitation registration request");
   const invite=await findUnclaimedInvite(db,token,now);
   if(!invite)throw new Error("Invitation no longer active");
-  const scope=registerScope(invite.id);
+  const scope=registerScope(invite.id,rp);
   const pending=await readPasskeyChallenge(db,flowId,scope,now);
   if(!pending)throw new Error("Invite challenge expired");
   const verified=await verifyRegistrationResponse({
@@ -127,10 +130,12 @@ export const finishInvitePasskey=async(
   return {userId,playerId:invite.playerId,groupId:invite.groupId};
 };
 
-export const beginPasskeyLogin=async(db:D1Database,now=new Date())=>{
-  const challenge=await issuePasskeyChallenge(db,loginScope,now);
+export const beginPasskeyLogin=async(
+  db:D1Database,now=new Date(),rp:PasskeyRelyingParty=PRODUCTION_PASSKEY,
+)=>{
+  const challenge=await issuePasskeyChallenge(db,loginScope(rp),now);
   const options=await generateAuthenticationOptions({
-    rpID:PASSKEY_RP_ID,challenge:un64(challenge.challenge),
+    rpID:rp.rpId,challenge:un64(challenge.challenge),
     allowCredentials:[],userVerification:"required",timeout:120_000,
   });
   if(options.challenge!==challenge.challenge)throw new Error("Login challenge mismatch");
@@ -141,11 +146,12 @@ type CredentialRow={
   signCount:number;transports:string|null;deviceType:string|null;backedUp:number|null;
 };
 export const finishPasskeyLogin=async(
-  db:D1Database,flowId:string,response:AuthenticationResponseJSON,now=new Date(),
+  db:D1Database,flowId:string,response:AuthenticationResponseJSON,
+  now=new Date(),rp:PasskeyRelyingParty=PRODUCTION_PASSKEY,
 ):Promise<{userId:string}>=>{
   if(!validFlow(flowId)||!response||!canonical(response.id))
     throw new Error("Invalid authentication response");
-  const pending=await readPasskeyChallenge(db,flowId,loginScope,now);
+  const pending=await readPasskeyChallenge(db,flowId,loginScope(rp),now);
   if(!pending)throw new Error("Login challenge missing");
   const row=await db.prepare(
     "SELECT c.id,c.user_id AS userId,c.credential_id AS credentialId,c.public_key AS publicKey,c.sign_count AS signCount,c.transports,c.device_type AS deviceType,c.backed_up AS backedUp FROM passkey_credentials c JOIN users u ON u.id=c.user_id WHERE c.credential_id=? AND c.revoked_at IS NULL"
@@ -169,7 +175,7 @@ export const finishPasskeyLogin=async(
   const counter=verification.authenticationInfo.newCounter;
   if(!Number.isSafeInteger(counter)||counter<0)throw new Error("Invalid sign counter");
   const claimAt=new Date(Math.max(now.getTime(),Date.now()));
-  if(!await consumePasskeyChallenge(db,flowId,loginScope,challengeFrom(response),claimAt))
+  if(!await consumePasskeyChallenge(db,flowId,loginScope(rp),challengeFrom(response),claimAt))
     throw new Error("Login challenge already used");
   const updated=await db.prepare(
     "UPDATE passkey_credentials SET sign_count=?,last_used_at=? WHERE id=? AND user_id=? AND credential_id=? AND sign_count=? AND revoked_at IS NULL"

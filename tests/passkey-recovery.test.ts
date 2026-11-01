@@ -1,4 +1,5 @@
 import test from "node:test";
+import {ANDROID_UAT_PASSKEY} from "../src/worker/auth/passkey-rp";
 import assert from "node:assert/strict";
 import {
   createPasskeyRecoveryGrant,findPasskeyRecoveryGrant,
@@ -136,4 +137,14 @@ test("P0 expired or malformed recovery token fails closed",async()=>{
   const later=new Date(now.getTime()+PASSKEY_RECOVERY_TTL_MS+1);
   assert.equal(await findPasskeyRecoveryGrant(d(fake),grant.token,later),null);
   await assert.rejects(beginExistingUserRecovery(d(fake),grant.token,later),/invalid or expired/);
+});
+
+test("P0 existing-User recovery registration uses fixed Android UAT RP",async()=>{
+  const fake=new FakeD1();
+  const grant=await createPasskeyRecoveryGrant(
+    d(fake),"admin","group-old","player-old","user-old",now);
+  const begin=await beginExistingUserRecovery(d(fake),grant.token,now,ANDROID_UAT_PASSKEY);
+  assert.equal(begin.options.rp.id,"mahjong-score-android-uat.ha-rookie.workers.dev");
+  assert.deepEqual(fake.oldUserIds,["admin","user-old"]);
+  assert.equal(fake.scoreFingerprint,"1999|old-p|+150");
 });

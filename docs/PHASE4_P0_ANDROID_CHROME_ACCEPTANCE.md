@@ -96,3 +96,30 @@ RP IDとOriginが一致しないため登録・署名ログインは検証でき
 - テスト後は**指定した隔離テストDBとテストアカウント/Passkeyだけ**を対象とするCleanup計画と実行承認を別途確認。実運用・本番のデータは削除しない。
 - main mergeはProduction Worker自動deployとD1 Migrationの引き金になる。**本番マージ・本番デプロイ・Remote D1（本番/既存Preview）の変更は別の明示承認まで禁止**。
 - 合格には実機記録・GitHub CI・テスト用DBの前後差分・不具合有無・本番切替計画/rollbackが必要。この文書を追加しただけでは実機合格ではない。
+
+## Phase 2: Android-UAT artifact-only preparation (Draft #358)
+
+- The dedicated Worker is `mahjong-score-android-uat`; candidate fixed HTTPS
+  origin is `https://mahjong-score-android-uat.ha-rookie.workers.dev`.
+  **Not deployed or provisioned**. Before Phase 3, the confirmed hostname must
+  exactly equal the server-owned RP ID and Origin.
+- `wrangler.android-uat.jsonc` intentionally includes the provisional,
+  non-provisioned UUID `00000000-0000-4000-8000-000000000000`.
+  It MUST be replaced by a separately approved newly created D1 UUID, checked
+  against production/preview/performance IDs, before remote operations.
+- The UAT Worker opts in with `PASSKEY_ENV=android-uat`; Production's absent
+  variable retains its existing RP settings. Unknown selectors fail closed.
+  No browser-provided Origin, Host or query parameter selects a trust value.
+- `npm run test:android-uat:guard` covers protected D1/Worker/routes/vars.
+  `npm run build:android-uat:ci` builds with Cloudflare Vite's explicit
+  config-path override, then validates the **generated** Wrangler JSON.
+  `npm run check:android-uat:deploy-gate` fails while the D1 ID is provisional.
+- Existing Production build/CI remains in place. New PR-only UAT artifact CI
+  has no Cloudflare secrets and never invokes remote D1, Worker deploy, or
+  secrets/LINE modifications.
+- Required for later Phase 3: separate `AUTH_SESSION_SECRET`, Cloudflare Access
+  for authorized testers, new isolated D1, migrations 0001-0012, synthetic
+  groups/players/history and controlled cleanup. Host-only Secure/HttpOnly
+  session Cookie remains unchanged; no production LINE channel is copied.
+- **ENV-01 remains NO-GO** until Phase 3 is separately approved and completed.
+  CI success is not evidence that Android physical-device testing passed.

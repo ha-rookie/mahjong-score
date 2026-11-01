@@ -109,3 +109,40 @@ test("P0 anonymous passkey API is same-origin POST, never needs LINE",async()=>{
   assert.equal((await post(base+"/api/auth/passkey/invite/verify",base,{token,flowId:"a"}))?.status,400);
   assert.equal(fake.batchCalled,false);
 });
+
+// Android UAT must refuse both production and arbitrary origins before making writes.
+test("P0 Android UAT binds challenge to its fixed HTTPS RP only",async()=>{
+  const fake=new FakeDb(),env={DB:db(fake),AUTH_SESSION_SECRET:"uat-only-test",PASSKEY_ENV:"android-uat"};
+  const uat="https://mahjong-score-android-uat.ha-rookie.workers.dev";
+  const prod="https://mahjong-score.ha-rookie.workers.dev";
+  const post=(url:string,origin:string,path:string,body:unknown)=>
+    handleLineFreePasskey(new Request(url+path,{method:"POST",headers:{
+      origin,"content-type":"application/json",
+    },body:JSON.stringify(body)}),env);
+  const login="/api/auth/passkey/login/options";
+  assert.equal((await post(prod,prod,login,{}))?.status,403);
+  assert.equal((await post(uat,prod,login,{}))?.status,403);
+  assert.equal((await post(uat,"https://attacker.example",login,{}))?.status,403);
+  assert.equal(fake.challenges.length,0);
+  const response=await post(uat,uat,login,{});
+  assert.equal(response?.status,200);
+  const result=await response!.json() as {options:{rpId:string}};
+  assert.equal(result.options.rpId,"mahjong-score-android-uat.ha-rookie.workers.dev");
+  assert.equal(fake.challenges[0]?.origin,uat);
+  assert.equal(fake.challenges[0]?.rpId,"mahjong-score-android-uat.ha-rookie.workers.dev");
+  const invite=await post(uat,uat,"/api/auth/passkey/invite/options",{token});
+  assert.equal(invite?.status,200);
+  const invitation=await invite!.json() as {options:{rp:{id:string}}};
+  assert.equal(invitation.options.rp.id,"mahjong-score-android-uat.ha-rookie.workers.dev");
+  assert.equal(fake.batchCalled,false);
+});
+test("P0 invalid passkey env fails closed without any D1 activity",async()=>{
+  const fake=new FakeDb();
+  const response=await handleLineFreePasskey(new Request(
+    "https://mahjong-score.ha-rookie.workers.dev/api/auth/passkey/login/options",{
+      method:"POST",headers:{origin:"https://mahjong-score.ha-rookie.workers.dev",
+        "content-type":"application/json"},body:"{}",
+    }),{DB:db(fake),AUTH_SESSION_SECRET:"test",PASSKEY_ENV:"production"});
+  assert.equal(response?.status,503);
+  assert.equal(fake.calls.length,0);
+});

@@ -2,12 +2,12 @@
 import type {RegistrationResponseJSON,AuthenticationResponseJSON} from "@simplewebauthn/server";
 import {
   beginInvitePasskey,finishInvitePasskey,beginPasskeyLogin,finishPasskeyLogin,
-  PASSKEY_ORIGIN,
 } from "./passkey-line-free";
+import {resolvePasskeyRelyingParty,type PasskeyRelyingParty} from "./passkey-rp";
 import {issuePasskeySessionCookie} from "./line-login";
 import {beginExistingUserRecovery,finishExistingUserRecovery} from "./passkey-recovery";
 
-type Env={DB:D1Database;AUTH_SESSION_SECRET?:string};
+type Env={DB:D1Database;AUTH_SESSION_SECRET?:string;PASSKEY_ENV?:string};
 const routes=new Set([
   "/api/auth/passkey/invite/options",
   "/api/auth/passkey/invite/verify",
@@ -37,9 +37,10 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
   const url=new URL(request.url);
   if(!routes.has(url.pathname))return null;
   if(request.method!=="POST")return fail("method_not_allowed",405);
-  // No LINE prerequisite. These endpoints still belong to the application's
-  // own HTTPS origin, and request clients cannot supply trusted RP/origin.
-  if(url.origin!==PASSKEY_ORIGIN||request.headers.get("origin")!==PASSKEY_ORIGIN||
+  // Strict server-side RP selection, never from the incoming request.
+  let rp:PasskeyRelyingParty;
+  try{rp=resolvePasskeyRelyingParty(env);}catch{return fail("auth_unavailable",503);}
+  if(url.origin!==rp.origin||request.headers.get("origin")!==rp.origin||
      request.headers.get("sec-fetch-site")==="cross-site")return fail("origin_denied",403);
   if(!env.AUTH_SESSION_SECRET)return fail("auth_unavailable",503);
   let b:Record<string,unknown>;
@@ -48,35 +49,35 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
     switch(url.pathname){
       case "/api/auth/passkey/invite/options":{
         if(typeof b.token!=="string")return fail("invalid_invite",400);
-        return json(await beginInvitePasskey(env.DB,b.token));
+        return json(await beginInvitePasskey(env.DB,b.token,undefined,rp));
       }
       case "/api/auth/passkey/invite/verify":{
         if(typeof b.token!=="string"||typeof b.flowId!=="string"||!asObject(b.credential))
           return fail("invalid_registration",400);
         const result=await finishInvitePasskey(env.DB,b.token,b.flowId,
-          b.credential as unknown as RegistrationResponseJSON);
+          b.credential as unknown as RegistrationResponseJSON,undefined,rp);
         return json({registered:true,playerId:result.playerId,groupId:result.groupId},201,
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,result.userId));
       }
       case "/api/auth/passkey/recovery/options":{
         if(typeof b.token!=="string")return fail("invalid_recovery",400);
-        return json(await beginExistingUserRecovery(env.DB,b.token));
+        return json(await beginExistingUserRecovery(env.DB,b.token,undefined,rp));
       }
       case "/api/auth/passkey/recovery/verify":{
         if(typeof b.token!=="string"||typeof b.flowId!=="string"||!asObject(b.credential))
           return fail("invalid_recovery",400);
         const saved=await finishExistingUserRecovery(env.DB,b.token,b.flowId,
-          b.credential as unknown as RegistrationResponseJSON);
+          b.credential as unknown as RegistrationResponseJSON,undefined,rp);
         return json({registered:true,playerId:saved.playerId,groupId:saved.groupId},201,
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,saved.userId));
       }
       case "/api/auth/passkey/login/options":
-        return json(await beginPasskeyLogin(env.DB));
+        return json(await beginPasskeyLogin(env.DB,undefined,rp));
       case "/api/auth/passkey/login/verify":{
         if(typeof b.flowId!=="string"||!asObject(b.credential))
           return fail("invalid_authentication",400);
         const result=await finishPasskeyLogin(env.DB,b.flowId,
-          b.credential as unknown as AuthenticationResponseJSON);
+          b.credential as unknown as AuthenticationResponseJSON,undefined,rp);
         return json({authenticated:true},200,
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,result.userId));
       }

@@ -4,7 +4,7 @@ import { authMe, authenticatedUserId, authStoreUnavailableResponse, bootstrapAdm
 import { requestCorrelationId, writeAuditLog } from "./worker/audit";
 import { handleLineFreePasskey } from "./worker/auth/passkey-line-free-http";
 import {createPasskeyRecoveryGrant} from "./worker/auth/passkey-recovery";
-interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; }
+interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; PASSKEY_ENV?: string; }
 const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data),{...init,headers:{"content-type":"application/json; charset=utf-8",...init.headers}});
 const bad=(code:string,message:string,status=400)=>json({error:{code,message}},{status});
 const body=async(request:Request)=>{try{return await request.json() as Record<string,unknown>}catch{return null}};

@@ -9,7 +9,7 @@ import {
   issuePasskeyChallenge,readPasskeyChallenge,consumePasskeyChallenge,
   hashPasskeyChallenge,type ChallengeScope,
 } from "./passkey-challenge";
-import {PASSKEY_ORIGIN,PASSKEY_RP_ID} from "./passkey-line-free";
+import {PRODUCTION_PASSKEY,type PasskeyRelyingParty} from "./passkey-rp";
 
 const encoder=new TextEncoder();
 const base64=(bytes:Uint8Array)=>btoa(String.fromCharCode(...bytes))
@@ -29,9 +29,9 @@ export type RecoveryGrant={
   id:string;userId:string;groupId:string;playerId:string;playerName:string;
   groupName:string;expiresAt:string;
 };
-const scope=(userId:string):ChallengeScope=>({
+const scope=(userId:string,rp:PasskeyRelyingParty):ChallengeScope=>({
   purpose:"register_user",userId,invitationId:null,
-  expectedOrigin:PASSKEY_ORIGIN,rpId:PASSKEY_RP_ID,
+  expectedOrigin:rp.origin,rpId:rp.rpId,
 });
 const grantSql="SELECT r.id,r.user_id AS userId,r.group_id AS groupId,r.player_id AS playerId,p.display_name AS playerName,g.name AS groupName,r.expires_at AS expiresAt FROM passkey_recovery_grants r JOIN group_players gp ON gp.group_id=r.group_id AND gp.player_id=r.player_id JOIN group_memberships gm ON gm.group_id=r.group_id AND gm.user_id=r.user_id JOIN users u ON u.id=r.user_id JOIN players p ON p.id=r.player_id JOIN groups g ON g.id=r.group_id WHERE r.token_hash=? AND r.used_at IS NULL AND r.revoked_at IS NULL AND r.expires_at>? AND gp.active=1 AND gp.user_id=r.user_id AND u.system_role='user'";
 
@@ -74,17 +74,19 @@ export const createPasskeyRecoveryGrant=async(
   return {token,expiresAt,userId:expectedUserId,groupId,playerId};
 };
 
-export const beginExistingUserRecovery=async(db:D1Database,token:string,now=new Date())=>{
+export const beginExistingUserRecovery=async(
+  db:D1Database,token:string,now=new Date(),rp:PasskeyRelyingParty=PRODUCTION_PASSKEY,
+)=>{
   const grant=await findPasskeyRecoveryGrant(db,token,now);
   if(!grant)throw new Error("Recovery link invalid or expired");
   const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
     encoder.encode("sanma:user:"+grant.userId)));
-  const challenge=await issuePasskeyChallenge(db,scope(grant.userId),now);
+  const challenge=await issuePasskeyChallenge(db,scope(grant.userId,rp),now);
   const saved=await db.prepare(
     "SELECT credential_id AS credentialId,transports FROM passkey_credentials WHERE user_id=? AND revoked_at IS NULL"
   ).bind(grant.userId).all<{credentialId:string;transports:string|null}>();
   const options=await generateRegistrationOptions({
-    rpName:"三麻スコア",rpID:PASSKEY_RP_ID,
+    rpName:"三麻スコア",rpID:rp.rpId,
     userName:"sanma-"+base64(digest).slice(0,16),userID:digest,
     challenge:decode(challenge.challenge),
     attestationType:"none",supportedAlgorithmIDs:[-7],timeout:120000,
@@ -104,13 +106,14 @@ export const beginExistingUserRecovery=async(db:D1Database,token:string,now=new 
  * both operations in D1.batch(). Never trust batch's changes count for rollback.
  */
 export const finishExistingUserRecovery=async(
-  db:D1Database,token:string,flowId:string,response:RegistrationResponseJSON,now=new Date(),
+  db:D1Database,token:string,flowId:string,response:RegistrationResponseJSON,
+  now=new Date(),rp:PasskeyRelyingParty=PRODUCTION_PASSKEY,
 ):Promise<{userId:string;groupId:string;playerId:string}>=>{
   if(!validToken(token)||!validFlow(flowId)||!response||!canonical(response.id))
     throw new Error("Invalid recovery response");
   const grant=await findPasskeyRecoveryGrant(db,token,now);
   if(!grant)throw new Error("Recovery expired or already used");
-  const bindScope=scope(grant.userId);
+  const bindScope=scope(grant.userId,rp);
   const pending=await readPasskeyChallenge(db,flowId,bindScope,now);
   if(!pending)throw new Error("Recovery challenge expired");
   const verified=await verifyRegistrationResponse({

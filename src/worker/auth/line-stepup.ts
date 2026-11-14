@@ -187,5 +187,24 @@ export const consumePasskeyStepUpProof = async (
   return Boolean(row?.id);
 };
 
+/** Read-only renewal guard for auth/me, where the path-scoped proof Cookie
+ * is intentionally NOT sent. This grants no enrollment authorization:
+ * register/options and register/verify still require the actual HttpOnly proof.
+ * The lookup is restricted to a recent verified, unconsumed step-up for
+ * the identical User and the HMAC-authenticated signed session Cookie.
+ */
+export const hasPendingSameSessionPasskeyStepUp=async(
+  db:D1Database,userId:string,signedSessionCookie:string,now=new Date(),
+):Promise<boolean>=>{
+  requireBinding(userId,signedSessionCookie);
+  if(!validNow(now))return false;
+  const since=new Date(now.getTime()-STEPUP_PROOF_TTL_SECONDS*1000).toISOString();
+  const until=new Date(now.getTime()+30_000).toISOString();
+  const row=await db.prepare(
+    "SELECT 1 AS ok FROM passkey_line_stepups WHERE user_id=? AND session_hash=? AND claimed_at IS NOT NULL AND proof_hash IS NOT NULL AND proof_consumed_at IS NULL AND reauth_at>=? AND reauth_at<=? LIMIT 1"
+  ).bind(userId,await digest(signedSessionCookie),since,until).first<{ok:number}>();
+  return row?.ok===1;
+};
+
 export const PASSKEY_LINE_STEPUP_ORIGIN=PASSKEY_PRODUCTION_ORIGIN;
 export const PASSKEY_LINE_STEPUP_RPID=PASSKEY_PRODUCTION_RP_ID;

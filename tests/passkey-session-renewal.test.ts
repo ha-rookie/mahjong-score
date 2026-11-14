@@ -6,7 +6,6 @@ const enc=new TextEncoder();
 const b64=(bytes:Uint8Array)=>Buffer.from(bytes).toString("base64url");
 const secret="P1 renewal regression test secret with enough entropy 12345";
 const userId="existing-user-1";
-const proof="A".repeat(43);
 const hash=async(value:string)=>b64(new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(value))));
 const signed=async(ttlSeconds=3600)=>{
   const payload=b64(enc.encode(JSON.stringify({
@@ -20,10 +19,8 @@ class FakeDB {
   validProof=true;
   proofReads=0;
   expectedSessionHash="";
-  expectedProofHash="";
   async setup(cookieValue:string){
     this.expectedSessionHash=await hash(cookieValue);
-    this.expectedProofHash=await hash(proof);
   }
   prepare(sql:string){
     const self=this;
@@ -40,13 +37,13 @@ class FakeDB {
         if(sql.startsWith("SELECT 1 AS ok FROM users WHERE system_role='admin' LIMIT 1")){
           return {ok:1} as T;
         }
-        if(sql.startsWith("SELECT user_id AS userId,reauth_at AS reauthAt")){
+        if(sql.startsWith("SELECT 1 AS ok FROM passkey_line_stepups WHERE user_id=?")){
           self.proofReads++;
-          const [proofHash,requestedUser,sessionHash,since,until]=params;
+          const [requestedUser,sessionHash,since,until]=params;
           const recent=new Date().toISOString();
-          if(self.validProof&&proofHash===self.expectedProofHash&&requestedUser===userId&&
+          if(self.validProof&&requestedUser===userId&&
              sessionHash===self.expectedSessionHash&&recent>=String(since)&&recent<=String(until)){
-            return {userId,reauthAt:recent} as T;
+            return {ok:1} as T;
           }
           return null;
         }
@@ -59,10 +56,10 @@ class FakeDB {
     };
   }
 }
-const request=(cookieValue:string,includeProof=true)=>
+// Browser does not send a Path=/api/auth/passkey cookie to /api/auth/me.
+const request=(cookieValue:string)=>
   new Request("https://mahjong-score.ha-rookie.workers.dev/api/auth/me",{
-    headers:{cookie:"mahjong_session="+cookieValue+
-      (includeProof?"; mahjong_passkey_stepup="+proof:"")},
+    headers:{cookie:"mahjong_session="+cookieValue},
   });
 const env=(db:FakeDB,enabled=true)=>({
   DB:db as unknown as D1Database,
@@ -90,7 +87,8 @@ test("P1 invalid, expired, other-session and absent proof cannot suppress normal
   const mismatched=await authMe(request(cookie),env(db));
   assert.match(mismatched.headers.get("set-cookie")??"",/^mahjong_session=/);
   await db.setup(cookie);
-  const absent=await authMe(request(cookie,false),env(db));
+  db.validProof=false;
+  const absent=await authMe(request(cookie),env(db));
   assert.match(absent.headers.get("set-cookie")??"",/^mahjong_session=/);
 });
 test("P1 flag off preserves ordinary cookie renewal without touching P1 proof DB",async()=>{

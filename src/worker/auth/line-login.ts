@@ -1,5 +1,5 @@
 import { requestCorrelationId, writeAuditLog } from "../audit";
-import { readPasskeyStepUpProof } from "./line-stepup";
+import { hasPendingSameSessionPasskeyStepUp } from "./line-stepup";
 import { isPasskeyEnrollmentActive } from "./passkey-rp-config";
 interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; AUTH_LEGACY_SESSION_ACCEPT_UNTIL?: string; PASSKEY_ENV?: string; PASSKEY_REGISTRATION_ENABLED?: string; PASSKEY_AUTH_ENVIRONMENT?: string; PASSKEY_PREVIEW_ORIGIN?: string; }
 type LineToken={id_token?:string};
@@ -217,19 +217,18 @@ const authMeUnchecked=async(request:Request,env:AuthEnv)=>{
   const renewalDue=session.expiresAt!==null&&
     (session.wasLegacy===true||session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS)&&
     Boolean(env.AUTH_SESSION_SECRET);
-  // During the 5-minute verified LINE step-up, the one-time proof is bound
-  // to the exact signed Cookie. Rotating it on auth/me would invalidate
-  // legitimate same-browser registration. Do not postpone renewal otherwise.
+  // The step-up proof Cookie is Path=/api/auth/passkey and is deliberately
+  // absent on /api/auth/me. Check the server-side, recent same-session
+  // proof state instead of widening the credential Cookie's scope.
+  // This defers renewal only during an unconsumed five-minute step-up.
   let deferRenewal=false;
   if(renewalDue&&isPasskeyEnrollmentActive(env)){
-    const proof=cookie(request,"mahjong_passkey_stepup");
     const signedCookie=cookie(request,"mahjong_session");
-    if(proof&&signedCookie){
+    if(signedCookie){
       try{
-        deferRenewal=Boolean(await readPasskeyStepUpProof(env.DB,userId,signedCookie,proof));
+        deferRenewal=await hasPendingSameSessionPasskeyStepUp(env.DB,userId,signedCookie);
       }catch{
-        // A proof-store failure cannot prevent ordinary session renewal.
-        // The user may need to restart LINE reauthentication.
+        // On step-up store failure, use normal renewal; user can reverify.
       }
     }
   }

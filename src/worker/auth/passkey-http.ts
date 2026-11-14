@@ -134,7 +134,7 @@ export const handleS2BPasskeyRequest=async (
         "SELECT COUNT(*) AS count FROM passkey_credentials WHERE user_id=? AND revoked_at IS NULL"
       ).bind(userId).first<{count:number}>();
       const count=result?.count;
-      if(!Number.isSafeInteger(count)||count!<0)
+      if(typeof count!=="number"||!Number.isSafeInteger(count)||count<0)
         throw new Error("Invalid credential count");
       return reply({registered:count>0,count},200);
     }

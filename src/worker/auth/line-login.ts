@@ -1,5 +1,7 @@
 import { requestCorrelationId, writeAuditLog } from "../audit";
-interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; AUTH_LEGACY_SESSION_ACCEPT_UNTIL?: string; }
+import { readPasskeyStepUpProof } from "./line-stepup";
+import { isPasskeyEnrollmentActive } from "./passkey-rp-config";
+interface AuthEnv { DB: D1Database; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; AUTH_LEGACY_SESSION_ACCEPT_UNTIL?: string; PASSKEY_ENV?: string; PASSKEY_REGISTRATION_ENABLED?: string; PASSKEY_AUTH_ENVIRONMENT?: string; PASSKEY_PREVIEW_ORIGIN?: string; }
 type LineToken={id_token?:string};
 type LineIdentity={sub?:string;name?:string};
 type LineError={error?:string;error_description?:string};
@@ -212,8 +214,27 @@ const authMeUnchecked=async(request:Request,env:AuthEnv)=>{
   const anyAdmin=await env.DB.prepare("SELECT 1 AS ok FROM users WHERE system_role='admin' LIMIT 1").first();
   const headers=new Headers({"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
   const nowSeconds=Math.floor(Date.now()/1000);
-  if(session.expiresAt!==null&&(session.wasLegacy===true||session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS)&&env.AUTH_SESSION_SECRET){
-    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET,session.authVersion!,nowSeconds);
+  const renewalDue=session.expiresAt!==null&&
+    (session.wasLegacy===true||session.expiresAt-nowSeconds<=AUTH_SESSION_RENEW_WINDOW_SECONDS)&&
+    Boolean(env.AUTH_SESSION_SECRET);
+  // During the 5-minute verified LINE step-up, the one-time proof is bound
+  // to the exact signed Cookie. Rotating it on auth/me would invalidate
+  // legitimate same-browser registration. Do not postpone renewal otherwise.
+  let deferRenewal=false;
+  if(renewalDue&&isPasskeyEnrollmentActive(env)){
+    const proof=cookie(request,"mahjong_passkey_stepup");
+    const signedCookie=cookie(request,"mahjong_session");
+    if(proof&&signedCookie){
+      try{
+        deferRenewal=Boolean(await readPasskeyStepUpProof(env.DB,userId,signedCookie,proof));
+      }catch{
+        // A proof-store failure cannot prevent ordinary session renewal.
+        // The user may need to restart LINE reauthentication.
+      }
+    }
+  }
+  if(renewalDue&&!deferRenewal){
+    const renewed=await makeSession(userId,env.AUTH_SESSION_SECRET!,session.authVersion!,nowSeconds);
     headers.set("set-cookie",sessionCookieValue(renewed));
     auditAuth(request,"auth_session_renewed","success",{userId,resourceType:"authentication",reason:session.wasLegacy?"legacy_cookie_upgrade":"sliding_expiration"});
   }

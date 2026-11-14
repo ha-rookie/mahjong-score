@@ -1,74 +1,51 @@
-/**
- * S2-B reviewed server-owned WebAuthn relying party configuration.
- *
- * A Preview Worker uses a different HTTPS origin/RP ID from Production.
- * NEVER derive either from Request.url, Host, forwarded headers, browser
- * clientDataJSON or registration options. Preview needs a separate LINE
- * channel and a separately approved isolated D1 binding before deployment.
- */
-export const PASSKEY_PRODUCTION_ORIGIN="https://mahjong-score.ha-rookie.workers.dev";
-export const PASSKEY_PRODUCTION_RP_ID="mahjong-score.ha-rookie.workers.dev";
-export const PASSKEY_PRODUCTION_LINE_CHANNEL_ID="2011726648";
+/** Same server-owned WebAuthn RP/Origin for P0 (#358) and P1 (#361). */
+import {
+  PASSKEY_ORIGIN, PASSKEY_RP_ID, UAT_PASSKEY_ORIGIN, UAT_PASSKEY_RP_ID,
+  resolvePasskeyRelyingParty as resolveP0RelyingParty,
+} from "./passkey-rp";
 
+export const PASSKEY_PRODUCTION_ORIGIN=PASSKEY_ORIGIN;
+export const PASSKEY_PRODUCTION_RP_ID=PASSKEY_RP_ID;
+export const PASSKEY_UAT_ORIGIN=UAT_PASSKEY_ORIGIN;
+export const PASSKEY_UAT_RP_ID=UAT_PASSKEY_RP_ID;
+/** Never reuse the Production LINE channel in the isolated Android UAT host. */
+export const PASSKEY_PRODUCTION_LINE_CHANNEL_ID="2011726648";
 export interface PasskeyRelyingPartyEnv {
+  PASSKEY_ENV?:string;
+  /** Old P1 selectors are forbidden to avoid a split from P0. */
   PASSKEY_AUTH_ENVIRONMENT?:string;
   PASSKEY_PREVIEW_ORIGIN?:string;
   LINE_CHANNEL_ID?:string;
   LINE_CHANNEL_SECRET?:string;
 }
 export interface PasskeyRelyingParty {
-  readonly environment:"production"|"isolated-preview";
+  readonly environment:"production"|"android-uat";
   readonly origin:string;
   readonly rpId:string;
   readonly callbackUrl:string;
 }
-
-/** No fallback to a guessed Preview origin. */
-export const resolvePasskeyRelyingParty=(
-  env:PasskeyRelyingPartyEnv,
-):PasskeyRelyingParty=>{
-  const mode=env.PASSKEY_AUTH_ENVIRONMENT;
-  if(mode===undefined||mode==="production"){
-    return {
-      environment:"production",origin:PASSKEY_PRODUCTION_ORIGIN,
-      rpId:PASSKEY_PRODUCTION_RP_ID,
-      callbackUrl:PASSKEY_PRODUCTION_ORIGIN+"/api/auth/line/callback",
-    };
+/** Resolves from P0's fixed selector; never from a client Host or Origin. */
+export const resolvePasskeyRelyingParty=(env:PasskeyRelyingPartyEnv):PasskeyRelyingParty=>{
+  if(env.PASSKEY_AUTH_ENVIRONMENT!==undefined||env.PASSKEY_PREVIEW_ORIGIN!==undefined){
+    throw new Error("Obsolete P1 passkey environment selectors are forbidden");
   }
-  if(mode!=="isolated-preview")throw new Error("Unsupported passkey environment");
-  const raw=env.PASSKEY_PREVIEW_ORIGIN;
-  if(!raw||typeof raw!=="string")throw new Error("Explicit Preview origin required");
-  let url:URL;
-  try{url=new URL(raw);}catch{throw new Error("Invalid Preview origin");}
-  // Workers.dev account is a deliberate allowlist; custom-domain support
-  // requires a separately reviewed source change, never arbitrary URL strings.
-  const domain=/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.ha-rookie\.workers\.dev$/;
-  if(url.protocol!=="https:"||url.hostname===PASSKEY_PRODUCTION_RP_ID||
-     !domain.test(url.hostname)||url.origin!==raw||url.pathname!=="/"||
-     url.search||url.hash||url.username||url.password||url.port){
-    throw new Error("Preview origin is not approved HTTPS Worker hostname");
-  }
-  // The existing Production LINE Login channel MUST NOT be reused in an
-  // isolated test Worker, even if the Worker URL is valid.
-  if(!env.LINE_CHANNEL_ID||
-     env.LINE_CHANNEL_ID===PASSKEY_PRODUCTION_LINE_CHANNEL_ID||
-     !env.LINE_CHANNEL_SECRET){
-    throw new Error("Isolated Preview must use a separate configured LINE channel");
+  const rp=resolveP0RelyingParty(env);
+  if(env.PASSKEY_ENV==="android-uat"&&
+     (!env.LINE_CHANNEL_ID||!env.LINE_CHANNEL_SECRET||
+      env.LINE_CHANNEL_ID===PASSKEY_PRODUCTION_LINE_CHANNEL_ID)){
+    throw new Error("Android UAT requires a distinct configured LINE channel");
   }
   return {
-    environment:"isolated-preview",origin:url.origin,rpId:url.hostname,
-    callbackUrl:url.origin+"/api/auth/line/callback",
+    environment:env.PASSKEY_ENV==="android-uat"?"android-uat":"production",
+    origin:rp.origin,rpId:rp.rpId,
+    callbackUrl:rp.origin+"/api/auth/line/callback",
   };
 };
-
-/** A single explicit flag cannot silently enable enrollment on Production. */
+/** Explicit flag only; legacy selectors and invalid UAT config fail closed. */
 export const isPasskeyEnrollmentActive=(env:PasskeyRelyingPartyEnv & {
   PASSKEY_REGISTRATION_ENABLED?:string;
 }):boolean=>{
-  if(env.PASSKEY_REGISTRATION_ENABLED!=="true"||
-     !["production","isolated-preview"].includes(env.PASSKEY_AUTH_ENVIRONMENT??"")){
-    return false;
-  }
+  if(env.PASSKEY_REGISTRATION_ENABLED!=="true")return false;
   try{resolvePasskeyRelyingParty(env);return true;}
   catch{return false;}
 };

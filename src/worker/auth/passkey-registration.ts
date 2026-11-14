@@ -120,7 +120,7 @@ export const finishExistingUserPasskeyRegistration = async (
   authConfig:PasskeyRelyingPartyEnv = {},
 ): Promise<{ credentialId: string }> => {
   const rp=resolvePasskeyRelyingParty(authConfig);
-  assertRecentLineReauthentication(context, Math.floor(now.getTime() / 1000));
+  assertEnrollmentAuthorization(context, Math.floor(now.getTime() / 1000));
   if (typeof flowId !== "string" || !/^[0-9a-f-]{36}$/.test(flowId)) {
     throw new Error("Invalid passkey flow identifier");
   }

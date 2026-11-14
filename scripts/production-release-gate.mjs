@@ -27,7 +27,10 @@ export function verifyEnvironment(environment,policy) {
     deny("Required reviewers are not configured");
   if(reviewerRule.reviewers.some(x=>!x?.reviewer||!["User","Team"].includes(x.type)))
     deny("Invalid Required reviewers rule");
-  if(environment.can_admins_bypass===true)deny("Admin bypass must be disabled");
+  // The REST Environment response may omit this field. Unknown is NOT safe.
+  // Until an authoritative false value is available, block all releases.
+  if(environment.can_admins_bypass!==false)
+    deny("Admin bypass is enabled or cannot be independently verified");
   const branch=environment.deployment_branch_policy;
   if(!branch||branch.custom_branch_policies!==true||branch.protected_branches!==false)
     deny("custom main-only branch protection is absent");
@@ -65,6 +68,49 @@ export function verifyApprovedMigrations(approved,files,applied) {
     deny("approved migrations do not exactly match immutable source plan");
   return true;
 }
+
+/**
+ * Cloudflare D1 query API returns {success:true,result:[{success:true,results:[{name}]}]}.
+ * Read the *actual* D1 migration ledger; never infer applied state from
+ * a source-code baseline or a formatted Wrangler terminal table.
+ */
+export function readRemoteAppliedMigrations(response){
+  if(response?.success!==true||!Array.isArray(response.result)||
+     response.result.length!==1||response.result[0]?.success!==true||
+     !Array.isArray(response.result[0].results))
+    deny("remote D1 migration ledger is unavailable, truncated or malformed");
+  const rows=response.result[0].results;
+  const names=rows.map(row=>row?.name);
+  if(names.some(x=>typeof x!=="string"||!/^[0-9]{4}_[a-z0-9_]+\\.sql$/.test(x))||
+     new Set(names).size!==names.length)
+    deny("remote D1 migration ledger contains malformed or duplicate names");
+  return names;
+}
+export function verifyRemoteMigrationPlan(response,sourceFiles,approved,stage){
+  if(!["before","after"].includes(stage))deny("invalid remote migration verification stage");
+  if(!Array.isArray(sourceFiles))deny("source migration list unavailable");
+  const source=sourceFiles.filter(x=>x.endsWith(".sql")).sort();
+  if(source.length===0||source.some(x=>!/^[0-9]{4}_[a-z0-9_]+\\.sql$/.test(x))||
+     new Set(source).size!==source.length)
+    deny("source migration list is malformed or empty");
+  const applied=readRemoteAppliedMigrations(response);
+  // D1 migrations are applied sequentially: an unknown, reordered, or
+  // missing historical row means remote state is not safely understood.
+  if(applied.length>source.length||
+     applied.some((name,i)=>name!==source[i]))
+    deny("remote D1 applied migration ledger is not an exact source prefix");
+  if(applied.length<appliedProductionMigrationNames.length||
+     appliedProductionMigrationNames.some((name,i)=>applied[i]!==name))
+    deny("remote D1 is missing immutable Production baseline migrations");
+  if(stage==="before"){
+    verifyApprovedMigrations(approved,source,applied);
+    return source.slice(applied.length);
+  }
+  if(applied.length!==source.length)
+    deny("remote D1 still has unapplied migrations after apply");
+  return [];
+}
+
 export function verifyProductionD1Information(info,config) {
   const intended=config?.d1_databases?.find(x=>x.binding==="DB");
   const uuid=info?.uuid??info?.database?.uuid??info?.database_id;
@@ -107,6 +153,9 @@ function cli() {
     process.env.APPROVED_MIGRATIONS,
     fs.readdirSync(path.join(process.cwd(),"migrations")),
     appliedProductionMigrationNames);
+  else if(mode==="remote-migrations")verifyRemoteMigrationPlan(
+    read(process.argv[4]),fs.readdirSync(path.join(process.cwd(),"migrations")),
+    process.env.APPROVED_MIGRATIONS,process.argv[3]);
   else if(mode==="d1-info")verifyProductionD1Information(
     read(process.argv[3]),JSON.parse(
       fs.readFileSync("wrangler.jsonc","utf8").replace(/^\s*\/\/.*$/gm,"")));

@@ -161,14 +161,22 @@ jobs:
           set -euo pipefail
           npx wrangler d1 info mahjong-score-prod --json > /tmp/production-d1-info.json
           node scripts/production-release-gate.mjs d1-info /tmp/production-d1-info.json
-      - name: Record unapplied Production Migration list (read only)
+      - name: Verify actual remote applied ledger and exact approved pending migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APPROVED_MIGRATIONS: ${{ inputs.approved_migrations }}
         shell: bash
         run: |
           set -euo pipefail
-          npm run db:migrations:list:prod
+          curl --fail-with-body --silent --show-error --retry 2 \\
+            --request POST \\
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+            --header "Content-Type: application/json" \\
+            --data '{"sql":"SELECT name FROM d1_migrations ORDER BY id"}' \\
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/95a84e69-692e-45f1-9762-0b71b298199b/query" \\
+            > /tmp/prod-migrations-before.json
+          node scripts/production-release-gate.mjs remote-migrations before /tmp/prod-migrations-before.json
       - name: Capture and verify Production D1 recovery bookmark (read only)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -192,11 +200,22 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run db:migrate:prod
-      - name: Recheck pending Production migrations after apply (read only)
+      - name: Verify all approved migrations applied and no pending files remain
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run db:migrations:list:prod
+          APPROVED_MIGRATIONS: ${{ inputs.approved_migrations }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --retry 2 \\
+            --request POST \\
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+            --header "Content-Type: application/json" \\
+            --data '{"sql":"SELECT name FROM d1_migrations ORDER BY id"}' \\
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/95a84e69-692e-45f1-9762-0b71b298199b/query" \\
+            > /tmp/prod-migrations-after.json
+          node scripts/production-release-gate.mjs remote-migrations after /tmp/prod-migrations-after.json
       - name: Recheck main HEAD immediately before Worker deploy
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}

@@ -28,7 +28,9 @@ export function assertReleaseTopology(ci, release) {
     fail("Release environment/concurrency/permissions missing");
   if(!release.includes("scripts/production-release-gate.mjs environment")||
      !release.includes("scripts/production-release-gate.mjs context")||
-     !release.includes("scripts/production-release-gate.mjs duplicate"))
+     !release.includes("scripts/production-release-gate.mjs duplicate")||
+     !release.includes("remote-migrations before")||
+     !release.includes("remote-migrations after"))
     fail("Mandatory release admission checks missing");
 }
 export function checkReleaseTopologyOnDisk(root=process.cwd()) {

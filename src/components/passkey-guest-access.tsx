@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { guestPasskeyFailureMessage, type GuestPasskeyStage } from "./passkey-guest-error";
 
 type PasskeyOptions={flowId:string;options:unknown;expiresAt:string;
   playerName?:string;groupName?:string};
 const post=async(path:string,data:unknown)=>{
   const response=await fetch(path,{method:"POST",credentials:"same-origin",cache:"no-store",
     headers:{"content-type":"application/json"},body:JSON.stringify(data)});
-  if(!response.ok)throw new Error("Request failed");
+  if(!response.ok)throw new Error("passkey_http_"+response.status);
   return response.json() as Promise<Record<string,unknown>>;
 };
 const supported=()=>typeof PublicKeyCredential!=="undefined" &&
@@ -35,16 +36,20 @@ export function PasskeyGuestAccess(){
   const execute=async(mode:"register"|"login"|"recover")=>{
     if(busy)return;
     setBusy(true);setNotice("");
+    let stage:GuestPasskeyStage="support";
     try{
       if(!supported())throw new Error("Browser WebAuthn unsupported");
       let flow:PasskeyOptions,attestation:unknown;
+      stage="options";
       if(mode==="register"){
         if(!hasInvite)throw new Error("Invitation required");
         flow=parseOptions(await post("/api/auth/passkey/invite/options",{token:invite}));
         const creation=PublicKeyCredential.parseCreationOptionsFromJSON(
           flow.options as PublicKeyCredentialCreationOptionsJSON);
+        stage="device";
         const credential=await navigator.credentials.create({publicKey:creation});
         attestation=toJSON(credential);
+        stage="verify";
         const result=await post("/api/auth/passkey/invite/verify",{
           token:invite,flowId:flow.flowId,credential:attestation,
         });
@@ -54,7 +59,9 @@ export function PasskeyGuestAccess(){
         flow=parseOptions(await post("/api/auth/passkey/recovery/options",{token:recoveryToken}));
         const creation=PublicKeyCredential.parseCreationOptionsFromJSON(
           flow.options as PublicKeyCredentialCreationOptionsJSON);
+        stage="device";
         const credential=await navigator.credentials.create({publicKey:creation});
+        stage="verify";
         const result=await post("/api/auth/passkey/recovery/verify",{
           token:recoveryToken,flowId:flow.flowId,credential:toJSON(credential),
         });
@@ -63,8 +70,10 @@ export function PasskeyGuestAccess(){
         flow=parseOptions(await post("/api/auth/passkey/login/options",{}));
         const request=PublicKeyCredential.parseRequestOptionsFromJSON(
           flow.options as PublicKeyCredentialRequestOptionsJSON);
+        stage="device";
         const credential=await navigator.credentials.get({publicKey:request});
         attestation=toJSON(credential);
+        stage="verify";
         const result=await post("/api/auth/passkey/login/verify",{
           flowId:flow.flowId,credential:attestation,
         });
@@ -74,13 +83,10 @@ export function PasskeyGuestAccess(){
       // legacy local data, AuthStatus switches persistence to cloud D1 before
       // rendering groups and historical scores; locally preserved data remains
       // untouched for users who still have old local records.
+      stage="transition";
       window.location.assign("/?login=success");
     }catch(error){
-      const cancelled=error instanceof Error&&["NotAllowedError","AbortError"].includes(error.name);
-      setNotice(cancelled?"認証をキャンセルしました。もう一度お試しください。":
-        mode==="recover"?"復旧できませんでした。管理者から受け取ったリンクの期限と対象を確認してください。":
-        mode==="register"?"登録できませんでした。招待の期限や端末の設定をご確認ください。":
-          "ログインできませんでした。登録したパスキーを選択して再試行してください。");
+      setNotice(guestPasskeyFailureMessage(mode,stage,error));
     }finally{setBusy(false);}
   };
   return <div className="passkey-guest">

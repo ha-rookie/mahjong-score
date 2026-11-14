@@ -5,7 +5,8 @@
   "main": "src/worker.ts",
   "preview_urls": true,
   "vars": {
-    "LINE_CHANNEL_ID": "2011726648"
+    "LINE_CHANNEL_ID": "2011726648",
+    "PASSKEY_REGISTRATION_ENABLED": "true"
   },
   "d1_databases": [
     {

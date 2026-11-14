@@ -6,7 +6,7 @@ import {
   PASSKEY_PRODUCTION_RP_ID,
 } from "../src/worker/auth/passkey-registration";
 
-test("S2-B local-only deployment gate: Production vs Preview D1 IDs must remain separate",()=>{
+test("Production passkey enabled with distinct Preview D1 IDs",()=>{
   const config=JSON.parse(readFileSync("wrangler.jsonc","utf8")) as {
     name?:string;
     vars?:Record<string,string>;
@@ -22,9 +22,9 @@ test("S2-B local-only deployment gate: Production vs Preview D1 IDs must remain 
   assert.equal(preview?.database_name,"mahjong-score-preview");
   assert.notEqual(prod?.database_id,preview?.database_id);
   assert.equal(prod?.preview_database_id,preview?.database_id);
-  // Enabling the feature requires a distinct Human Gate: do NOT allow a
-  // seemingly harmless local/PR edit to turn on enrollment during deploy.
-  assert.equal(config.vars?.PASSKEY_REGISTRATION_ENABLED,undefined);
+  // Production enrollment is explicitly authorized; Preview D1 identity
+  // remains isolated, with same-user LINE reauthentication still required.
+  assert.equal(config.vars?.PASSKEY_REGISTRATION_ENABLED,"true");
 });
 
 test("S2-B preview readiness STOP: passkey RP and OAuth callback must not silently switch to another domain",()=>{

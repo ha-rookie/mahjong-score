@@ -49,10 +49,7 @@ const makeEnv=(db:FakeDb,enabled:boolean)=>({
   AUTH_SESSION_SECRET:sessionSecret,
   LINE_CHANNEL_ID:"12345678",
   LINE_CHANNEL_SECRET:"test-line-secret",
-  ...(enabled?{
-    PASSKEY_AUTH_ENVIRONMENT:"production",
-    PASSKEY_REGISTRATION_ENABLED:"true",
-  }:{}),
+  ...(enabled?{PASSKEY_REGISTRATION_ENABLED:"true"}:{}),
 });
 const req=async(path:string,db:FakeDb,enabled:boolean,options:{
   method?:string;origin?:string;cookie?:string|null;json?:boolean;
@@ -152,28 +149,31 @@ test("S2-B proof status GET verifies same-session HttpOnly proof, not a URL mark
   assert.equal(db.stepups,0);
 });
 
-test("S2-B Preview capability rejects Production channel and mismatched origin before D1 access",async()=>{
-  const db=new FakeDb(),previewOrigin="https://s2b-preview.ha-rookie.workers.dev";
-  const previewEnv={
+test("P1 Android UAT capability uses exact P0 host; rejects old selectors and Production channel",async()=>{
+  const db=new FakeDb(),uatOrigin="https://mahjong-score-android-uat.ha-rookie.workers.dev";
+  const uatEnv={
     ...makeEnv(db,true),
-    PASSKEY_AUTH_ENVIRONMENT:"isolated-preview",
-    PASSKEY_PREVIEW_ORIGIN:previewOrigin,
+    PASSKEY_ENV:"android-uat",
     LINE_CHANNEL_ID:"9876543210",
   };
-  const fetchAt=(url:string,env:typeof previewEnv)=>worker.fetch(
-    new Request(url,{method:"GET"}),env);
-  const allowed=await fetchAt(previewOrigin+"/api/auth/passkey/capabilities",previewEnv);
+  const fetchAt=(url:string,env:Parameters<typeof worker.fetch>[1])=>
+    worker.fetch(new Request(url,{method:"GET"}),env);
+  const allowed=await fetchAt(uatOrigin+"/api/auth/passkey/capabilities",uatEnv);
   assert.equal(allowed.status,200);
   assert.deepEqual(await allowed.json(),{registrationEnabled:true});
-  const other=await fetchAt(host+"/api/auth/passkey/capabilities",previewEnv);
-  assert.deepEqual(await other.json(),{registrationEnabled:false});
-  const contaminated=await fetchAt(previewOrigin+"/api/auth/passkey/capabilities",{
-    ...previewEnv,LINE_CHANNEL_ID:"2011726648",
+  const wrongHost=await fetchAt(host+"/api/auth/passkey/capabilities",uatEnv);
+  assert.deepEqual(await wrongHost.json(),{registrationEnabled:false});
+  const prodChannel=await fetchAt(uatOrigin+"/api/auth/passkey/capabilities",{
+    ...uatEnv,LINE_CHANNEL_ID:"2011726648",
   });
-  assert.deepEqual(await contaminated.json(),{registrationEnabled:false});
-  const missingMode=await fetchAt(previewOrigin+"/api/auth/passkey/capabilities",{
-    ...previewEnv,PASSKEY_AUTH_ENVIRONMENT:""
+  assert.deepEqual(await prodChannel.json(),{registrationEnabled:false});
+  const obsolete=await fetchAt(uatOrigin+"/api/auth/passkey/capabilities",{
+    ...uatEnv,PASSKEY_AUTH_ENVIRONMENT:"isolated-preview",
   });
-  assert.deepEqual(await missingMode.json(),{registrationEnabled:false});
+  assert.deepEqual(await obsolete.json(),{registrationEnabled:false});
+  const conflicting=await fetchAt(uatOrigin+"/api/auth/passkey/capabilities",{
+    ...uatEnv,PASSKEY_PREVIEW_ORIGIN:"https://other.ha-rookie.workers.dev",
+  });
+  assert.deepEqual(await conflicting.json(),{registrationEnabled:false});
   assert.deepEqual(db.prepared,[]);
 });

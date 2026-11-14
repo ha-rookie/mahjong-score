@@ -77,7 +77,7 @@ class FakeD1 {
 }
 const current=new Date("2026-10-24T00:00:00.000Z");
 const env=(fake:FakeD1)=>({DB:fake as unknown as D1Database,LINE_CHANNEL_ID:"12345678",LINE_CHANNEL_SECRET:"test-only-secret"});
-type FakeProviderClaims = {sub?:string;nonce?:string;auth_time?:number;amr?:string[];aud?:string};
+type FakeProviderClaims = {sub?:string;nonce?:string;auth_time?:number;amr?:string[]|null;aud?:string};
 const provider=(authNonce:string,changes:FakeProviderClaims={})=>{
   let requests=0;
   const respond:typeof fetch=async (_input,init) => {
@@ -93,7 +93,7 @@ const provider=(authNonce:string,changes:FakeProviderClaims={})=>{
       iss:"https://access.line.me",aud:changes.aud??"12345678",sub:changes.sub??"line-sub-1",
       nonce:changes.nonce??authNonce,exp:Math.floor(current.getTime()/1000)+1000,
       iat:Math.floor(current.getTime()/1000),auth_time:changes.auth_time??Math.floor(current.getTime()/1000),
-      amr:changes.amr??["pwd"],
+      ...(changes.amr===null?{}:{amr:changes.amr??["pwd"]}),
     });
   };
   return respond;
@@ -175,6 +175,22 @@ test("S2-B older authentication, auto login or wrong nonce never supplies proof"
     assert.equal(fake.rows[0].proofHash,null);
   }
 });
+test("LINE official optional amr: absent is accepted only with fresh validated User, nonce and auth_time",async()=>{
+  const fake=new FakeD1(),url=await begin(fake);
+  const proof=await finishPasskeyLineStepUp(env(fake),url.searchParams.get("state")!,
+    "code","user-1","signed.session.cookie",current,
+    provider(fake.rows[0].nonce,{amr:null}));
+  assert.equal(proof.userId,"user-1");
+  assert.ok(proof.proofToken);
+  const mismatched=new FakeD1(),badUrl=await begin(mismatched);
+  await assert.rejects(finishPasskeyLineStepUp(env(mismatched),badUrl.searchParams.get("state")!,
+    "code","user-1","signed.session.cookie",current,
+    provider(mismatched.rows[0].nonce,{amr:null,sub:"line-sub-2"})),/account mismatch/);
+  const stale=new FakeD1(),staleUrl=await begin(stale);
+  await assert.rejects(finishPasskeyLineStepUp(env(stale),staleUrl.searchParams.get("state")!,
+    "code","user-1","signed.session.cookie",current,
+    provider(stale.rows[0].nonce,{amr:null,auth_time:Math.floor(current.getTime()/1000)-301})),/freshness/);
+});
 test("S2-B accepted documented interactive amr does not weaken signed same-user verification",async()=>{
   for(const method of ["pwd","lineqr","linesso","mfa"]){
     const fake=new FakeD1(),url=await begin(fake);
@@ -198,13 +214,12 @@ test("S2-B callback expires and proof expires; D1 outage cannot issue new state"
 test("S2-B isolated Preview uses only its reviewed callback and never Production redirect URI",async()=>{
   const fake=new FakeD1(),stageEnv={
     ...env(fake),
-    PASSKEY_AUTH_ENVIRONMENT:"isolated-preview",
-    PASSKEY_PREVIEW_ORIGIN:"https://s2b-preview.ha-rookie.workers.dev",
+    PASSKEY_ENV:"android-uat",
   };
   const {authorizationUrl}=await beginPasskeyLineStepUp(stageEnv,"user-1","signed.session.cookie",current);
   const url=new URL(authorizationUrl);
   assert.equal(url.searchParams.get("redirect_uri"),
-    "https://s2b-preview.ha-rookie.workers.dev/api/auth/line/callback");
+    "https://mahjong-score-android-uat.ha-rookie.workers.dev/api/auth/line/callback");
   assert.notEqual(url.searchParams.get("redirect_uri"),
     "https://mahjong-score.ha-rookie.workers.dev/api/auth/line/callback");
   let actualRedirectUri="";
@@ -224,5 +239,5 @@ test("S2-B isolated Preview uses only its reviewed callback and never Production
     "preview-code","user-1","signed.session.cookie",current,fetchPreview);
   assert.equal(result.userId,"user-1");
   assert.equal(actualRedirectUri,
-    "https://s2b-preview.ha-rookie.workers.dev/api/auth/line/callback");
+    "https://mahjong-score-android-uat.ha-rookie.workers.dev/api/auth/line/callback");
 });

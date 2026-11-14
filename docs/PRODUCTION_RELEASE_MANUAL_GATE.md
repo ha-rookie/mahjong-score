@@ -10,7 +10,7 @@ This branch is based on main `21b890c1ebd70fcc6069b64c84d3bf4c063603b3`. **No ma
 - A separately provisioned `production` **Environment Secret** `PRODUCTION_RELEASE_ARMED` with value `armed-for-production-release` is required; the corresponding name must NOT exist in repository or organization Secrets. This is a deliberate future provisioning gate, **not created during this task**. Required reviewers still enforced by GitHub, independently of secret.
 - Current repository-level `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are referenced **only inside approved release steps**. Move to Environment-scoped Secrets later if explicitly authorized. Token permissions and GitHub Environment bypass policy must be audited before any first production run.
 - `concurrency` group serializes all Production release jobs; prior workflow dispatch for same SHA (including failure/cancelled) and any rerun are rejected. An interrupted Migration requires a separately reviewed recovery plan; do not naively retry the same release.
-- Human inputs: exact `release_sha`, explicit comma-separated ordered list `approved_migrations`, or `none`. The script rejects any mismatch against source migrations beyond recorded production baseline. The approved release queries the actual remote `d1_migrations` ledger via Cloudflare D1 read-only SQL, verifies a complete ordered prefix of the source migrations and an exact match between the remaining files and the human-approved list before mutations; after migration it verifies that all source migrations are recorded. Cloudflare query failures, malformed response or unknown remote rows stop the release.
+- Human inputs: exact `release_sha`, explicit comma-separated ordered list `approved_migrations`, or `none`. Preflight validates filenames, ordering and source membership without assuming a stale remote applied-state. After Environment approval, the release queries the actual remote `d1_migrations` ledger via Cloudflare D1 read-only SQL, verifies a complete ordered prefix of the source migrations and an exact match between the remaining files and the human-approved list before mutations; after migration it verifies that all source migrations are recorded. Cloudflare query failures, malformed response or unknown remote rows stop the release.
 
 ### Required GitHub Environment configuration before use
 1. Create/configure Environment named exactly `production`, Required reviewers >=1; if independent reviewer available enable prevent self-review.
@@ -22,8 +22,8 @@ This branch is based on main `21b890c1ebd70fcc6069b64c84d3bf4c063603b3`. **No ma
 ### Failure modes / hard stop
 | Stage | Fail-closed condition |
 |---|---|
-| Dispatch / preflight | non-main, invalid SHA, stale HEAD, repeat run, missing/extra planned migration, CI failure |
-| Environment approval | no required reviewers, no main-only policy, GitHub API failure, missing arming Secret |
+| Dispatch / preflight | non-main, invalid SHA, stale HEAD, repeat run, malformed/unknown migration approval, CI failure |
+| Environment approval | no required reviewers, no main-only policy, admin-bypass status absent or enabled, GitHub API failure, missing arming Secret |
 | D1 preflight | wrong Production D1 UUID/name/binding, unavailable/mismatched remote D1 migration ledger, missing recovery bookmark |
 | Migration | failed apply or nonempty pending list after apply; **stop** before Worker deploy, investigate exact applied files and D1 state |
 | Deploy / verification | stop, do not automatically restore D1; decide Worker rollback separately |

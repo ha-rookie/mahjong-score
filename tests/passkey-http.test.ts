@@ -22,7 +22,7 @@ class FakeDb{
     this.prepared.push(sql);
     const inc=()=>{this.stepups++;};
     const hasProof=()=>this.proofAvailable;
-    const db=this;
+    const incrementChallenge=()=>{this.challenges++;};
     let args:unknown[]=[];
     return {
       bind(...values:unknown[]){args=values;return this;},
@@ -40,7 +40,7 @@ class FakeDb{
         return null;
       },
       async run(){if(sql.startsWith("INSERT INTO passkey_line_stepups")){inc();return{meta:{changes:1}};}
-        if(sql.startsWith("INSERT INTO auth_challenges")){db.challenges++;return{meta:{changes:1}};}
+        if(sql.startsWith("INSERT INTO auth_challenges")){incrementChallenge();return{meta:{changes:1}};}
         throw new Error("Unexpected mutation");},
       async all<T>():Promise<{results:T[]}>{return{results:[]};},
     };

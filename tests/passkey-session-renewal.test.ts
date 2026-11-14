@@ -23,7 +23,9 @@ class FakeDB {
     this.expectedSessionHash=await hash(cookieValue);
   }
   prepare(sql:string){
-    const self=this;
+    const proofIsValid=()=>this.validProof;
+    const boundSessionHash=()=>this.expectedSessionHash;
+    const recordRead=()=>{this.proofReads++;};
     let params:unknown[]=[];
     return {
       bind(...args:unknown[]){params=args;return this;},
@@ -38,11 +40,11 @@ class FakeDB {
           return {ok:1} as T;
         }
         if(sql.startsWith("SELECT 1 AS ok FROM passkey_line_stepups WHERE user_id=?")){
-          self.proofReads++;
+          recordRead();
           const [requestedUser,sessionHash,since,until]=params;
           const recent=new Date().toISOString();
-          if(self.validProof&&requestedUser===userId&&
-             sessionHash===self.expectedSessionHash&&recent>=String(since)&&recent<=String(until)){
+          if(proofIsValid()&&requestedUser===userId&&
+             sessionHash===boundSessionHash()&&recent>=String(since)&&recent<=String(until)){
             return {ok:1} as T;
           }
           return null;

@@ -20,3 +20,9 @@
 - Actual Android Chrome and iPhone Safari enrollment validation must be recorded separately; no live-app proof is claimed by simulated CI.
 - Review session binding, origin/CSRF, token freshness, challenge replays, credential uniqueness, D1 authorization and disabled-by-default flag.
 - **No approval for main merge, Remote D1, Secrets, vars, UAT or Production deploy**. Do not enable the flag for users until P0 #358 has merged and an explicit later release authorization.
+
+## November 14, 2026 — authentication integration fixes
+- **P0/P1 RP parity:** P1 now uses the P0 `PASSKEY_ENV` selector, with only the fixed Production or Android UAT host. Obsolete `PASSKEY_AUTH_ENVIRONMENT` / `PASSKEY_PREVIEW_ORIGIN` selectors are rejected; Android UAT still requires a distinct, separately configured LINE channel. No environment variable was changed.
+- **LINE documented optional `amr`:** Official LINE Login token contract says this claim can be absent (https://developers.line.biz/en/reference/line-login/). Accept an omitted claim only while retaining prompt=login / max_age=0, verified recent `auth_time`, issuer, audience, nonce, one-time state, and same-user identity; reject explicit `lineautologin`, unknown or empty arrays.
+- **Cookie renewal:** `/api/auth/me` defers sliding cookie renewal only during a verified, same-user, same-browser, unconsumed P1 step-up proof (maximum five minutes). Otherwise, including flag off, it retains normal sliding renewal. Tests exercise both cases.
+- **Release remains blocked:** Android Chrome end-to-end acceptance, separate LINE UAT channel registration and explicit approval are not completed. No deploy, remote D1, configuration or secret changes.

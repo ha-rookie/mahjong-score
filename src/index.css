@@ -967,3 +967,9 @@ h2 {
 .session-rule-override{margin:16px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
 .session-rule-override summary{cursor:pointer;font-size:.86rem;color:var(--muted)}
 @media(max-width:520px){.rule-fields{grid-template-columns:1fr}}
+/* LINE-free passkey registration and sign-in; existing LINE option is kept. */
+.passkey-guest{display:grid;gap:12px;margin:16px 0 10px}
+.passkey-guest>div{display:grid;gap:8px}
+.passkey-guest p{margin:0;line-height:1.6;font-size:.83rem}
+.passkey-guest .login-gate__button{width:100%;min-height:44px}
+.passkey-guest__error{color:var(--danger);font-weight:650}

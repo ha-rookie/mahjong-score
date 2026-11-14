@@ -133,10 +133,10 @@ test("Release workflow does not use privileged GITHUB_TOKEN, PR merge or UAT dep
   assert.match(release,/actions: read/);
   assert.doesNotMatch(release,/deployments: (read|write)/);
   assert.match(release,/Verify actual Production D1 UUID/);
-  assert.match(release,/Record unapplied Production Migration list/);
+  assert.match(release,/Verify actual remote applied ledger and exact approved pending migrations/);
   assert.match(release,/Capture and verify Production D1 recovery bookmark/);
   assert.match(release,/Apply only source-approved pending Production D1 migrations/);
-  assert.match(release,/Recheck pending Production migrations after apply/);
+  assert.match(release,/Verify all approved migrations applied and no pending files remain/);
   assert.match(release,/Verify active Production Worker D1 binding/);
   assert.doesNotMatch(ci,/CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_API_TOKEN/);
 });

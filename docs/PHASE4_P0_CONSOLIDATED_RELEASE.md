@@ -30,3 +30,11 @@
 - リリース候補はこのブランチからの**単一Draft PR（対main）**が正本。旧Draftはレビュー資料・履歴であり、個別mergeしない。
 - **テストが成功しても現時点で本番稼働済みとは主張しない**。実Cloudflare Remote D1やスマートフォン実機は未検証。
 - 正本：[Issue #345](https://github.com/ha-rookie/mahjong-score/issues/345)。
+
+## 2026-11-14｜公開Challenge発行のD1書込み濫用対策
+- `POST /api/auth/passkey/{login,invite,recovery}/options` のみを対象。Cloudflareが付ける `CF-Connecting-IP` がない・不正な場合は失敗として **Challengeを発行しない**。クライアントの `X-Forwarded-For` は使用しない。
+- 5分固定窓で **接続元8回／アプリ全体40回**。SHA-256化した接続元キーと全体キーをD1の条件付きUPSERTで消費。上限到達後は読み取りのみで429・`Retry-After: 300`。並行要求も窓内の最大発行件数を超えないようSQLiteの更新条件で制限する。
+- 新規の追加Migration `0013_passkey_public_budget.sql` でカウンタ表と保持期間のindexを作成。適用はローカルCIのみ。親の既存`0012`は変更しない。
+- `auth_challenges` は **失効後24時間以上** 保持し、それより古いものを許可済みOptions要求で最大32件ずつ削除。`passkey_option_budgets` も窓開始から24時間以上経過していれば最大32件ずつ削除。両者とも対象がない場合DELETEは実行しない。Cron未設定のため、長期間無アクセス時には遅延削除となる。
+- D1の新規Challenge書込み上限は分散IPでも40/5分（予算カウンタ自体には上限までD1書込みあり）。アクセス全体の負荷軽減には、**Cloudflareエッジのレート制限を別承認で追加する余地がある**。Secrets/vars/D1 Remote/Workersには未変更。
+- **Stacked #361の扱い**：子PRに既存の`0013_passkey_line_stepup.sql`があるため、親の新`0013`を取り込む際、子のLINE Step-up Migrationを`0014`へ改番し、実SQLite CI/移行順を再検証する。子を親より先にmainマージしない。

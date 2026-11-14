@@ -5,8 +5,7 @@ import fs from "node:fs";
 // Regression for the Android account menu: inherited nowrap made the
 // passkey explanation/100%-width button stretch the entire document.
 const css=fs.readFileSync("src/index.css","utf8");
-const rules=(selector)=>[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-  .filter(m=>m[1].split(",").some(s=>s.trim()===selector)).map(m=>m[2]).join(";");
+const rules=(selector)=>css.split(selector+"{").slice(1).map(s=>s.split("}")[0]).join(";");
 
 test("account dropdown constrains its width and allows wrapping",()=>{
   const panel=rules(".account-menu__panel");

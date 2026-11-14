@@ -165,3 +165,19 @@ test("S2-B Preview registration keeps challenge stored under Preview RP and neve
   assert.notEqual(row?.rpId,PASSKEY_PRODUCTION_RP_ID);
   assert.equal(fake.credentials.length,0);
 });
+
+
+test("existing authenticated User enrolls without LINE reauthentication",async()=>{
+  const fake=new FakeD1();
+  const context:ExistingUserContext={sessionUserId:"same-user",enrollmentMode:"authenticated-session"};
+  const out=await beginExistingUserPasskeyRegistration(db(fake),context,now);
+  assert.equal(fake.rows.get(out.flowId)?.userId,"same-user");
+  assert.equal(out.options.rp.id,PASSKEY_PRODUCTION_RP_ID);
+  await assert.rejects(beginExistingUserPasskeyRegistration(db(fake),{
+    sessionUserId:"missing",enrollmentMode:"authenticated-session",
+  },now),/User not found/);
+  await assert.rejects(beginExistingUserPasskeyRegistration(db(fake),{
+    sessionUserId:"same-user",
+  },now),/Recent verified LINE identity/);
+  assert.equal(fake.rows.size,1);
+});

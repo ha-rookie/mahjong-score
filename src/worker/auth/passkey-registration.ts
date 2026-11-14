@@ -1,10 +1,9 @@
 /**
  * Phase 4 S2-B (#345) – server-only registration core for an EXISTING user.
  *
- * Deliberately NOT connected to an HTTP route. The future route MUST establish
- * a verified, recent LINE reauthentication for the SAME signed-in User, reject
- * cross-site requests, and rate-limit start/finish before using this module.
- * Neither a normal 24h session nor cookie sliding renewal proves freshness.
+ * Enrollment uses a validated signed-in User session, a same-origin request,
+ * and a one-time WebAuthn challenge. The older optional LINE step-up remains
+ * available for legacy callers but is not required for existing-user enrollment.
  */
 import { generateRegistrationOptions, verifyRegistrationResponse } from "@simplewebauthn/server";
 import {
@@ -30,7 +29,16 @@ export interface FreshLineIdentity {
 
 export type ExistingUserContext = {
   readonly sessionUserId: string;  // signed, DB-authVersion-validated session
-  readonly lineIdentity: FreshLineIdentity; // verified LINE callback, never supplied by client
+  readonly lineIdentity?: FreshLineIdentity; // optional legacy LINE step-up
+  readonly enrollmentMode?: "authenticated-session"; // trusted HTTP session only
+};
+const assertEnrollmentAuthorization=(context:ExistingUserContext,nowSeconds:number):void=>{
+  if(context.enrollmentMode==="authenticated-session"){
+    if(!context.sessionUserId||context.lineIdentity!==undefined)
+      throw new Error("Signed-in session enrollment requires only its existing User");
+    return;
+  }
+  assertRecentLineReauthentication(context,nowSeconds);
 };
 
 export const PASSKEY_STEP_UP_MAX_AGE_SECONDS = 300;
@@ -66,7 +74,7 @@ export const beginExistingUserPasskeyRegistration = async (
   authConfig:PasskeyRelyingPartyEnv = {},
 ) => {
   const rp=resolvePasskeyRelyingParty(authConfig);
-  assertRecentLineReauthentication(context, Math.floor(now.getTime() / 1000));
+  assertEnrollmentAuthorization(context, Math.floor(now.getTime() / 1000));
   const userId = context.sessionUserId;
   const user = await db.prepare("SELECT id FROM users WHERE id=?")
     .bind(userId).first<{ id: string }>();
@@ -100,8 +108,8 @@ export const beginExistingUserPasskeyRegistration = async (
 };
 
 /**
- * Called only after an authenticated, same-user, recently reauthenticated
- * session AND Origin/CSRF validation on the request. Never issue a session here.
+ * Called after verifying the current signed-in User and same-origin request.
+ * Credential creation does not issue or replace an authentication session.
  */
 export const finishExistingUserPasskeyRegistration = async (
   db: D1Database,
@@ -145,7 +153,7 @@ export const finishExistingUserPasskeyRegistration = async (
     throw new Error("Verified credential missing required fields");
   }
   // Fresh re-auth and current User existence are re-checked before any write.
-  assertRecentLineReauthentication(context, Math.floor(Date.now() / 1000));
+  assertEnrollmentAuthorization(context, Math.floor(Date.now() / 1000));
   const user = await db.prepare("SELECT id FROM users WHERE id=?")
     .bind(context.sessionUserId).first<{ id: string }>();
   if (user?.id !== context.sessionUserId) throw new Error("User no longer exists");

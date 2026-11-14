@@ -16,17 +16,20 @@ const signedCookie=async(userId="user-1")=>{
 class FakeDb{
   readonly prepared:string[]=[];
   stepups=0;
+  challenges=0;
   proofAvailable=false;
   prepare(sql:string){
     this.prepared.push(sql);
     const inc=()=>{this.stepups++;};
     const hasProof=()=>this.proofAvailable;
+    const db=this;
     let args:unknown[]=[];
     return {
       bind(...values:unknown[]){args=values;return this;},
       async first<T>():Promise<T|null>{
         if(sql.includes("SELECT id,auth_version AS authVersion FROM users WHERE id=?"))
           return {id:args[0],authVersion:0} as T;
+        if(sql==="SELECT id FROM users WHERE id=?")return {id:args[0]} as T;
         if(sql.includes("SELECT 1 AS ok FROM external_identities"))
           return {ok:1} as T;
         if(sql.includes("SELECT COUNT(*) AS total FROM passkey_line_stepups"))
@@ -37,6 +40,7 @@ class FakeDb{
         return null;
       },
       async run(){if(sql.startsWith("INSERT INTO passkey_line_stepups")){inc();return{meta:{changes:1}};}
+        if(sql.startsWith("INSERT INTO auth_challenges")){db.challenges++;return{meta:{changes:1}};}
         throw new Error("Unexpected mutation");},
       async all<T>():Promise<{results:T[]}>{return{results:[]};},
     };
@@ -101,14 +105,25 @@ test("S2-B enabled start uses linked EXISTING user and fixed-line callback witho
   assert.equal(db.prepared.filter(x=>/\b(game_results|group_players|players)\b/.test(x)).length,0);
 });
 
-test("S2-B no proof means OPTIONS and VERIFY are denied; wrong content type is rejected",async()=>{
+test("signed-in User registers passkey options directly without LINE step-up",async()=>{
   const db=new FakeDb();
-  const noProof=await req("/api/auth/passkey/register/options",db,true,{origin:host,json:true});
-  assert.equal(noProof.status,403);
+  const noSession=await req("/api/auth/passkey/register/options",db,true,{origin:host,json:true,cookie:null});
+  assert.equal(noSession.status,401);
+  const cross=await req("/api/auth/passkey/register/options",db,true,{origin:"https://evil.example",json:true});
+  assert.equal(cross.status,403);
+  const missingOrigin=await req("/api/auth/passkey/register/options",db,true,{json:true});
+  assert.equal(missingOrigin.status,403);
   const invalidType=await req("/api/auth/passkey/register/options",db,true,{origin:host});
   assert.equal(invalidType.status,415);
-  const noVerify=await req("/api/auth/passkey/register/verify",db,true,{origin:host,json:true});
-  assert.equal(noVerify.status,403);
+  const started=await req("/api/auth/passkey/register/options",db,true,{origin:host,json:true});
+  assert.equal(started.status,200);
+  const data=await started.json() as {flowId:string;options:{rp:{id:string}}};
+  assert.match(data.flowId,/^[0-9a-f-]{36}$/);
+  assert.equal(data.options.rp.id,new URL(host).hostname);
+  assert.equal(db.challenges,1);
+  assert.equal(db.stepups,0);
+  const malformed=await req("/api/auth/passkey/register/verify",db,true,{origin:host,json:true});
+  assert.equal(malformed.status,400);
   assert.equal(db.stepups,0);
 });
 

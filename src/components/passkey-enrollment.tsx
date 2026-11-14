@@ -37,20 +37,25 @@ export function PasskeyEnrollment(){
     try{
       if(!webauthnRegistrationSupported())throw new Error("unsupported_webauthn");
       const response=await post("/api/auth/passkey/register/options",{});
-      if(!response.ok)throw new Error("options_failed");
+      if(!response.ok)throw new Error("options_failed_"+response.status);
       const envelope=await response.json() as unknown;
       if(!valid(envelope)||Date.parse(envelope.expiresAt)<=Date.now())
         throw new Error("invalid_options");
       const credential=await getRegistrationAttestation(envelope.options);
       const result=await post("/api/auth/passkey/register/verify",{flowId:envelope.flowId,credential});
-      if(!result.ok)throw new Error("verification_failed");
+      if(!result.ok)throw new Error("verification_failed_"+result.status);
       const status=await result.json() as {registered?:boolean};
       if(status.registered!==true)throw new Error("registration_not_confirmed");
       setMessage("パスキーを登録しました。次回からパスキーでログインできます。");
     }catch(e){
       const cancelled=e instanceof Error&&["NotAllowedError","AbortError"].includes(e.name);
+      const reason=e instanceof Error?e.message:"unknown";
       setMessage(cancelled?"パスキーの登録をキャンセルしました。":
-        "登録できませんでした。ログイン状態を確認してもう一度お試しください。");
+        reason.startsWith("verification_failed_")?
+          "端末側の操作は終わりましたが、アプリへの保存に失敗しました。もう一度登録してください。":
+        reason.startsWith("options_failed_")?
+          "登録準備に失敗しました。ログイン状態や通信状況を確認してください。":
+        "パスキーを登録できませんでした。ブラウザのパスキー設定を確認して再試行してください。");
       setFailed(true);
     }finally{setBusy(false);}
   };

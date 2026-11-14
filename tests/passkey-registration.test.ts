@@ -181,3 +181,19 @@ test("existing authenticated User enrolls without LINE reauthentication",async()
   },now),/Recent verified LINE identity/);
   assert.equal(fake.rows.size,1);
 });
+
+
+test("direct enrollment finish reaches WebAuthn validation, not a stale LINE step-up guard",async()=>{
+  const fake=new FakeD1();
+  const context:ExistingUserContext={sessionUserId:"same-user",enrollmentMode:"authenticated-session"};
+  const options=await beginExistingUserPasskeyRegistration(db(fake),context,now);
+  const fabricated={id:"AQID",type:"public-key",response:{clientDataJSON:"AQID",attestationObject:"AQID"}} as unknown as RegistrationResponseJSON;
+  await assert.rejects(finishExistingUserPasskeyRegistration(db(fake),context,"invalid-id",fabricated,now),
+    /Invalid passkey flow identifier/);
+  await assert.rejects(finishExistingUserPasskeyRegistration(db(fake),context,options.flowId,fabricated,now));
+  assert.equal(fake.rows.get(options.flowId)?.consumedAt,null);
+  assert.equal(fake.credentials.length,0);
+  await assert.rejects(finishExistingUserPasskeyRegistration(db(fake),{
+    sessionUserId:"same-user",lineIdentity:{reauthenticatedUserId:"someone-else",authenticationTimeSeconds:seconds},
+  },options.flowId,fabricated,now),/Recent verified LINE identity/);
+});

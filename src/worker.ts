@@ -3,8 +3,9 @@ import { validateAppDataSchema } from "./infrastructure/storage/app-data-schema"
 import { authMe, authenticatedUserId, authStoreUnavailableResponse, bootstrapAdmin, finishLineLogin, logout, startLineLogin } from "./worker/auth/line-login";
 import { requestCorrelationId, writeAuditLog } from "./worker/audit";
 import { handleLineFreePasskey } from "./worker/auth/passkey-line-free-http";
+import { handleS2BPasskeyRequest } from "./worker/auth/passkey-http";
 import {createPasskeyRecoveryGrant} from "./worker/auth/passkey-recovery";
-interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; PASSKEY_ENV?: string; }
+interface Env { DB: D1Database; ASSETS: Fetcher; LINE_CHANNEL_ID?: string; LINE_CHANNEL_SECRET?: string; AUTH_SESSION_SECRET?: string; PASSKEY_ENV?: string; PASSKEY_REGISTRATION_ENABLED?: string; PASSKEY_AUTH_ENVIRONMENT?: string; PASSKEY_PREVIEW_ORIGIN?: string; }
 const json=(data:unknown,init:ResponseInit={})=>new Response(JSON.stringify(data),{...init,headers:{"content-type":"application/json; charset=utf-8",...init.headers}});
 const bad=(code:string,message:string,status=400)=>json({error:{code,message}},{status});
 const body=async(request:Request)=>{try{return await request.json() as Record<string,unknown>}catch{return null}};
@@ -19,7 +20,7 @@ const canUseGroup=async(env:Env,userId:string,groupId:string)=>await isSystemAdm
 const sessionGroup=async(env:Env,sessionId:string)=>env.DB.prepare("SELECT group_id AS groupId FROM sessions WHERE id=?").bind(sessionId).first<{groupId:string}>();
 const canInvite=async(env:Env,userId:string,groupId:string)=>await isSystemAdmin(env,userId)||(await groupRole(env,userId,groupId))?.role==="group_admin";
 export default { async fetch(request:Request,env:Env):Promise<Response>{
- const url=new URL(request.url),requestId=requestCorrelationId(request); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); const passkeyResponse=await handleLineFreePasskey(request,env); if(passkeyResponse)return passkeyResponse; if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return finishLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/me")return authMe(request,env); if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(); if(request.method==="POST"&&url.pathname==="/api/auth/bootstrap-admin")return bootstrapAdmin(request,env);
+ const url=new URL(request.url),requestId=requestCorrelationId(request); if(!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request); const passkeyResponse=await handleLineFreePasskey(request,env); if(passkeyResponse)return passkeyResponse; const selfPasskeyResponse=await handleS2BPasskeyRequest(request,env); if(selfPasskeyResponse)return selfPasskeyResponse; if(request.method==="GET"&&url.pathname==="/api/auth/line/start")return startLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/line/callback")return finishLineLogin(request,env); if(request.method==="GET"&&url.pathname==="/api/auth/me")return authMe(request,env); if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(); if(request.method==="POST"&&url.pathname==="/api/auth/bootstrap-admin")return bootstrapAdmin(request,env);
  if(request.method==="GET"&&url.pathname==="/api/health"){const row=await env.DB.prepare("SELECT 1 AS ok").first<{ok:number}>();return json({ok:row?.ok===1});}
  let authUserId:string|null;
  try{authUserId=await authenticatedUserId(request,env);}

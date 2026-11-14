@@ -11,7 +11,7 @@ test("logged-in passkey enrollment UI does not initiate LINE step-up",()=>{
   assert.ok(!ui.includes("LINEで本人確認"));
   assert.ok(!ui.includes("window.location.assign"));
 });
-\n
+
 test("account menu shows persisted passkey status and updates after registration",()=>{
   const ui=readFileSync("src/components/passkey-enrollment.tsx","utf8");
   assert.ok(ui.includes('fetch("/api/auth/passkey/register/status"'));

@@ -202,7 +202,7 @@ test("P1 Android UAT capability uses exact P0 host; rejects old selectors and Pr
   assert.deepEqual(await conflicting.json(),{registrationEnabled:false});
   assert.deepEqual(db.prepared,[]);
 });
-\n
+
 test("passkey registration status is authenticated, current-user scoped and read-only",async()=>{
   const db=new FakeDb();
   const path="/api/auth/passkey/register/status";

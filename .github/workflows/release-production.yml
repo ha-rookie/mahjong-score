@@ -88,7 +88,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      deployments: read
     steps:
       - uses: actions/checkout@v6
         with:

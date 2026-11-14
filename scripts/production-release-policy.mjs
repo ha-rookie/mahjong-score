@@ -24,8 +24,7 @@ export function assertReleaseTopology(ci, release) {
      !release.includes("cancel-in-progress: false")||
      !release.includes("permissions:")||
      !release.includes("contents: read")||
-     !release.includes("actions: read")||
-     !release.includes("deployments: read"))
+     !release.includes("actions: read"))
     fail("Release environment/concurrency/permissions missing");
   if(!release.includes("scripts/production-release-gate.mjs environment")||
      !release.includes("scripts/production-release-gate.mjs context")||

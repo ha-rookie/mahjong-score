@@ -117,6 +117,8 @@ test("Wrong Production D1 UUID, preview ID, name, or missing binding deny mutati
 });
 test("Recovery bookmark and explicit future Environment arming gate required",()=>{
   assert.equal(verifyRecoveryPoint({bookmark:"bookmark-checked-123"}),true);
+  assert.equal(verifyRecoveryPoint({success:true,result:{bookmark:"bookmark-checked-123"}}),true);
+  assert.throws(()=>verifyRecoveryPoint({success:false,result:{bookmark:"bookmark-checked-123"}}),/DENIED/);
   assert.equal(verifyEnvArmed("armed-for-production-release"),true);
   for(const invalid of [null,{}, {bookmark:""}, {bookmark:2}])
     assert.throws(()=>verifyRecoveryPoint(invalid),/DENIED/);
@@ -127,7 +129,7 @@ test("Release workflow does not use privileged GITHUB_TOKEN, PR merge or UAT dep
   assert.doesNotMatch(release,/permissions:\s*\n\s*contents:\s*write|id-token:\s*write/);
   assert.doesNotMatch(release,/workflow_run:|pull_request:|github\.event_name == 'push'/);
   assert.match(release,/actions: read/);
-  assert.match(release,/deployments: read/);
+  assert.doesNotMatch(release,/deployments: (read|write)/);
   assert.match(release,/Verify actual Production D1 UUID/);
   assert.match(release,/Record unapplied Production Migration list/);
   assert.match(release,/Capture and verify Production D1 recovery bookmark/);

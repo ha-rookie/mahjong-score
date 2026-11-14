@@ -77,7 +77,12 @@ export function verifyProductionD1Information(info,config) {
   return true;
 }
 export function verifyRecoveryPoint(info){
-  if(typeof info?.bookmark!=="string"||info.bookmark.length<4)
+  // Wrangler's JSON formatter may expose bookmark at the top level;
+  // the Cloudflare API response uses result.bookmark. No silent fallback
+  // when neither one is present or the response contains an error.
+  if(info?.success===false)deny("D1 Recovery Point request failed");
+  const bookmark=info?.bookmark??info?.result?.bookmark;
+  if(typeof bookmark!=="string"||bookmark.length<4)
     deny("D1 Recovery Point bookmark missing");
   return true;
 }

@@ -17,12 +17,20 @@ class FakeDb{
   readonly prepared:string[]=[];
   stepups=0;
   challenges=0;
+  passkeyCount=0;
+  lastStatusUser:string|null=null;
+  statusDbDown=false;
   proofAvailable=false;
   prepare(sql:string){
     this.prepared.push(sql);
     const inc=()=>{this.stepups++;};
     const hasProof=()=>this.proofAvailable;
     const incrementChallenge=()=>{this.challenges++;};
+    const countForCurrentUser=(userId:unknown)=>{
+      this.lastStatusUser=String(userId);
+      if(this.statusDbDown)throw new Error("D1 unavailable");
+      return this.passkeyCount;
+    };
     let args:unknown[]=[];
     return {
       bind(...values:unknown[]){args=values;return this;},
@@ -30,6 +38,8 @@ class FakeDb{
         if(sql.includes("SELECT id,auth_version AS authVersion FROM users WHERE id=?"))
           return {id:args[0],authVersion:0} as T;
         if(sql==="SELECT id FROM users WHERE id=?")return {id:args[0]} as T;
+        if(sql==="SELECT COUNT(*) AS count FROM passkey_credentials WHERE user_id=? AND revoked_at IS NULL")
+          return {count:countForCurrentUser(args[0])} as T;
         if(sql.includes("SELECT 1 AS ok FROM external_identities"))
           return {ok:1} as T;
         if(sql.includes("SELECT COUNT(*) AS total FROM passkey_line_stepups"))
@@ -191,4 +201,33 @@ test("P1 Android UAT capability uses exact P0 host; rejects old selectors and Pr
   });
   assert.deepEqual(await conflicting.json(),{registrationEnabled:false});
   assert.deepEqual(db.prepared,[]);
+});
+
+test("passkey registration status is authenticated, current-user scoped and read-only",async()=>{
+  const db=new FakeDb();
+  const path="/api/auth/passkey/register/status";
+  const unauthorized=await req(path,db,true,{method:"GET",cookie:null});
+  assert.equal(unauthorized.status,401);
+  assert.equal(db.lastStatusUser,null);
+  const wrongMethod=await req(path,db,true,{method:"POST",origin:host,json:true});
+  assert.equal(wrongMethod.status,405);
+  db.passkeyCount=0;
+  const notRegistered=await req(path,db,true,{method:"GET"});
+  assert.equal(notRegistered.status,200);
+  assert.deepEqual(await notRegistered.json(),{registered:false,count:0});
+  assert.equal(db.lastStatusUser,"user-1");
+  db.passkeyCount=2;
+  const registered=await req(path,db,true,{method:"GET",cookie:await signedCookie("other-user")});
+  assert.deepEqual(await registered.json(),{registered:true,count:2});
+  assert.equal(db.lastStatusUser,"other-user");
+  assert.equal(registered.headers.get("cache-control"),"no-store");
+  assert.equal(db.stepups,0);
+  assert.equal(db.challenges,0);
+  assert.equal(db.prepared.filter(x=>/INSERT|UPDATE|DELETE/.test(x)).length,0);
+  db.statusDbDown=true;
+  const unavailable=await req(path,db,true,{method:"GET"});
+  assert.notEqual(unavailable.status,200);
+  assert.notDeepEqual(await unavailable.json(),{registered:false,count:0});
+  const disabled=await req(path,db,false,{method:"GET"});
+  assert.equal(disabled.status,404);
 });

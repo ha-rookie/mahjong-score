@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { checkReleaseTopologyOnDisk } from "./production-release-policy.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -126,6 +127,9 @@ if (/wrangler\s+d1\s+execute/i.test(productionWorkflow)) {
 if (/performance-output|generate-[^\n]*fixture/i.test(productionWorkflow)) {
   fail("Production deploy workflow must not contain fixture/seed paths");
 }
+
+try { checkReleaseTopologyOnDisk(root); }
+catch (error) { fail(error instanceof Error ? error.message : String(error)); }
 
 if (process.exitCode) {
   process.exit(process.exitCode);

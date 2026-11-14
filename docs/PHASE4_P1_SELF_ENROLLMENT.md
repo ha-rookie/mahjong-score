@@ -1,0 +1,33 @@
+# Phase 4 P1: existing LINE User self-service passkey enrollment (#360)
+
+## Scope and dependency
+- Feature: signed-in LINE User adds passkey to **same** User ID from account menu. Subsequent authentication uses P0 #358 passkey login flow.
+- This is a **stacked branch on unmerged Draft PR #358**. Invite enrollment and admin-guided existing User recovery remain unchanged.
+- No change to User ID, Player, Group, Session, Game, Score, LINE external identity, or existing signed session.
+- Reuse security-reviewed S2-B modules from earlier Draft PR #353; do not merge the old stacked PRs.
+
+## Architecture and guardrails
+- `PASSKEY_REGISTRATION_ENABLED` is disabled when unset. No deployment or configuration change is part of this PR.
+- Only a logged-in, authVersion-validated LINE User may start a same-origin POST to initiate recent LINE OAuth reauthentication (prompt=login, max_age=0).
+- A newly verified ID token must map to the same existing User via LINE subject and nonce. A server-stored, single-use HttpOnly proof is bound to the original signed browser session.
+- Credential registration uses a hashed D1 one-shot WebAuthn challenge, fixed server RP/Origin, P-256 UV verification and existing User's credential list. No new User / Player creation and no permission migration.
+- After LINE callback, frontend checks recent proof status from server; the URL marker is never an authentication assertion.
+- Additive local database migration `0014_passkey_line_stepup.sql`; existing parent 0012 and all prior migrations are untouched.
+- There are distinct P0 and P1 environment selectors; both must be reconciled to the same intended host during release review.
+
+## Release gates
+- Validate lint/test/build, local D1 migrations, existing data regression and old LINE + invite flows.
+- Actual Android Chrome and iPhone Safari enrollment validation must be recorded separately; no live-app proof is claimed by simulated CI.
+- Review session binding, origin/CSRF, token freshness, challenge replays, credential uniqueness, D1 authorization and disabled-by-default flag.
+- **No approval for main merge, Remote D1, Secrets, vars, UAT or Production deploy**. Do not enable the flag for users until P0 #358 has merged and an explicit later release authorization.
+
+## November 14, 2026 — authentication integration fixes
+- **P0/P1 RP parity:** P1 now uses the P0 `PASSKEY_ENV` selector, with only the fixed Production or Android UAT host. Obsolete `PASSKEY_AUTH_ENVIRONMENT` / `PASSKEY_PREVIEW_ORIGIN` selectors are rejected; Android UAT still requires a distinct, separately configured LINE channel. No environment variable was changed.
+- **LINE documented optional `amr`:** Official LINE Login token contract says this claim can be absent (https://developers.line.biz/en/reference/line-login/). Accept an omitted claim only while retaining prompt=login / max_age=0, verified recent `auth_time`, issuer, audience, nonce, one-time state, and same-user identity; reject explicit `lineautologin`, unknown or empty arrays.
+- **Cookie renewal:** `/api/auth/me` cannot receive the `Path=/api/auth/passkey` proof Cookie. It checks a recent, unconsumed step-up DB row bound to the signed User and exact session-cookie hash to defer sliding renewal (maximum five minutes), without widening the HttpOnly proof Cookie path. Credential registration still requires the real proof Cookie and verifies it separately. Invalid/expired/no step-up or flag OFF retains normal renewal; tests model the actual cookie-path behavior.
+- **Release remains blocked:** Android Chrome end-to-end acceptance, separate LINE UAT channel registration and explicit approval are not completed. No deploy, remote D1, configuration or secret changes.
+
+## 2026-11-14｜親PRの公開APIレート制限を子へ追従
+- 親 #358 のHEAD `78b44257d4e7434ba1673d92223d239c54935540` を第二親とするGit merge commitでP0の公開Options制限・実SQLite否定系テスト・期限切れChallenge削除を取り込み、子 #361 の認証機能を保持した。
+- 親のMigration `0013_passkey_public_budget.sql` を優先し、子のLINE step-up追加Migrationを `0014_passkey_line_stepup.sql` に改番。両方が同じPR/本番適用順になるまで、どちらもRemote D1へは適用しない。
+- 両PRはmain向けCI検証専用のbaseだが、本番統合順序は必ず #358 → #361 とする。両PR間でのUser/Player/Score変更は許可されない。

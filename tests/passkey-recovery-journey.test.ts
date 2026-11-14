@@ -122,7 +122,7 @@ const environment=(d:RealSqliteD1)=>({
 }) as unknown as Parameters<typeof worker.fetch>[1];
 const makePost=(path:string,body:unknown,cookie?:string)=>new Request(ORIGIN+path,{
   method:"POST",headers:{
-    "origin":ORIGIN,"content-type":"application/json",
+    "origin":ORIGIN,"content-type":"application/json","cf-connecting-ip":"203.0.113.77",
     ...(cookie?{"cookie":cookie}:{}),
   },body:JSON.stringify(body),
 });

@@ -110,7 +110,7 @@ test("P0 anonymous passkey API is same-origin POST, never needs LINE",async()=>{
   const fake=new FakeDb(),env={DB:db(fake),AUTH_SESSION_SECRET:"unused-test-secret"};
   const post=(url:string,origin:string,body:unknown,method="POST")=>
     handleLineFreePasskey(new Request(url,{method,headers:{
-      origin,"content-type":"application/json","cf-connecting-ip":"203.0.113.6","cf-connecting-ip":"203.0.113.5",
+      origin,"content-type":"application/json","cf-connecting-ip":"203.0.113.5",
     },...(method==="POST"?{body:JSON.stringify(body)}:{})}),env);
   const base="https://mahjong-score.ha-rookie.workers.dev";
   assert.equal((await post(base+"/api/auth/passkey/invite/options","https://evil.example",{token}))?.status,403);
@@ -132,7 +132,7 @@ test("P0 Android UAT binds challenge to its fixed HTTPS RP only",async()=>{
   const prod="https://mahjong-score.ha-rookie.workers.dev";
   const post=(url:string,origin:string,path:string,body:unknown)=>
     handleLineFreePasskey(new Request(url+path,{method:"POST",headers:{
-      origin,"content-type":"application/json",
+      origin,"content-type":"application/json","cf-connecting-ip":"203.0.113.6",
     },body:JSON.stringify(body)}),env);
   const login="/api/auth/passkey/login/options";
   assert.equal((await post(prod,prod,login,{}))?.status,403);

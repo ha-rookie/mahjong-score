@@ -59,7 +59,7 @@ test("P1 cannot silently select an RP different from P0",()=>{
 
 
 test("deployed Production config enables logged-in LINE User passkey enrollment",()=>{
-  const config=JSON.parse(fs.readFileSync(new URL("../wrangler.jsonc",import.meta.url),"utf8")) as {
+  const config=JSON.parse(fs.readFileSync("wrangler.jsonc","utf8")) as {
     vars?:Record<string,string>;
   };
   assert.equal(config.vars?.LINE_CHANNEL_ID,PASSKEY_PRODUCTION_LINE_CHANNEL_ID);

@@ -9,7 +9,7 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { authenticatedUserId, authStoreUnavailableResponse } from "./line-login";
 import {
-  beginPasskeyLineStepUp, consumePasskeyStepUpProof,
+  beginPasskeyLineStepUp,
   finishPasskeyLineStepUp, isPasskeyStepUpState, readPasskeyStepUpProof,
 } from "./line-stepup";
 import {
@@ -147,27 +147,22 @@ export const handleS2BPasskeyRequest=async (
     }
     if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
       return error("invalid_content_type",415);
-    const proof=await checkedProof(request,env,session);
-    if(!proof){audit(request,"passkey_stepup_required",userId);return error("passkey_recent_line_required",403);}
+    // The existing signed-in User is resolved server-side, not from a
+    // client-provided user ID. No second LINE login is required.
+    const context={sessionUserId:userId,enrollmentMode:"authenticated-session"} as const;
     if(url.pathname==="/api/auth/passkey/register/options"){
-      const options=await beginExistingUserPasskeyRegistration(env.DB,{
-        sessionUserId:userId,lineIdentity:proof.identity,
-      },new Date(),env);
+      const options=await beginExistingUserPasskeyRegistration(env.DB,context,new Date(),env);
       return reply(options,200);
     }
-    // POST verify: proof is one-shot BEFORE credential insert. Bad response
-    // consumes the proof; recovery is explicit LINE step-up reauthentication.
+    // POST verify must use the same User and valid one-time WebAuthn challenge.
     const body=await safeJSONBody(request);
     if(!body||typeof body!=="object"||Array.isArray(body))return error("invalid_registration_body",400);
     const b=body as Record<string,unknown>;
     if(typeof b.flowId!=="string"||b.flowId.length>100 ||
         !b.credential||typeof b.credential!=="object"||Array.isArray(b.credential))
       return error("invalid_registration_body",400);
-    if(!await consumePasskeyStepUpProof(env.DB,userId,sessionCookie,proof.proofToken))
-      return error("passkey_recent_line_required",403);
-    const result=await finishExistingUserPasskeyRegistration(env.DB,{
-      sessionUserId:userId,lineIdentity:proof.identity,
-    },b.flowId,b.credential as RegistrationResponseJSON,new Date(),env);
+    const result=await finishExistingUserPasskeyRegistration(env.DB,
+      context,b.flowId,b.credential as RegistrationResponseJSON,new Date(),env);
     audit(request,"passkey_registration_success",userId);
     return new Response(JSON.stringify({registered:true,credentialId:result.credentialId}),{
       status:201,headers:{...noStore,"set-cookie":clearProof},

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import fs from "node:fs";
 import {
   resolvePasskeyRelyingParty, isPasskeyEnrollmentActive,
   PASSKEY_PRODUCTION_ORIGIN, PASSKEY_PRODUCTION_RP_ID,
@@ -54,4 +55,17 @@ test("P1 cannot silently select an RP different from P0",()=>{
     assert.throws(()=>resolvePasskeyRelyingParty(env));
     assert.equal(isPasskeyEnrollmentActive({...env,PASSKEY_REGISTRATION_ENABLED:"true"}),false);
   }
+});
+
+
+test("deployed Production config enables logged-in LINE User passkey enrollment",()=>{
+  const config=JSON.parse(fs.readFileSync(new URL("../wrangler.jsonc",import.meta.url),"utf8")) as {
+    vars?:Record<string,string>;
+  };
+  assert.equal(config.vars?.LINE_CHANNEL_ID,PASSKEY_PRODUCTION_LINE_CHANNEL_ID);
+  assert.equal(config.vars?.PASSKEY_REGISTRATION_ENABLED,"true");
+  assert.equal(isPasskeyEnrollmentActive(config.vars??{}),true);
+  const rp=resolvePasskeyRelyingParty(config.vars??{});
+  assert.equal(rp.origin,PASSKEY_PRODUCTION_ORIGIN);
+  assert.equal(rp.rpId,PASSKEY_PRODUCTION_RP_ID);
 });

@@ -132,7 +132,7 @@ test("P0 pruning deletes only expired-for-24h challenges, max 32 each pass, reta
     const liveExpires="2026-11-14T10:00:00.000Z";
     const add=(id:string,expires:string)=>d.sqlite.prepare(
       "INSERT INTO auth_challenges(id,challenge_hash,purpose,expected_origin,rp_id,created_at,expires_at) VALUES(?,?,?,?,?,?,?)"
-    ).run(id,"test-digest","login",origin,"mahjong-score.ha-rookie.workers.dev","2026-11-12T00:00:00.000Z",expires);
+    ).run(id,"test-digest-"+id,"login",origin,"mahjong-score.ha-rookie.workers.dev","2026-11-12T00:00:00.000Z",expires);
     for(let i=0;i<50;i++)add("expired-"+i,oldExpires);
     add("recent",recentExpires);add("live",liveExpires);
     for(let i=0;i<50;i++)d.sqlite.prepare(

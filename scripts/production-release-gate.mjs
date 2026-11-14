@@ -54,6 +54,20 @@ export function verifyNoEarlierRelease(runs,ownRunId,approvedSha) {
     deny("another workflow already attempted this exact SHA; manual recovery required");
   return true;
 }
+export function verifyMigrationApprovalSyntax(approved,files){
+  if(typeof approved!=="string"||!Array.isArray(files))
+    deny("migration approval data missing");
+  const source=files.filter(x=>x.endsWith(".sql")).sort();
+  const received=approved==="none"?[]:approved.split(",").map(x=>x.trim());
+  if(source.length===0||source.some(x=>!/^[0-9]{4}_[a-z0-9_]+\.sql$/.test(x))||
+     received.some(x=>!/^[0-9]{4}_[a-z0-9_]+\.sql$/.test(x))||
+     new Set(received).size!==received.length||
+     received.some(x=>!source.includes(x))||
+     received.some((x,i)=>i>0&&x<=received[i-1]))
+    deny("malformed, unordered, duplicate or unknown approved migrations");
+  return received;
+}
+
 export function verifyApprovedMigrations(approved,files,applied) {
   if(typeof approved!=="string"||!Array.isArray(files)||!Array.isArray(applied))
     deny("migration approval data missing");
@@ -81,7 +95,7 @@ export function readRemoteAppliedMigrations(response){
     deny("remote D1 migration ledger is unavailable, truncated or malformed");
   const rows=response.result[0].results;
   const names=rows.map(row=>row?.name);
-  if(names.some(x=>typeof x!=="string"||!/^[0-9]{4}_[a-z0-9_]+\\.sql$/.test(x))||
+  if(names.some(x=>typeof x!=="string"||!/^[0-9]{4}_[a-z0-9_]+\.sql$/.test(x))||
      new Set(names).size!==names.length)
     deny("remote D1 migration ledger contains malformed or duplicate names");
   return names;
@@ -90,7 +104,7 @@ export function verifyRemoteMigrationPlan(response,sourceFiles,approved,stage){
   if(!["before","after"].includes(stage))deny("invalid remote migration verification stage");
   if(!Array.isArray(sourceFiles))deny("source migration list unavailable");
   const source=sourceFiles.filter(x=>x.endsWith(".sql")).sort();
-  if(source.length===0||source.some(x=>!/^[0-9]{4}_[a-z0-9_]+\\.sql$/.test(x))||
+  if(source.length===0||source.some(x=>!/^[0-9]{4}_[a-z0-9_]+\.sql$/.test(x))||
      new Set(source).size!==source.length)
     deny("source migration list is malformed or empty");
   const applied=readRemoteAppliedMigrations(response);
@@ -149,10 +163,9 @@ function cli() {
   else if(mode==="environment")verifyEnvironment(read(process.argv[3]),read(process.argv[4]));
   else if(mode==="duplicate")verifyNoEarlierRelease(
     read(process.argv[3]),process.env.GITHUB_RUN_ID,process.env.RELEASE_SHA);
-  else if(mode==="migrations")verifyApprovedMigrations(
+  else if(mode==="migrations")verifyMigrationApprovalSyntax(
     process.env.APPROVED_MIGRATIONS,
-    fs.readdirSync(path.join(process.cwd(),"migrations")),
-    appliedProductionMigrationNames);
+    fs.readdirSync(path.join(process.cwd(),"migrations")));
   else if(mode==="remote-migrations")verifyRemoteMigrationPlan(
     read(process.argv[4]),fs.readdirSync(path.join(process.cwd(),"migrations")),
     process.env.APPROVED_MIGRATIONS,process.argv[3]);

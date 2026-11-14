@@ -5,7 +5,7 @@ import { assertReleaseTopology } from "./production-release-policy.mjs";
 import {
   verifyReleaseContext,verifyEnvironment,verifyNoEarlierRelease,
   verifyApprovedMigrations,verifyProductionD1Information,
-  verifyRecoveryPoint,verifyEnvArmed,readRemoteAppliedMigrations,verifyRemoteMigrationPlan,
+  verifyRecoveryPoint,verifyEnvArmed,readRemoteAppliedMigrations,verifyRemoteMigrationPlan,verifyMigrationApprovalSyntax,
 } from "./production-release-gate.mjs";
 
 const ci=fs.readFileSync(".github/workflows/deploy-production.yml","utf8");
@@ -201,4 +201,14 @@ test("Cloudflare D1 migration query is read-only, pinned, and cannot run before 
   const postQuery=release.lastIndexOf("SELECT name FROM d1_migrations");
   assert.ok(approval>=0&&firstQuery>approval&&firstMutation>firstQuery&&postQuery>firstMutation);
   assert.doesNotMatch(release,/--request DELETE|--request PUT/);
+});
+
+test("Preflight checks migration approval syntax, not stale source baseline",()=>{
+  assert.deepEqual(verifyMigrationApprovalSyntax("0012_new_feature.sql,0013_new_feature.sql",source),next.slice(1));
+  assert.deepEqual(verifyMigrationApprovalSyntax("none",source),[]);
+  for(const bad of [
+    "0013_new_feature.sql,0012_new_feature.sql",
+    "0012_new_feature.sql,0012_new_feature.sql",
+    "0014_unknown.sql","", "0012_new_feature.sql,",
+  ])assert.throws(()=>verifyMigrationApprovalSyntax(bad,source),/DENIED/);
 });

@@ -169,12 +169,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --retry 2 \\
-            --request POST \\
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
-            --header "Content-Type: application/json" \\
-            --data '{"sql":"SELECT name FROM d1_migrations ORDER BY id"}' \\
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/95a84e69-692e-45f1-9762-0b71b298199b/query" \\
+          curl --fail-with-body --silent --show-error --retry 2 \
+            --request POST \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"sql":"SELECT name FROM d1_migrations ORDER BY id"}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/95a84e69-692e-45f1-9762-0b71b298199b/query" \
             > /tmp/prod-migrations-before.json
           node scripts/production-release-gate.mjs remote-migrations before /tmp/prod-migrations-before.json
       - name: Capture and verify Production D1 recovery bookmark (read only)
@@ -208,12 +208,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --retry 2 \\
-            --request POST \\
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
-            --header "Content-Type: application/json" \\
-            --data '{"sql":"SELECT name FROM d1_migrations ORDER BY id"}' \\
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/95a84e69-692e-45f1-9762-0b71b298199b/query" \\
+          curl --fail-with-body --silent --show-error --retry 2 \
+            --request POST \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"sql":"SELECT name FROM d1_migrations ORDER BY id"}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/95a84e69-692e-45f1-9762-0b71b298199b/query" \
             > /tmp/prod-migrations-after.json
           node scripts/production-release-gate.mjs remote-migrations after /tmp/prod-migrations-after.json
       - name: Recheck main HEAD immediately before Worker deploy

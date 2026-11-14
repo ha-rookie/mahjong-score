@@ -6,6 +6,9 @@ import {
 import {resolvePasskeyRelyingParty,type PasskeyRelyingParty} from "./passkey-rp";
 import {issuePasskeySessionCookie} from "./line-login";
 import {beginExistingUserRecovery,finishExistingUserRecovery} from "./passkey-recovery";
+import {
+  admitPublicPasskeyOptions,pruneExpiredPasskeyState,PublicPasskeyRateLimited,
+} from "./passkey-public-traffic";
 
 type Env={DB:D1Database;AUTH_SESSION_SECRET?:string;PASSKEY_ENV?:string};
 const routes=new Set([
@@ -45,10 +48,17 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
   if(!env.AUTH_SESSION_SECRET)return fail("auth_unavailable",503);
   let b:Record<string,unknown>;
   try{b=await parse(request);}catch{return fail("invalid_body",400);}
+  const issueBudgetedOptions=async()=>{
+    await admitPublicPasskeyOptions(env.DB,request);
+    // Cleanup only after an admitted request; the query is no-op if no
+    // challenges or budget rows have crossed the 24h retention cutoff.
+    await pruneExpiredPasskeyState(env.DB);
+  };
   try{
     switch(url.pathname){
       case "/api/auth/passkey/invite/options":{
         if(typeof b.token!=="string")return fail("invalid_invite",400);
+        await issueBudgetedOptions();
         return json(await beginInvitePasskey(env.DB,b.token,undefined,rp));
       }
       case "/api/auth/passkey/invite/verify":{
@@ -61,6 +71,7 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
       }
       case "/api/auth/passkey/recovery/options":{
         if(typeof b.token!=="string")return fail("invalid_recovery",400);
+        await issueBudgetedOptions();
         return json(await beginExistingUserRecovery(env.DB,b.token,undefined,rp));
       }
       case "/api/auth/passkey/recovery/verify":{
@@ -72,6 +83,7 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,saved.userId));
       }
       case "/api/auth/passkey/login/options":
+        await issueBudgetedOptions();
         return json(await beginPasskeyLogin(env.DB,undefined,rp));
       case "/api/auth/passkey/login/verify":{
         if(typeof b.flowId!=="string"||!asObject(b.credential))
@@ -82,7 +94,15 @@ export const handleLineFreePasskey=async(request:Request,env:Env):Promise<Respon
           await issuePasskeySessionCookie(env.DB,env.AUTH_SESSION_SECRET,result.userId));
       }
     }
-  }catch{
+  }catch(e){
+    if(e instanceof PublicPasskeyRateLimited){
+      return new Response(JSON.stringify({error:{code:"passkey_rate_limited"}}),{
+        status:429,headers:{
+          "content-type":"application/json; charset=utf-8",
+          "cache-control":"no-store","retry-after":"300",
+        },
+      });
+    }
     // A wrong invite, non-matching credential or replay must not expose SQL,
     // user's identity, stored public key or registration challenge.
     return fail("passkey_not_completed",409);

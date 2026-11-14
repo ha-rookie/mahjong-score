@@ -12,7 +12,7 @@
 - A newly verified ID token must map to the same existing User via LINE subject and nonce. A server-stored, single-use HttpOnly proof is bound to the original signed browser session.
 - Credential registration uses a hashed D1 one-shot WebAuthn challenge, fixed server RP/Origin, P-256 UV verification and existing User's credential list. No new User / Player creation and no permission migration.
 - After LINE callback, frontend checks recent proof status from server; the URL marker is never an authentication assertion.
-- Additive local database migration `0013_passkey_line_stepup.sql`; existing parent 0012 and all prior migrations are untouched.
+- Additive local database migration `0014_passkey_line_stepup.sql`; existing parent 0012 and all prior migrations are untouched.
 - There are distinct P0 and P1 environment selectors; both must be reconciled to the same intended host during release review.
 
 ## Release gates
@@ -26,3 +26,8 @@
 - **LINE documented optional `amr`:** Official LINE Login token contract says this claim can be absent (https://developers.line.biz/en/reference/line-login/). Accept an omitted claim only while retaining prompt=login / max_age=0, verified recent `auth_time`, issuer, audience, nonce, one-time state, and same-user identity; reject explicit `lineautologin`, unknown or empty arrays.
 - **Cookie renewal:** `/api/auth/me` cannot receive the `Path=/api/auth/passkey` proof Cookie. It checks a recent, unconsumed step-up DB row bound to the signed User and exact session-cookie hash to defer sliding renewal (maximum five minutes), without widening the HttpOnly proof Cookie path. Credential registration still requires the real proof Cookie and verifies it separately. Invalid/expired/no step-up or flag OFF retains normal renewal; tests model the actual cookie-path behavior.
 - **Release remains blocked:** Android Chrome end-to-end acceptance, separate LINE UAT channel registration and explicit approval are not completed. No deploy, remote D1, configuration or secret changes.
+
+## 2026-11-14｜親PRの公開APIレート制限を子へ追従
+- 親 #358 のHEAD `78b44257d4e7434ba1673d92223d239c54935540` を第二親とするGit merge commitでP0の公開Options制限・実SQLite否定系テスト・期限切れChallenge削除を取り込み、子 #361 の認証機能を保持した。
+- 親のMigration `0013_passkey_public_budget.sql` を優先し、子のLINE step-up追加Migrationを `0014_passkey_line_stepup.sql` に改番。両方が同じPR/本番適用順になるまで、どちらもRemote D1へは適用しない。
+- 両PRはmain向けCI検証専用のbaseだが、本番統合順序は必ず #358 → #361 とする。両PR間でのUser/Player/Score変更は許可されない。

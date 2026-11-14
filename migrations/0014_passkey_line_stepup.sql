@@ -1,4 +1,4 @@
--- Phase 4 P1 (#360), stacked on #358; 0012 belongs to existing user recovery – standalone, non-destructive OAuth step-up state.
+-- Phase 4 P1 (#360), stacked on #358; 0012 belongs to existing user recovery and 0013 to P0 public admission – standalone, non-destructive OAuth step-up state.
 -- NOT connected to production routes until the explicit Human release gate.
 -- Existing S1 auth_challenges, LINE sessions, users, Player and Score untouched.
 CREATE TABLE passkey_line_stepups (

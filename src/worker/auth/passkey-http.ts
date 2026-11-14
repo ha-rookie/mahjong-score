@@ -32,6 +32,7 @@ const paths=new Set([
   "/api/auth/passkey/stepup/status",
   "/api/auth/passkey/register/options",
   "/api/auth/passkey/register/verify",
+  "/api/auth/passkey/register/status",
 ]);
 const noStore={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const reply=(data:unknown,status:number)=>new Response(JSON.stringify(data),{status,headers:noStore});
@@ -98,13 +99,15 @@ export const handleS2BPasskeyRequest=async (
   const isCallback=url.pathname==="/api/auth/line/callback"&&
     isPasskeyStepUpState(url.searchParams.get("state"));
   const isProofStatus=url.pathname==="/api/auth/passkey/stepup/status";
+  const isRegistrationStatus=url.pathname==="/api/auth/passkey/register/status";
+  const isReadOnlyStatus=isProofStatus||isRegistrationStatus;
   if(!isCallback&&!paths.has(url.pathname))return null;
 
   if(url.origin!==rp.origin)return error("invalid_passkey_origin",403);
   // Status is read-only and cannot consume a proof; authenticated Cookie is
   // required later. Every mutating route still requires POST + CSRF Origin.
-  if(isProofStatus&&request.method!=="GET")return error("method_not_allowed",405);
-  if(!isCallback&&!isProofStatus && (request.method!=="POST" || !sameOrigin(request,rp.origin))){
+  if(isReadOnlyStatus&&request.method!=="GET")return error("method_not_allowed",405);
+  if(!isCallback&&!isReadOnlyStatus && (request.method!=="POST" || !sameOrigin(request,rp.origin))){
     audit(request,"passkey_origin_failure");
     return error("passkey_origin_denied",403);
   }
@@ -123,6 +126,17 @@ export const handleS2BPasskeyRequest=async (
     if(isProofStatus){
       const proof=await checkedProof(request,env,session);
       return reply({verified:proof!==null},200);
+    }
+    if(isRegistrationStatus){
+      // Only disclose the current signed-in User's active credential count;
+      // never return credential IDs, public keys, transports, or other users.
+      const result=await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM passkey_credentials WHERE user_id=? AND revoked_at IS NULL"
+      ).bind(userId).first<{count:number}>();
+      const count=result?.count;
+      if(!Number.isSafeInteger(count)||count!<0)
+        throw new Error("Invalid credential count");
+      return reply({registered:count>0,count},200);
     }
     if(isCallback){
       const state=url.searchParams.get("state"),code=url.searchParams.get("code");

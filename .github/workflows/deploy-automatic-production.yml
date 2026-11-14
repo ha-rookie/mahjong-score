@@ -132,3 +132,9 @@ jobs:
           grep -Eqi "^strict-transport-security: *max-age=31536000" <<< "$headers"
           grep -Eqi "^x-frame-options: *DENY" <<< "$headers"
           grep -Eqi "^x-content-type-options: nosniff" <<< "$headers"
+      - name: Verify public passkey enrollment capability after deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          capability="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors -H 'Cache-Control: no-cache' 'https://mahjong-score.ha-rookie.workers.dev/api/auth/passkey/capabilities')"
+          CAPABILITY_JSON="$capability" node -e 'const d=JSON.parse(process.env.CAPABILITY_JSON??"null");if(d?.registrationEnabled!==true){console.error("Production passkey registration is not enabled");process.exit(1);}console.log("Production passkey registration capability enabled");'

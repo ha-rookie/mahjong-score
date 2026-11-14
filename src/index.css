@@ -793,7 +793,7 @@ h2 {
 .account-menu__summary:hover{background:rgb(23 107 87 / 7%)}
 .account-menu__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem;font-weight:800}
 .account-menu__chevron{flex:0 0 auto;color:var(--muted);font-size:.72rem}
-.account-menu__panel{position:absolute;top:calc(100% + 6px);right:0;z-index:40;display:grid;gap:4px;width:190px;padding:10px;border:1px solid var(--line);border-radius:12px;background:rgb(255 255 252 / 98%);box-shadow:0 14px 36px rgb(20 25 24 / 16%);backdrop-filter:blur(12px)}
+.account-menu__panel{position:absolute;top:calc(100% + 6px);right:0;z-index:40;display:grid;grid-template-columns:minmax(0,1fr);gap:4px;width:min(280px,calc(100vw - 28px));max-width:calc(100vw - 28px);white-space:normal;padding:10px;border:1px solid var(--line);border-radius:12px;background:rgb(255 255 252 / 98%);box-shadow:0 14px 36px rgb(20 25 24 / 16%);backdrop-filter:blur(12px)}
 .account-menu__meta{display:grid;gap:2px;padding:4px 6px 8px;border-bottom:1px solid var(--line)}
 .account-menu__meta strong{font-size:.82rem}
 .account-menu__meta span{color:var(--muted);font-size:.7rem}
@@ -813,7 +813,7 @@ h2 {
   .header-session-refresh .session-refresh-icon{width:17px;height:17px}
   .account-menu__summary{max-width:84px;min-height:34px;padding-inline:6px}
   .account-menu__name{font-size:.72rem}
-  .account-menu__panel{right:-2px;width:180px}
+  .account-menu__panel{right:-2px}
 }
 @media(max-width:350px){
   .brand-mark{width:30px;height:30px}
@@ -899,7 +899,7 @@ h2 {
 
 /* Keep mobile app header on one line while making Back explicit. */
 .app-header__inner{flex-wrap:nowrap}
-.brand-lockup,.header-actions,.auth-status,.account-menu__summary,.header-back-button{white-space:nowrap}
+.brand-lockup,.header-actions,.account-menu__summary,.header-back-button{white-space:nowrap}
 .brand-lockup{min-width:0;flex:1 1 auto}
 .header-actions{flex:0 0 auto;min-width:0}
 .header-back-button{
@@ -975,10 +975,10 @@ h2 {
 .passkey-guest__error{color:var(--danger);font-weight:650}
 
 /* S2-B: shown ONLY after the server reports registrationEnabled=true. */
-.passkey-enroll{display:grid;gap:8px;border-top:1px solid var(--line);padding:12px 4px;text-align:left}
+.passkey-enroll{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;max-width:100%;gap:8px;border-top:1px solid var(--line);padding:12px 4px;text-align:left;white-space:normal}
 .passkey-enroll__title{margin:0;font-weight:850;font-size:.78rem;color:var(--teal-dark)}
 .passkey-enroll__description{margin:0;line-height:1.6;font-size:.7rem;color:var(--muted)}
-.passkey-enroll button{min-height:42px;width:100%;border-radius:9px;background:var(--teal-soft);border:1px solid rgb(23 107 87 / 22%);color:var(--teal-dark);font:inherit;font-size:.75rem;font-weight:800;cursor:pointer}
+.passkey-enroll button{min-height:42px;width:100%;min-width:0;white-space:normal;border-radius:9px;background:var(--teal-soft);border:1px solid rgb(23 107 87 / 22%);color:var(--teal-dark);font:inherit;font-size:.75rem;font-weight:800;cursor:pointer}
 .passkey-enroll button:disabled{cursor:not-allowed;opacity:.55}
 .passkey-enroll__notice,.passkey-enroll__error{margin:0;line-height:1.5;font-size:.7rem}
 .passkey-enroll__notice{color:var(--teal-dark)}
